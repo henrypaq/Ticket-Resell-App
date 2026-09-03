@@ -124,6 +124,23 @@ button does not render *and* the action returns "Demo sign-in is disabled."
 
 **Leave `ENABLE_DEMO_LOGIN` unset in any deployed environment.**
 
+#### Demo social data
+
+`scripts/seed-demo-social.mjs` seeds the demo account with a small social
+graph — four fake friend accounts, follows, a spread of "I'm going"
+confirmations, and one purchased + one listed ticket — so the home feed's
+"What your friends are into" / "Who I follow" and the Tickets page have
+something real to show instead of an empty state. Run it once after the
+demo account exists (`node scripts/seed-demo-social.mjs`, needs
+`SUPABASE_PROJECT_KEY` in `.env.local`); it's idempotent, safe to re-run.
+
+This only ever touches rows reachable from the demo account (as the
+follower/buyer, or the fake friend accounts it creates) — it doesn't hook
+into the real signup path at all, so a real account always starts with a
+genuinely empty social graph. Verified directly: a fresh, non-demo account
+signed in through the real magic-link flow sees neither section on the home
+page, and `/profile` shows "Following (0)".
+
 ### Admin console
 
 Two email addresses are seeded as admins in `0003_event_sourcing_and_admin.sql`

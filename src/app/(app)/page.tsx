@@ -10,16 +10,11 @@ import { TopVenues } from "@/components/top-venues";
 import { FriendActivity } from "@/components/friend-activity";
 import { OrganizerRecs } from "@/components/organizer-recs";
 import { FollowingPreview } from "@/components/following-preview";
-import {
-  communityHighlights,
-  topVenues,
-  friendActivity,
-  organizerRecs,
-  followingPreview,
-} from "@/lib/placeholder-content";
+import { communityHighlights, topVenues, organizerRecs } from "@/lib/placeholder-content";
 import { getFeed } from "@/domains/events/service";
 import { countUnread } from "@/domains/notifications/service";
 import { listWaitlistedEventIds } from "@/domains/waitlist/service";
+import { listFollowing, listFollowingActivity } from "@/domains/social/data";
 import { requireSessionUser } from "@/domains/users/session";
 import { logEvent } from "@/lib/analytics/log";
 import { EmptyState } from "@/components/empty-state";
@@ -35,10 +30,12 @@ export default async function ForYouPage({
   const user = await requireSessionUser();
   const params = await searchParams;
 
-  const [feedEvents, unread, waitlistedIds] = await Promise.all([
+  const [feedEvents, unread, waitlistedIds, following, followingActivity] = await Promise.all([
     getFeed({ range: params.range }),
     countUnread(user.id),
     listWaitlistedEventIds(user.id),
+    listFollowing(user.id),
+    listFollowingActivity(user.id),
   ]);
   const waitlisted = new Set(waitlistedIds);
 
@@ -116,12 +113,14 @@ export default async function ForYouPage({
         </div>
       </div>
 
-      <div className="mt-10 px-4">
-        <SectionHeader title="What your friends are into" />
-        <div className="mt-4">
-          <FriendActivity items={friendActivity} />
+      {followingActivity.length > 0 && (
+        <div className="mt-10 px-4">
+          <SectionHeader title="What your friends are into" />
+          <div className="mt-4">
+            <FriendActivity items={followingActivity} />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="mt-10">
         <SectionHeader title="For you to follow" subtitle="Organizers and artists we think you'll like" />
@@ -130,12 +129,14 @@ export default async function ForYouPage({
         </div>
       </div>
 
-      <div className="mt-10 px-4">
-        <SectionHeader title="Who I follow" />
-        <div className="mt-4">
-          <FollowingPreview people={followingPreview} />
+      {following.length > 0 && (
+        <div className="mt-10 px-4">
+          <SectionHeader title="Who I follow" />
+          <div className="mt-4">
+            <FollowingPreview people={following} />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="mt-10 px-4">
         <Link

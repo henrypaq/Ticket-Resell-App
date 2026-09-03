@@ -1,27 +1,31 @@
-import type { FriendActivityItem } from "@/lib/placeholder-content";
+import Link from "next/link";
+import type { FollowingActivityItem } from "@/domains/social/data";
 
 /**
- * "What your friends are into" — a brief single-column list, not a heavy
- * feed. No like/comment affordance: the Friend/Follow entities are Phase 3
- * and unbuilt, so any interactive control here would be exactly the kind of
- * control-that-doesn't-work the codebase avoids elsewhere (event-organizer.tsx).
+ * "What your friends are into" — real data (Phase 3's Follow +
+ * AttendanceConfirmation): recent "I'm going" confirmations from people the
+ * viewer follows, via listFollowingActivity (RLS-scoped, not a client-side
+ * filter). Each row links to the event. The empty case is handled by the
+ * caller (page.tsx hides the whole section rather than rendering this with
+ * an empty array), since "what your friends are into" doesn't make sense to
+ * show at all with zero follows.
  */
-export function FriendActivity({ items }: { items: FriendActivityItem[] }) {
+export function FriendActivity({ items }: { items: FollowingActivityItem[] }) {
   if (items.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-3.5">
       {items.map((item) => (
-        <div key={item.id} className="flex items-center gap-3">
+        <Link key={item.id} href={`/events/${item.eventId}`} className="flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-hairline bg-card text-[13px] font-bold text-ink">
-            {item.name.slice(0, 2).toUpperCase()}
+            {item.personName.slice(0, 2).toUpperCase()}
           </span>
           <p className="min-w-0 truncate text-[14px] text-ink">
-            <span className="font-semibold">{item.name}</span>{" "}
-            <span className="text-muted">{item.action}</span>{" "}
+            <span className="font-semibold">{item.personName}</span>{" "}
+            <span className="text-muted">is going to</span>{" "}
             <span className="font-semibold">{item.eventTitle}</span>
           </p>
-        </div>
+        </Link>
       ))}
     </div>
   );

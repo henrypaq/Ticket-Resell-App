@@ -1,10 +1,11 @@
 /**
  * Mock content for home-page sections that don't have a real domain behind
  * them yet: "most shared" ranking (needs the share_link_created rollups from
- * DATA_CAPTURE.md), a Venue entity, the Phase 3 social layer (Follow), and a
- * curated-recs algorithm. Nothing here is wired to a database — swapping any
- * section over to real data means replacing the corresponding array below
- * and the one call site in page.tsx, not touching the components.
+ * DATA_CAPTURE.md), a Venue entity, and a curated-recs algorithm for
+ * organizers. The Phase 3 social layer (Follow, AttendanceConfirmation) is
+ * real now — see domains/social/data.ts — so "What your friends are into"
+ * and "Who I follow" on the home page are no longer here; this file only
+ * covers the sections still waiting on a feature that doesn't exist yet.
  */
 
 export type CommunityHighlight = {
@@ -35,19 +36,6 @@ export const topVenues: PlaceholderVenue[] = [
   { id: "v-4", name: "Société des Arts Technologiques", neighborhood: "Quartier des Spectacles" },
 ];
 
-export type FriendActivityItem = {
-  id: string;
-  name: string;
-  action: string;
-  eventTitle: string;
-};
-
-export const friendActivity: FriendActivityItem[] = [
-  { id: "fa-1", name: "Sam", action: "is going to", eventTitle: "Midnight Sessions" },
-  { id: "fa-2", name: "Priya", action: "just saved", eventTitle: "Analog Nights" },
-  { id: "fa-3", name: "Marc-Antoine", action: "is going to", eventTitle: "Bass Coast Warmup" },
-];
-
 export type OrganizerRec = {
   id: string;
   name: string;
@@ -59,16 +47,4 @@ export const organizerRecs: OrganizerRec[] = [
   { id: "or-1", name: "Nightshift Collective", handle: "nightshiftmtl", blurb: "Underground techno, always at odd venues." },
   { id: "or-2", name: "Piknic Électronik", handle: "piknicelectronik", blurb: "Outdoor daytime sets all summer." },
   { id: "or-3", name: "Sofar Sounds Montreal", handle: "sofarmtl", blurb: "Secret-location acoustic shows." },
-];
-
-export type FollowingPreviewPerson = {
-  id: string;
-  name: string;
-};
-
-export const followingPreview: FollowingPreviewPerson[] = [
-  { id: "fp-1", name: "Sam" },
-  { id: "fp-2", name: "Priya" },
-  { id: "fp-3", name: "Marc-Antoine" },
-  { id: "fp-4", name: "Élo" },
 ];
