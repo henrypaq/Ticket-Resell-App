@@ -1,0 +1,23 @@
+# env
+.env
+.env.*
+!.env.example
+
+# deps
+node_modules/
+
+# build
+.next/
+dist/
+build/
+*.tsbuildinfo
+
+# vercel
+.vercel
+
+# supabase CLI local cache (project ref/org id, no secrets, but machine-local and regenerated on link)
+supabase/.temp/
+
+# misc
+.DS_Store
+*.log
