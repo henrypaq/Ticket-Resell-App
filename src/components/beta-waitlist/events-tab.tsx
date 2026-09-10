@@ -24,7 +24,7 @@ import { formatPhoneNational } from "@/lib/phone-format";
 import { ArrowLeft, CheckIcon } from "@/components/icons";
 import { CountryCodeSelect } from "./country-code-select";
 import { Field } from "./field";
-import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "./field-styles";
+import { BUTTON_CLASS, FIELD_CLASS } from "./field-styles";
 
 type Props = {
   profile: BetaSignupProfile | null;
@@ -412,13 +412,15 @@ function EventDetailView({
           onClick={toggleWaitlist}
         />
         {waitlisted && (
-          <div className="rounded-[18px] bg-white/[0.05] px-4 py-3">
+          <div className="border-l-2 border-[#ffe500] px-3 py-1">
             {waitlistPosition != null && (
               <p className="text-[15px] font-semibold text-ink">
                 You&apos;re #{waitlistPosition} on the waitlist
               </p>
             )}
-            <p className={`text-[13.5px] leading-relaxed text-muted ${waitlistPosition != null ? "mt-1" : ""}`}>
+            <p
+              className={`text-[13.5px] leading-relaxed text-muted ${waitlistPosition != null ? "mt-1" : ""}`}
+            >
               We&apos;ll notify you when a ticket is ready for you.
             </p>
           </div>
@@ -432,13 +434,13 @@ function EventDetailView({
               pending={pending}
               onClick={cancelSell}
             />
-            <p className="px-1 text-[13.5px] leading-relaxed text-muted">
+            <p className="border-l-2 border-white/20 px-3 py-1 text-[13.5px] leading-relaxed text-muted">
               We&apos;ll reach out on WhatsApp
               {sellContact?.contactPhone ? ` (${sellContact.contactPhone})` : ""}
               {sellContact?.contactInstagram
                 ? `${sellContact?.contactPhone ? " or" : ""} Instagram (@${sellContact.contactInstagram})`
                 : ""}{" "}
-              to arrange posting your ticket. Tap again to cancel.
+              to arrange posting your ticket. Tap the button above to cancel.
             </p>
           </>
         ) : showSellForm ? (
@@ -524,14 +526,14 @@ function SellContactForm({
   const canSubmit = (phoneOk || igOk) && !pending;
 
   return (
-    <div className="flex flex-col gap-3 rounded-[18px] bg-white/[0.05] p-4">
+    <div className="flex flex-col gap-3 rounded-[18px] border border-white/10 bg-black p-4">
       <p className="text-[13.5px] leading-relaxed text-muted">
         We&apos;ll reach out on WhatsApp to arrange posting your ticket. Prefer Instagram? Leave a
         username instead.
       </p>
       <Field label="WhatsApp number" htmlFor={`sell-phone-${eventSlug}`}>
-        <div className={FIELD_GROUP_CLASS}>
-          <CountryCodeSelect value={country} onChange={setCountry} className="border-r border-white/10" />
+        <div className="flex items-center rounded-[14px] border border-white/15 bg-black transition-colors focus-within:border-white/30">
+          <CountryCodeSelect value={country} onChange={setCountry} className="border-r border-white/15" />
           <input
             id={`sell-phone-${eventSlug}`}
             type="tel"
@@ -544,7 +546,7 @@ function SellContactForm({
         </div>
       </Field>
       <Field label="Or Instagram username" htmlFor={`sell-ig-${eventSlug}`}>
-        <div className="flex items-center rounded-[14px] bg-[#1a1a1d] px-5 focus-within:bg-[#222226]">
+        <div className="flex items-center rounded-[14px] border border-white/15 bg-black px-5 transition-colors focus-within:border-white/30">
           <span className="text-muted">@</span>
           <input
             id={`sell-ig-${eventSlug}`}
@@ -607,7 +609,9 @@ function InterestButton({
       disabled={pending}
       onClick={onClick}
       className={`flex w-full items-center justify-between gap-3 rounded-[18px] px-5 py-4 text-left transition-colors disabled:opacity-60 ${
-        active ? "bg-[#6ee1ff]/10" : "bg-white/[0.06] hover:bg-white/[0.09]"
+        active
+          ? "border border-[#6ee1ff]/45 bg-[#6ee1ff]/12 shadow-[inset_0_0_0_1px_rgba(110,225,255,0.08)]"
+          : "border border-white/20 bg-transparent hover:border-white/35 hover:bg-white/[0.04]"
       }`}
     >
       <span className="text-[15px] font-semibold">{label}</span>
