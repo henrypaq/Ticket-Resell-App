@@ -173,7 +173,7 @@ function MyWaitlistSection({
                 key={event.slug}
                 type="button"
                 onClick={() => onOpen(event, day)}
-                className="relative h-[118px] w-[96px] shrink-0 overflow-hidden rounded-[18px] ring-1 ring-white/12"
+                className="relative h-[148px] w-[120px] shrink-0 overflow-hidden rounded-[18px] ring-1 ring-white/12"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={event.flyerUrl} alt="" className="h-full w-full object-cover" />
@@ -182,7 +182,7 @@ function MyWaitlistSection({
                   className="absolute inset-0 bg-gradient-to-b from-black/85 via-transparent to-black/75"
                 />
                 <div className="absolute inset-x-0 top-0 p-2">
-                  <span className="headline text-left text-[11px] leading-tight text-ink">
+                  <span className="headline text-left text-[12px] leading-tight text-ink">
                     {event.name}
                   </span>
                 </div>
