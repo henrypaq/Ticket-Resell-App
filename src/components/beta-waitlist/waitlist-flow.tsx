@@ -345,7 +345,7 @@ function IdentityStep({ answers, setAnswers }: StepProps) {
           tickets at full price.
         </p>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
-          Supporting Café Campus, Piknik Électronik, Montreal Frosh Week, with more coming very soon
+          Supporting Café Campus, Piknik Électronik, Montreal Frosh Week, and more coming very soon
         </p>
       </div>
       <div className="flex flex-col gap-3">
