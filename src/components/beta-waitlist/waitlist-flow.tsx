@@ -177,7 +177,7 @@ export function WaitlistFlow({ showDevSkip = false }: { showDevSkip?: boolean })
   }
 
   return (
-    <div className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-8 sm:px-6">
+    <div className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 pt-[max(2rem,env(safe-area-inset-top))] pb-8 sm:px-6">
       <Starfield />
       <Glow />
 
@@ -343,9 +343,6 @@ function IdentityStep({ answers, setAnswers }: StepProps) {
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
           Sign up to be notified of available tickets for sold-out events, or resell your extra
           tickets at full price.
-        </p>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">
-          Beta members will get priority access to tickets for their favourite events on launch.
         </p>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
           Supporting Café Campus, Piknik Électronik, Montreal Frosh Week, with more coming very soon
