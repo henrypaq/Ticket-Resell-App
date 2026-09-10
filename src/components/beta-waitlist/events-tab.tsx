@@ -162,7 +162,7 @@ function MyWaitlistSection({
       <p className="section-header mb-3 text-[12px] tracking-[0.08em] text-muted">My waitlist</p>
       {events.length === 0 ? (
         <p className="text-[13.5px] leading-relaxed text-muted">
-          Events you join the waiting list for will show up here.
+          Events you join the waitlist for will show up here.
         </p>
       ) : (
         <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -406,7 +406,7 @@ function EventDetailView({
 
       <div className="flex flex-col gap-3">
         <InterestButton
-          label={waitlisted ? "On the waiting list" : "Join waiting list"}
+          label={waitlisted ? "On the waitlist" : "Join waitlist"}
           active={waitlisted}
           pending={pending}
           onClick={toggleWaitlist}
@@ -471,7 +471,7 @@ function EventDetailView({
           />
         ) : (
           <InterestButton
-            label="I have an extra ticket"
+            label="I have a ticket to sell"
             active={false}
             pending={pending}
             onClick={() => {
@@ -526,14 +526,14 @@ function SellContactForm({
   const canSubmit = (phoneOk || igOk) && !pending;
 
   return (
-    <div className="flex flex-col gap-3 rounded-[18px] border border-white/10 bg-black p-4">
+    <div className="flex flex-col gap-3 rounded-[18px] bg-white/[0.06] p-4">
       <p className="text-[13.5px] leading-relaxed text-muted">
         We&apos;ll reach out on WhatsApp to arrange posting your ticket. Prefer Instagram? Leave a
         username instead.
       </p>
       <Field label="WhatsApp number" htmlFor={`sell-phone-${eventSlug}`}>
-        <div className="flex items-center rounded-[14px] border border-white/15 bg-black transition-colors focus-within:border-white/30">
-          <CountryCodeSelect value={country} onChange={setCountry} className="border-r border-white/15" />
+        <div className="flex items-center rounded-[14px] bg-black transition-colors focus-within:bg-[#111]">
+          <CountryCodeSelect value={country} onChange={setCountry} className="border-r border-white/10" />
           <input
             id={`sell-phone-${eventSlug}`}
             type="tel"
@@ -546,7 +546,7 @@ function SellContactForm({
         </div>
       </Field>
       <Field label="Or Instagram username" htmlFor={`sell-ig-${eventSlug}`}>
-        <div className="flex items-center rounded-[14px] border border-white/15 bg-black px-5 transition-colors focus-within:border-white/30">
+        <div className="flex items-center rounded-[14px] bg-black px-5 transition-colors focus-within:bg-[#111]">
           <span className="text-muted">@</span>
           <input
             id={`sell-ig-${eventSlug}`}

@@ -42,7 +42,7 @@ export const BETA_EVENTS: BetaEvent[] = [
     venue: "Café Campus",
     city: "Montreal",
     blurb:
-      "The first venue we're supporting — post a ticket you can't use, or join the waiting list and we'll reach out when one drops.",
+      "The first venue we're supporting — post a ticket you can't use, or join the waitlist and we'll reach out when one drops.",
     flyerUrl: "/flyers/cafe-campus.jpg",
     days: ["Thursday", "Friday", "Saturday"],
     supported: true,

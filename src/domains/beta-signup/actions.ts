@@ -257,9 +257,9 @@ export async function setBetaEventInterestAction(
       parsed.data.intent === "waitlist"
         ? parsed.data.active
           ? result.waitlistPosition
-            ? `You're #${result.waitlistPosition} on the waiting list — we'll notify you when a ticket is ready.`
-            : "You're on the waiting list — we'll notify you when a ticket is ready."
-          : "Removed from the waiting list."
+            ? `You're #${result.waitlistPosition} on the waitlist — we'll notify you when a ticket is ready.`
+            : "You're on the waitlist — we'll notify you when a ticket is ready."
+          : "Removed from the waitlist."
         : parsed.data.active
           ? "Got it — we'll reach out on WhatsApp or Instagram to post your ticket."
           : "Cancelled sell interest.",
