@@ -87,6 +87,18 @@ export function betaEventBySlug(slug: string): BetaEvent | undefined {
   return BETA_EVENTS.find((e) => e.slug === slug);
 }
 
+/** Today's weekday name in `BETA_WEEKDAYS` order, e.g. "Thursday". */
+export function currentBetaWeekday(from: Date = new Date()): BetaWeekday {
+  return (
+    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
+  )[from.getDay()] as BetaWeekday;
+}
+
+/** Section label: "Today" when the day matches the calendar, else the weekday. */
+export function betaDaySectionLabel(day: BetaWeekday, from: Date = new Date()): string {
+  return day === currentBetaWeekday(from) ? "Today" : day;
+}
+
 /** Next calendar date for a weekday name, including today if it matches. */
 export function nextDateForWeekday(day: BetaWeekday, from: Date = new Date()): Date {
   const target = (

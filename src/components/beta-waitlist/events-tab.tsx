@@ -9,6 +9,8 @@ import {
 import type { BetaSignupProfile } from "@/domains/beta-signup/shared";
 import {
   BETA_WEEKDAYS,
+  betaDaySectionLabel,
+  betaEventBySlug,
   formatBetaEventWhen,
   supportedBetaEvents,
   type BetaEvent,
@@ -17,7 +19,6 @@ import {
 import { SERVICE_FEE_CAD, SERVICE_FEE_LABEL } from "@/lib/compliance/fees";
 import { formatCad } from "@/lib/format";
 import { ArrowLeft, CheckIcon } from "@/components/icons";
-import { PosterScrim } from "@/components/event-cards";
 import { Field } from "./field";
 import { BUTTON_CLASS, FIELD_CLASS } from "./field-styles";
 
@@ -90,36 +91,37 @@ export function BetaEventsTab({ profile }: Props) {
 
   const live = supportedBetaEvents();
   const groups = groupBySingleDay(live);
+  const waitlistEvents = uniqueWaitlistEvents(interests, live);
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-9">
       {flash && (
-        <p role="status" className="rounded-2xl border border-[#6ee1ff]/25 bg-[#6ee1ff]/10 px-4 py-3 text-[13.5px] text-ink">
+        <p
+          role="status"
+          className="rounded-2xl border border-[#6ee1ff]/25 bg-[#6ee1ff]/10 px-4 py-3 text-[13.5px] text-ink"
+        >
           {flash}
         </p>
       )}
 
+      <MyWaitlistSection
+        events={waitlistEvents}
+        onOpen={(event) => openEvent(event, event.days[0] ?? "Thursday")}
+      />
+
       {groups.map(([day, events], index) => (
-        <section
-          key={day}
-          className={index > 0 ? "border-t border-white/10 pt-10" : undefined}
-        >
-          <p className="section-header mb-4 text-[13px] tracking-[0.08em] text-ink">{day}</p>
+        <section key={day} className={index > 0 || waitlistEvents.length > 0 ? "border-t border-white/10 pt-9" : undefined}>
+          <p className="section-header mb-3.5 text-[13px] tracking-[0.08em] text-ink">
+            {betaDaySectionLabel(day)}
+          </p>
           <div className="grid grid-cols-2 gap-3">
             {events.map((event) => (
-              <button
+              <EventPosterCard
                 key={`${event.slug}-${day}`}
-                type="button"
+                event={event}
+                waitlisted={hasInterest(event.slug, "waitlist")}
                 onClick={() => openEvent(event, day)}
-                className="relative block aspect-[3/4] w-full overflow-hidden rounded-2xl text-left"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={event.flyerUrl} alt="" className="h-full w-full object-cover" />
-                <PosterScrim />
-                <div className="absolute inset-x-0 bottom-0 p-3">
-                  <h2 className="headline text-[17px] leading-tight text-ink">{event.name}</h2>
-                </div>
-              </button>
+              />
             ))}
           </div>
         </section>
@@ -137,6 +139,101 @@ export function BetaEventsTab({ profile }: Props) {
       </button>
     </div>
   );
+}
+
+function MyWaitlistSection({
+  events,
+  onOpen,
+}: {
+  events: BetaEvent[];
+  onOpen: (event: BetaEvent) => void;
+}) {
+  return (
+    <section>
+      <p className="section-header mb-3 text-[12px] tracking-[0.08em] text-muted">My waitlist</p>
+      {events.length === 0 ? (
+        <p className="text-[13.5px] leading-relaxed text-muted">
+          Events you join the waiting list for will show up here.
+        </p>
+      ) : (
+        <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {events.map((event) => (
+            <button
+              key={event.slug}
+              type="button"
+              onClick={() => onOpen(event)}
+              className="relative h-[88px] w-[72px] shrink-0 overflow-hidden rounded-2xl ring-1 ring-white/12"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={event.flyerUrl} alt="" className="h-full w-full object-cover" />
+              <div
+                aria-hidden
+                className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"
+              />
+              <span className="headline absolute inset-x-0 bottom-0 p-1.5 text-left text-[10px] leading-tight text-ink">
+                {event.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EventPosterCard({
+  event,
+  waitlisted,
+  onClick,
+}: {
+  event: BetaEvent;
+  waitlisted: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group relative block aspect-[3/4] w-full overflow-hidden rounded-[22px] text-left ring-1 ring-white/10 transition-[transform,box-shadow] duration-200 hover:ring-white/20 active:scale-[0.98]"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={event.flyerUrl}
+        alt=""
+        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/5"
+      />
+      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3.5">
+        <h2 className="headline text-[16px] leading-[1.15] text-ink">{event.name}</h2>
+        {waitlisted && (
+          <span className="shrink-0 rounded-full bg-[#ffe500] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+            Waitlist
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function uniqueWaitlistEvents(
+  interests: { eventSlug: string; intent: "waitlist" | "sell" }[],
+  live: BetaEvent[],
+): BetaEvent[] {
+  const waitlisted = new Set(
+    interests.filter((i) => i.intent === "waitlist").map((i) => i.eventSlug),
+  );
+  const fromLive = live.filter((e) => waitlisted.has(e.slug));
+  const known = new Set(fromLive.map((e) => e.slug));
+  // Include waitlisted slugs that aren't on the live board (e.g. older picks).
+  for (const slug of waitlisted) {
+    if (known.has(slug)) continue;
+    const found = betaEventBySlug(slug);
+    if (found) fromLive.push(found);
+  }
+  return fromLive;
 }
 
 /** One weekday header at a time; multi-day events appear under each of their days. */
@@ -331,11 +428,7 @@ function RequestEventView({
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={pending}
-          className={`mt-2 ${BUTTON_CLASS}`}
-        >
+        <button type="submit" disabled={pending} className={`mt-2 ${BUTTON_CLASS}`}>
           {pending ? "Sending…" : "Submit request"}
         </button>
       </form>
