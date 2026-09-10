@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ACQUISITION_LANDING } from "@/lib/beta-acquisition";
 
 export const metadata: Metadata = {
   title: "Join the beta · mcgilltickets.party",
@@ -7,8 +8,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Full-screen branded QR display for tablets / TVs / print-to-PDF.
- * Assets also live in /public/qr/ for download and social posts.
+ * Branded QR share screen for mobile / Stories. The QR encodes
+ * `?src=qr_share` so scans attribute correctly; the visible label stays the
+ * clean domain. Plain printable QR: `/qr/beta-signup-qr-print.png`.
  */
 export default function QrDisplayPage() {
   return (
@@ -24,7 +26,7 @@ export default function QrDisplayPage() {
 
       <p className="relative section-header text-[12px] tracking-[0.12em] text-[#ffe500]">Beta</p>
       <h1 className="relative headline mt-4 max-w-xl text-[34px] leading-[1.12] tracking-tight sm:text-[44px]">
-        THE APP IS LAUNCHING SOON
+        DON&apos;T PANIC IF TICKETS ARE SOLD OUT
       </h1>
       <p className="relative mt-4 max-w-sm text-[15px] leading-relaxed text-muted">
         Scan to join the waitlist — beta members get priority access on launch.
@@ -33,18 +35,22 @@ export default function QrDisplayPage() {
       <div className="relative mt-10 rounded-[28px] bg-[#1a1a1d] p-5 sm:p-6">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/qr/beta-signup-qr-branded.png"
+          src="/qr/beta-signup-qr-share.png"
           alt="QR code linking to the mcgilltickets.party beta signup"
           className="h-[220px] w-[220px] sm:h-[280px] sm:w-[280px]"
         />
       </div>
 
-      <p className="relative mt-6 text-[14px] font-semibold text-[#ffe500]">
-        mcgilltickets.party
+      <p className="relative mt-6 text-[14px] font-semibold text-[#ffe500]">mcgilltickets.party</p>
+      <p className="relative mt-3 max-w-xs text-[12px] leading-relaxed text-muted">
+        Share this screen. For flyers, print{" "}
+        <a className="text-ink underline decoration-white/20 underline-offset-2" href="/qr/beta-signup-qr-print.png">
+          the plain QR
+        </a>
+        .
       </p>
-      <p className="relative mt-8 text-[12px] text-muted">
-        Download posters in <code className="text-ink/80">/qr/</code> — square, portrait, and story.
-      </p>
+      {/* Keep the tracked URL in markup for anyone inspecting / regenerating assets. */}
+      <p className="sr-only">{ACQUISITION_LANDING.qr_share}</p>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { INTEREST_OPTIONS } from "@/lib/beta-events";
 import { SUPPORT_CATEGORIES, type BetaSignupProfile } from "./shared";
@@ -41,6 +42,8 @@ export const betaSignupSchema = z.object({
   school: z.string().trim().max(160).optional(),
   referralSource: z.string().trim().max(160).optional(),
   notifyOptIn: z.boolean().default(false),
+  /** First-touch from `?src=` / bare URL cookie — not the questionnaire field. */
+  acquisitionChannel: z.enum(ACQUISITION_CHANNELS).optional(),
 });
 
 export type BetaSignupInput = z.infer<typeof betaSignupSchema>;
@@ -124,6 +127,7 @@ export async function submitBetaSignup(input: BetaSignupInput): Promise<BetaSign
       priority: input.priority,
       school: input.school || null,
       referral_source: input.referralSource || null,
+      acquisition_channel: input.acquisitionChannel ?? null,
       notify_opt_in: input.notifyOptIn,
       notify_queue_email: true,
       notify_queue_sms: smsOn,
@@ -139,6 +143,7 @@ export async function submitBetaSignup(input: BetaSignupInput): Promise<BetaSign
     if (error.code !== "23505") {
       return { ok: false, error: "Something went wrong. Try again in a moment." };
     }
+    // Email already signed up — restore id, but do not overwrite first-touch channel.
     const { data: existing, error: lookupError } = await admin
       .from("beta_signups")
       .select("id")

@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import {
+  BETA_ACQUISITION_COOKIE,
+  isAcquisitionChannel,
+  parseAcquisitionSrc,
+  type AcquisitionChannel,
+} from "@/lib/beta-acquisition";
 import { demoLoginEnabled } from "@/lib/env";
 import {
   betaSignupSchema,
@@ -32,14 +38,33 @@ const BETA_SIGNUP_COOKIE = "passe_beta_signup";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const COOKIE_BASE = {
+  maxAge: 60 * 60 * 24 * 365,
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+};
+
 async function setSignupCookie(id: string) {
   const cookieStore = await cookies();
-  cookieStore.set(BETA_SIGNUP_COOKIE, id, {
-    maxAge: 60 * 60 * 24 * 365,
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  });
+  cookieStore.set(BETA_SIGNUP_COOKIE, id, COOKIE_BASE);
+}
+
+/**
+ * First-touch only. Bare `/` (Instagram bio) → `ig_bio`; `?src=qr_*` → that
+ * channel. Later visits with a different src do not overwrite.
+ */
+export async function captureAcquisitionChannel(src: string | null | undefined): Promise<void> {
+  const cookieStore = await cookies();
+  if (isAcquisitionChannel(cookieStore.get(BETA_ACQUISITION_COOKIE)?.value)) return;
+  cookieStore.set(BETA_ACQUISITION_COOKIE, parseAcquisitionSrc(src), COOKIE_BASE);
+}
+
+async function readAcquisitionChannel(): Promise<AcquisitionChannel> {
+  const cookieStore = await cookies();
+  const existing = cookieStore.get(BETA_ACQUISITION_COOKIE)?.value;
+  if (isAcquisitionChannel(existing)) return existing;
+  return "ig_bio";
 }
 
 /**
@@ -71,7 +96,10 @@ export async function submitBetaSignupAction(
     return { error: issue.message, field: String(issue.path[0] ?? "") };
   }
 
-  const result = await submitBetaSignup(parsed.data);
+  const result = await submitBetaSignup({
+    ...parsed.data,
+    acquisitionChannel: await readAcquisitionChannel(),
+  });
   if (!result.ok) return { error: result.error };
 
   await setSignupCookie(result.id);
@@ -121,6 +149,7 @@ export async function skipBetaSignupAction(): Promise<BetaSignupState> {
     school: undefined,
     referralSource: "dev skip button",
     notifyOptIn: true,
+    acquisitionChannel: await readAcquisitionChannel(),
   });
   if (!result.ok) return { error: result.error };
 
