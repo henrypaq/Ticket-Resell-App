@@ -604,7 +604,7 @@ function ConsentStep({ answers, setAnswers }: StepProps) {
           className="mt-0.5 h-4 w-4 shrink-0 accent-[#6ee1ff]"
         />
         <span className="text-[14px] leading-relaxed text-ink">
-          Yes, text me at the number I gave above with ticket availability and checkout updates.
+          Yes, text me with ticket availability and checkout updates
         </span>
       </label>
     </div>

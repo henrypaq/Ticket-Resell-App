@@ -128,10 +128,8 @@ export const INTEREST_OPTIONS = [
   { value: "montreal-frosh-muzique", label: "Montreal Frosh Night @ Muzique" },
   { value: "niska-bell-center", label: "Niska @ Bell Center" },
   { value: "piknik-electronik", label: "Piknik Électronik" },
-  { value: "belmont", label: "Belmont" },
   { value: "stereo", label: "Stereo" },
   { value: "new-city-gas", label: "New City Gas" },
-  { value: "names", label: "Names" },
   { value: "montreal-frosh-week", label: "Montreal Frosh Week" },
 ] as const;
 
