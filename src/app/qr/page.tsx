@@ -42,7 +42,7 @@ export default function QrDisplayPage() {
           />
         </div>
 
-        <p className="mt-6 text-[14px] font-semibold text-[#ffe500]">mcgilltickets.party</p>
+        <p className="mt-6 text-[14px] font-semibold text-[#ffe500]">www.mcgilltickets.party</p>
       </div>
 
       <p className="sr-only">{ACQUISITION_LANDING.qr_share}</p>
