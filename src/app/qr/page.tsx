@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Join the beta · mcgill.tickets",
-  description: "Scan to join the mcgill.tickets beta waitlist.",
+  title: "Join the beta · mcgilltickets.party",
+  description: "Scan to join the mcgilltickets.party beta waitlist.",
   robots: { index: false, follow: false },
 };
 
@@ -24,9 +24,7 @@ export default function QrDisplayPage() {
 
       <p className="relative section-header text-[12px] tracking-[0.12em] text-[#ffe500]">Beta</p>
       <h1 className="relative headline mt-4 max-w-xl text-[34px] leading-[1.12] tracking-tight sm:text-[44px]">
-        THE MCGILL.TICKETS
-        <br />
-        APP IS LAUNCHING SOON
+        THE APP IS LAUNCHING SOON
       </h1>
       <p className="relative mt-4 max-w-sm text-[15px] leading-relaxed text-muted">
         Scan to join the waitlist — beta members get priority access on launch.
@@ -36,13 +34,13 @@ export default function QrDisplayPage() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/qr/beta-signup-qr-branded.png"
-          alt="QR code linking to the mcgill.tickets beta signup"
+          alt="QR code linking to the mcgilltickets.party beta signup"
           className="h-[220px] w-[220px] sm:h-[280px] sm:w-[280px]"
         />
       </div>
 
       <p className="relative mt-6 text-[14px] font-semibold text-[#ffe500]">
-        www.mcgilltickets.party
+        mcgilltickets.party
       </p>
       <p className="relative mt-8 text-[12px] text-muted">
         Download posters in <code className="text-ink/80">/qr/</code> — square, portrait, and story.

@@ -335,7 +335,7 @@ function IdentityStep({ answers, setAnswers }: StepProps) {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="headline text-[34px] leading-[1.15] tracking-tight">
-          THE MCGILL.TICKETS APP IS LAUNCHING SOON
+          THE APP IS LAUNCHING SOON
         </h1>
         <p className="mt-4 text-[17px] font-semibold text-[#ffe500]">This is our beta.</p>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
