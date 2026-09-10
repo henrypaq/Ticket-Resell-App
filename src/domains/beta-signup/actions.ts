@@ -15,6 +15,7 @@ import {
   eventRequestSchema,
   findBetaSignupIdByEmail,
   getBetaSignupProfile,
+  getWaitlistPosition,
   notificationPrefsSchema,
   setBetaEventInterest,
   submitBetaEventRequest,
@@ -27,7 +28,12 @@ import {
 } from "./service";
 
 export type BetaSignupState = { error?: string; field?: string; ok?: boolean };
-export type BetaActionState = { error?: string; ok?: boolean; message?: string };
+export type BetaActionState = {
+  error?: string;
+  ok?: boolean;
+  message?: string;
+  waitlistPosition?: number;
+};
 export type BetaResumeState =
   | { ok: true; resumed: true }
   | { ok: true; resumed: false }
@@ -236,6 +242,8 @@ export async function setBetaEventInterestAction(
     eventSlug: formData.get("eventSlug"),
     intent: formData.get("intent"),
     active: formData.get("active") === "1",
+    contactPhone: formData.get("contactPhone") || "",
+    contactInstagram: formData.get("contactInstagram") || "",
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid request." };
@@ -248,12 +256,24 @@ export async function setBetaEventInterestAction(
     message:
       parsed.data.intent === "waitlist"
         ? parsed.data.active
-          ? "You're on the waiting list for this event."
+          ? result.waitlistPosition
+            ? `You're #${result.waitlistPosition} on the waiting list — we'll notify you when a ticket is ready.`
+            : "You're on the waiting list — we'll notify you when a ticket is ready."
           : "Removed from the waiting list."
         : parsed.data.active
-          ? "We'll reach out when you're ready to post this ticket."
+          ? "Got it — we'll reach out on WhatsApp or Instagram to post your ticket."
           : "Cancelled sell interest.",
+    waitlistPosition: result.waitlistPosition,
   };
+}
+
+export async function getWaitlistPositionAction(
+  eventSlug: string,
+): Promise<{ position: number | null }> {
+  const id = await getBetaSignupId();
+  if (!id) return { position: null };
+  const position = await getWaitlistPosition(id, eventSlug);
+  return { position };
 }
 
 export async function submitBetaEventRequestAction(

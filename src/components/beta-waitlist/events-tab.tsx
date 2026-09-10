@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
+  getWaitlistPositionAction,
   setBetaEventInterestAction,
   submitBetaEventRequestAction,
   type BetaActionState,
@@ -16,11 +17,14 @@ import {
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
+import { DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/country-codes";
 import { SERVICE_FEE_CAD, SERVICE_FEE_LABEL } from "@/lib/compliance/fees";
 import { formatCad } from "@/lib/format";
+import { formatPhoneNational } from "@/lib/phone-format";
 import { ArrowLeft, CheckIcon } from "@/components/icons";
+import { CountryCodeSelect } from "./country-code-select";
 import { Field } from "./field";
-import { BUTTON_CLASS, FIELD_CLASS } from "./field-styles";
+import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "./field-styles";
 
 type Props = {
   profile: BetaSignupProfile | null;
@@ -78,6 +82,10 @@ export function BetaEventsTab({ profile }: Props) {
         day={selectedDay}
         waitlisted={hasInterest(selected.slug, "waitlist")}
         selling={hasInterest(selected.slug, "sell")}
+        profilePhone={profile?.phone ?? ""}
+        sellContact={
+          interests.find((i) => i.eventSlug === selected.slug && i.intent === "sell") ?? null
+        }
         canSave={Boolean(profile)}
         onBack={() => {
           setView("list");
@@ -297,6 +305,8 @@ function EventDetailView({
   day,
   waitlisted,
   selling,
+  profilePhone,
+  sellContact,
   canSave,
   onBack,
   onInterestChanged,
@@ -306,6 +316,11 @@ function EventDetailView({
   day: BetaWeekday;
   waitlisted: boolean;
   selling: boolean;
+  profilePhone: string;
+  sellContact: {
+    contactPhone?: string | null;
+    contactInstagram?: string | null;
+  } | null;
   canSave: boolean;
   onBack: () => void;
   onInterestChanged: (slug: string, intent: "waitlist" | "sell", active: boolean) => void;
@@ -313,25 +328,62 @@ function EventDetailView({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
+  const [showSellForm, setShowSellForm] = useState(false);
 
-  function toggle(intent: "waitlist" | "sell", currentlyActive: boolean) {
+  useEffect(() => {
+    let cancelled = false;
+    if (!waitlisted || !canSave) {
+      setWaitlistPosition(null);
+      return;
+    }
+    void getWaitlistPositionAction(event.slug).then((result) => {
+      if (!cancelled) setWaitlistPosition(result.position);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [waitlisted, canSave, event.slug]);
+
+  function toggleWaitlist() {
     if (!canSave) {
       setError("Rejoin the waitlist so we can save your preferences.");
       return;
     }
     setError(null);
-    const next = !currentlyActive;
+    const next = !waitlisted;
     startTransition(async () => {
       const fd = new FormData();
       fd.set("eventSlug", event.slug);
-      fd.set("intent", intent);
+      fd.set("intent", "waitlist");
       fd.set("active", next ? "1" : "0");
       const result: BetaActionState = await setBetaEventInterestAction({}, fd);
       if (result.error) {
         setError(result.error);
         return;
       }
-      onInterestChanged(event.slug, intent, next);
+      onInterestChanged(event.slug, "waitlist", next);
+      if (next && result.waitlistPosition) setWaitlistPosition(result.waitlistPosition);
+      if (!next) setWaitlistPosition(null);
+      onFlash(result.message ?? null);
+    });
+  }
+
+  function cancelSell() {
+    if (!canSave) return;
+    setError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("eventSlug", event.slug);
+      fd.set("intent", "sell");
+      fd.set("active", "0");
+      const result: BetaActionState = await setBetaEventInterestAction({}, fd);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      onInterestChanged(event.slug, "sell", false);
+      setShowSellForm(false);
       onFlash(result.message ?? null);
     });
   }
@@ -357,14 +409,79 @@ function EventDetailView({
           label={waitlisted ? "On the waiting list" : "Join waiting list"}
           active={waitlisted}
           pending={pending}
-          onClick={() => toggle("waitlist", waitlisted)}
+          onClick={toggleWaitlist}
         />
-        <InterestButton
-          label={selling ? "We'll contact you to post" : "I have an extra ticket"}
-          active={selling}
-          pending={pending}
-          onClick={() => toggle("sell", selling)}
-        />
+        {waitlisted && (
+          <div className="rounded-[18px] bg-white/[0.05] px-4 py-3">
+            {waitlistPosition != null && (
+              <p className="text-[15px] font-semibold text-ink">
+                You&apos;re #{waitlistPosition} on the waitlist
+              </p>
+            )}
+            <p className={`text-[13.5px] leading-relaxed text-muted ${waitlistPosition != null ? "mt-1" : ""}`}>
+              We&apos;ll notify you when a ticket is ready for you.
+            </p>
+          </div>
+        )}
+
+        {selling ? (
+          <>
+            <InterestButton
+              label="We'll contact you to post"
+              active
+              pending={pending}
+              onClick={cancelSell}
+            />
+            <p className="px-1 text-[13.5px] leading-relaxed text-muted">
+              We&apos;ll reach out on WhatsApp
+              {sellContact?.contactPhone ? ` (${sellContact.contactPhone})` : ""}
+              {sellContact?.contactInstagram
+                ? `${sellContact?.contactPhone ? " or" : ""} Instagram (@${sellContact.contactInstagram})`
+                : ""}{" "}
+              to arrange posting your ticket. Tap again to cancel.
+            </p>
+          </>
+        ) : showSellForm ? (
+          <SellContactForm
+            eventSlug={event.slug}
+            defaultPhone={profilePhone}
+            pending={pending}
+            onCancel={() => setShowSellForm(false)}
+            onSubmit={(phone, instagram) => {
+              setError(null);
+              startTransition(async () => {
+                const fd = new FormData();
+                fd.set("eventSlug", event.slug);
+                fd.set("intent", "sell");
+                fd.set("active", "1");
+                fd.set("contactPhone", phone);
+                fd.set("contactInstagram", instagram);
+                const result: BetaActionState = await setBetaEventInterestAction({}, fd);
+                if (result.error) {
+                  setError(result.error);
+                  return;
+                }
+                onInterestChanged(event.slug, "sell", true);
+                setShowSellForm(false);
+                onFlash(result.message ?? null);
+              });
+            }}
+          />
+        ) : (
+          <InterestButton
+            label="I have an extra ticket"
+            active={false}
+            pending={pending}
+            onClick={() => {
+              if (!canSave) {
+                setError("Rejoin the waitlist so we can save your preferences.");
+                return;
+              }
+              setShowSellForm(true);
+              setError(null);
+            }}
+          />
+        )}
       </div>
 
       {error && (
@@ -379,6 +496,98 @@ function EventDetailView({
       </p>
     </div>
   );
+}
+
+function SellContactForm({
+  eventSlug,
+  defaultPhone,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  eventSlug: string;
+  defaultPhone: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (phone: string, instagram: string) => void;
+}) {
+  const parsed = splitPhone(defaultPhone);
+  const [country, setCountry] = useState(parsed.country);
+  const [national, setNational] = useState(parsed.national);
+  const [instagram, setInstagram] = useState("");
+
+  const dial = countryByIso2(country).dial;
+  const digits = national.replace(/\D/g, "");
+  const composedPhone = digits ? `+${dial}${digits}` : "";
+  const phoneOk = digits.length >= 7;
+  const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
+  const canSubmit = (phoneOk || igOk) && !pending;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-[18px] bg-white/[0.05] p-4">
+      <p className="text-[13.5px] leading-relaxed text-muted">
+        We&apos;ll reach out on WhatsApp to arrange posting your ticket. Prefer Instagram? Leave a
+        username instead.
+      </p>
+      <Field label="WhatsApp number" htmlFor={`sell-phone-${eventSlug}`}>
+        <div className={FIELD_GROUP_CLASS}>
+          <CountryCodeSelect value={country} onChange={setCountry} className="border-r border-white/10" />
+          <input
+            id={`sell-phone-${eventSlug}`}
+            type="tel"
+            placeholder={dial === "1" ? "(514) 555-0123" : "Phone number"}
+            value={formatPhoneNational(digits, dial)}
+            onChange={(e) => setNational(e.target.value.replace(/\D/g, "").slice(0, 15))}
+            inputMode="tel"
+            className="min-w-0 flex-1 bg-transparent py-4 pl-3 pr-5 text-[16px] text-ink outline-none placeholder:text-muted/70"
+          />
+        </div>
+      </Field>
+      <Field label="Or Instagram username" htmlFor={`sell-ig-${eventSlug}`}>
+        <div className="flex items-center rounded-[14px] bg-[#1a1a1d] px-5 focus-within:bg-[#222226]">
+          <span className="text-muted">@</span>
+          <input
+            id={`sell-ig-${eventSlug}`}
+            value={instagram.replace(/^@+/, "")}
+            onChange={(e) => setInstagram(e.target.value.replace(/^@+/, "").slice(0, 40))}
+            placeholder="yourhandle"
+            autoCapitalize="off"
+            autoCorrect="off"
+            className="min-w-0 flex-1 bg-transparent py-4 pl-1 text-[16px] text-ink outline-none placeholder:text-muted/70"
+          />
+        </div>
+      </Field>
+      <div className="mt-1 flex gap-2">
+        <button
+          type="button"
+          disabled={!canSubmit}
+          onClick={() => onSubmit(composedPhone, instagram.replace(/^@+/, "").trim())}
+          className={`flex-1 ${BUTTON_CLASS}`}
+        >
+          {pending ? "Saving…" : "Confirm"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={pending}
+          className="rounded-[14px] px-4 text-[14px] font-semibold text-muted"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function splitPhone(phone: string): { country: string; national: string } {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length >= 11 && digits.startsWith("1")) {
+    return { country: DEFAULT_COUNTRY_ISO2, national: digits.slice(1) };
+  }
+  if (digits.length >= 10) {
+    return { country: DEFAULT_COUNTRY_ISO2, national: digits.slice(-10) };
+  }
+  return { country: DEFAULT_COUNTRY_ISO2, national: digits };
 }
 
 function InterestButton({

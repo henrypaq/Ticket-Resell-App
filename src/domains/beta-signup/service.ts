@@ -75,11 +75,41 @@ export const notificationPrefsSchema = z.object({
   notifyTicketsSms: z.boolean(),
 });
 
-export const eventInterestSchema = z.object({
-  eventSlug: z.string().trim().min(1).max(80),
-  intent: z.enum(["waitlist", "sell"]),
-  active: z.boolean(),
-});
+export const eventInterestSchema = z
+  .object({
+    eventSlug: z.string().trim().min(1).max(80),
+    intent: z.enum(["waitlist", "sell"]),
+    active: z.boolean(),
+    contactPhone: z
+      .string()
+      .trim()
+      .max(30)
+      .refine(
+        (value) => value === "" || value.replace(/\D/g, "").length >= 7,
+        "Enter a valid phone number.",
+      )
+      .optional()
+      .default(""),
+    contactInstagram: z
+      .string()
+      .trim()
+      .max(40)
+      .transform((value) => value.replace(/^@+/, "").replace(/\s+/g, ""))
+      .optional()
+      .default(""),
+  })
+  .superRefine((value, ctx) => {
+    if (value.intent !== "sell" || !value.active) return;
+    const phoneOk = (value.contactPhone ?? "").replace(/\D/g, "").length >= 7;
+    const igOk = (value.contactInstagram ?? "").length >= 2;
+    if (!phoneOk && !igOk) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Add a WhatsApp number or an Instagram username so we can reach you.",
+        path: ["contactPhone"],
+      });
+    }
+  });
 
 export const eventRequestSchema = z.object({
   name: z.string().trim().min(1, "Enter an event name.").max(160),
@@ -208,7 +238,7 @@ export async function getBetaSignupProfile(signupId: string): Promise<BetaSignup
 
   const { data: interests } = await admin
     .from("beta_event_interests")
-    .select("event_slug, intent")
+    .select("event_slug, intent, contact_phone, contact_instagram")
     .eq("signup_id", signupId);
 
   return {
@@ -223,6 +253,8 @@ export async function getBetaSignupProfile(signupId: string): Promise<BetaSignup
     interests: (interests ?? []).map((row) => ({
       eventSlug: row.event_slug,
       intent: row.intent as "waitlist" | "sell",
+      contactPhone: row.contact_phone ?? null,
+      contactInstagram: row.contact_instagram ?? null,
     })),
   };
 }
@@ -293,18 +325,23 @@ export async function updateBetaNotificationPrefs(
 export async function setBetaEventInterest(
   signupId: string,
   input: z.infer<typeof eventInterestSchema>,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; waitlistPosition?: number } | { ok: false; error: string }> {
   const admin = createAdminClient();
 
   if (input.active) {
-    const { error } = await admin.from("beta_event_interests").upsert(
-      {
-        signup_id: signupId,
-        event_slug: input.eventSlug,
-        intent: input.intent,
-      },
-      { onConflict: "signup_id,event_slug,intent", ignoreDuplicates: true },
-    );
+    const row: Record<string, unknown> = {
+      signup_id: signupId,
+      event_slug: input.eventSlug,
+      intent: input.intent,
+    };
+    if (input.intent === "sell") {
+      row.contact_phone = input.contactPhone || null;
+      row.contact_instagram = input.contactInstagram || null;
+    }
+    const { error } = await admin.from("beta_event_interests").upsert(row, {
+      onConflict: "signup_id,event_slug,intent",
+      ignoreDuplicates: false,
+    });
     if (error) return { ok: false, error: "Couldn't save that. Try again." };
   } else {
     const { error } = await admin
@@ -316,7 +353,30 @@ export async function setBetaEventInterest(
     if (error) return { ok: false, error: "Couldn't update that. Try again." };
   }
 
+  if (input.intent === "waitlist" && input.active) {
+    const position = await getWaitlistPosition(signupId, input.eventSlug);
+    return { ok: true, waitlistPosition: position ?? undefined };
+  }
+
   return { ok: true };
+}
+
+/** 1-based queue position for this signup on an event's waitlist (by join time). */
+export async function getWaitlistPosition(
+  signupId: string,
+  eventSlug: string,
+): Promise<number | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("beta_event_interests")
+    .select("signup_id, created_at")
+    .eq("event_slug", eventSlug)
+    .eq("intent", "waitlist")
+    .order("created_at", { ascending: true });
+
+  if (error || !data) return null;
+  const index = data.findIndex((row) => row.signup_id === signupId);
+  return index >= 0 ? index + 1 : null;
 }
 
 export async function submitBetaEventRequest(

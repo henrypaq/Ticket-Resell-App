@@ -13,7 +13,12 @@ export type BetaSignupProfile = {
   notifyQueueSms: boolean;
   notifyTicketsEmail: boolean;
   notifyTicketsSms: boolean;
-  interests: { eventSlug: string; intent: "waitlist" | "sell" }[];
+  interests: {
+    eventSlug: string;
+    intent: "waitlist" | "sell";
+    contactPhone?: string | null;
+    contactInstagram?: string | null;
+  }[];
 };
 
 export const SUPPORT_CATEGORIES = [
