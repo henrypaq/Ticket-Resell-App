@@ -147,6 +147,6 @@ export const INTEREST_OPTIONS = [
 
 /** Public socials for the beta shell header. Swap URLs when handles are final. */
 export const BETA_SOCIALS = {
-  instagram: "https://www.instagram.com/passe.mtl/",
+  instagram: "https://www.instagram.com/mcgill.tickets/",
   snapchat: "https://www.snapchat.com/add/passe.mtl",
 } as const;
