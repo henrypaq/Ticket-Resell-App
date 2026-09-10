@@ -1,11 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import {
+  BETA_ACQUISITION_COOKIE,
+  isAcquisitionChannel,
+  parseAcquisitionSrc,
+} from "@/lib/beta-acquisition";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/env";
 
 /**
  * Refreshes the Supabase session cookie on every request so short-lived access
  * tokens roll over without the client holding a long-lived token
  * (SECURITY.md § session security).
+ *
+ * Also stamps first-touch `acquisition_channel` on `/` — cookies cannot be
+ * written from a Server Component render (that 500'd the landing page).
  */
 export default async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -26,6 +34,25 @@ export default async function proxy(request: NextRequest) {
   });
 
   await supabase.auth.getUser();
+
+  // First-touch only, landing page only. Bare `/` → ig_bio; `?src=qr_*` → that.
+  if (request.nextUrl.pathname === "/") {
+    const existing = request.cookies.get(BETA_ACQUISITION_COOKIE)?.value;
+    if (!isAcquisitionChannel(existing)) {
+      response.cookies.set(
+        BETA_ACQUISITION_COOKIE,
+        parseAcquisitionSrc(request.nextUrl.searchParams.get("src")),
+        {
+          maxAge: 60 * 60 * 24 * 365,
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+        },
+      );
+    }
+  }
+
   return response;
 }
 
