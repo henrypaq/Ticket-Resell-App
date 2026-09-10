@@ -176,17 +176,21 @@ function MyWaitlistSection({
                 className="relative h-[148px] w-[120px] shrink-0 overflow-hidden rounded-[18px] ring-1 ring-white/12"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={event.flyerUrl} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={event.flyerUrl}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
                 <div
                   aria-hidden
                   className="absolute inset-0 bg-gradient-to-b from-black/85 via-transparent to-black/75"
                 />
-                <div className="absolute inset-x-0 top-0 p-2">
+                <div className="absolute inset-x-0 top-0 z-[1] p-2">
                   <span className="headline text-left text-[12px] leading-tight text-ink">
                     {event.name}
                   </span>
                 </div>
-                <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink ring-1 ring-white/15">
+                <span className="absolute bottom-1.5 right-1.5 z-[1] rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink ring-1 ring-white/15">
                   {weekdayAbbrev(day)}
                 </span>
               </button>
@@ -220,7 +224,7 @@ function EventPosterCard({
         <img
           src={event.flyerUrl}
           alt=""
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
         />
         <div
           aria-hidden
@@ -529,7 +533,7 @@ function SellContactForm({
     <div className="flex flex-col gap-3 rounded-[18px] bg-white/[0.06] p-4">
       <p className="text-[13.5px] leading-relaxed text-muted">
         We&apos;ll reach out on WhatsApp to arrange posting your ticket. Prefer Instagram? Leave a
-        username instead.
+        username instead and follow @mcgill.tickets.
       </p>
       <Field label="WhatsApp number" htmlFor={`sell-phone-${eventSlug}`}>
         <div className="flex items-center rounded-[14px] bg-black transition-colors focus-within:bg-[#111]">
