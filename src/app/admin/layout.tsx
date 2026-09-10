@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <p className="section-header text-muted">Admin console</p>
           <p className="mt-1 text-[13px] text-muted">{admin.email}</p>
         </div>
-        <Link href="/" className="pill-quiet px-3.5 py-2 text-[13px] font-semibold">
+        <Link href="/home" className="pill-quiet px-3.5 py-2 text-[13px] font-semibold">
           Exit
         </Link>
       </div>

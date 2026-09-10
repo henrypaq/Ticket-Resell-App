@@ -1,5 +1,4 @@
 import { BottomNav } from "@/components/bottom-nav";
-import { ServiceWorkerRegistrar } from "@/components/service-worker";
 import { GlobalScanButton } from "@/components/barcode-scanner";
 
 /**
@@ -15,6 +14,10 @@ import { GlobalScanButton } from "@/components/barcode-scanner";
  * signed-out visitor (e.g. a shared listing link on /events/[id]). Two gates
  * checking the same thing isn't defense in depth if the outer one can't
  * carry the context the inner one needs.
+ *
+ * The public beta waitlist (`/`, src/app/page.tsx) lives outside this route
+ * group entirely, so it never picks up this chrome — no session check is
+ * needed here for that.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,7 +25,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <GlobalScanButton />
       {children}
       <BottomNav />
-      <ServiceWorkerRegistrar />
     </div>
   );
 }

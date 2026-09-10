@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces } from "next/font/google";
+import { ServiceWorkerRegistrar } from "@/components/service-worker";
 import "./globals.css";
 
 // Self-hosted via next/font — no runtime request to Google. Scoped to
@@ -31,7 +32,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={fraunces.variable}>
-      <body className="min-h-dvh bg-base text-ink antialiased">{children}</body>
+      <body className="min-h-dvh bg-base text-ink antialiased">
+        {children}
+        <ServiceWorkerRegistrar />
+      </body>
     </html>
   );
 }

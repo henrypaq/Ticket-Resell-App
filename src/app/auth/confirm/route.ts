@@ -24,5 +24,5 @@ export async function GET(request: NextRequest) {
     await logEvent({ type: "login", userId: data.user.id, metadata: { method: "magic_link" } });
   }
 
-  return NextResponse.redirect(origin);
+  return NextResponse.redirect(`${origin}/home`);
 }

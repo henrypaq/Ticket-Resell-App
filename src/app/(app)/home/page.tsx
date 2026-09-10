@@ -22,6 +22,12 @@ import { SearchIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The real app feed — formerly `/`, moved to `/home` because `/` is now
+ * always the public beta waitlist (see src/app/page.tsx), regardless of
+ * whether the visitor happens to have a session. Every internal link that
+ * used to point at "/" for "back to the app" now points here.
+ */
 export default async function ForYouPage({
   searchParams,
 }: {

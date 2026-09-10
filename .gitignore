@@ -21,3 +21,4 @@ supabase/.temp/
 # misc
 .DS_Store
 *.log
+.env*

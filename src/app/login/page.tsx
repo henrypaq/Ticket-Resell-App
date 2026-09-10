@@ -22,7 +22,7 @@ export default async function LoginPage({
   const { error, next } = await searchParams;
   const nextPath = sanitizeNextPath(next);
 
-  if (await getSessionUser()) redirect(nextPath ?? "/");
+  if (await getSessionUser()) redirect(nextPath ?? "/home");
 
   // The demo flag is read here, on the server. The button's visibility and the
   // action's authorisation come from the same check — hiding the button is

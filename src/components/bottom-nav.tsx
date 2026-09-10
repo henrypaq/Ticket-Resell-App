@@ -12,7 +12,7 @@ import { CalendarIcon, SearchIcon, SparkleIcon, TicketIcon } from "./icons";
  * usually arrive looking for one specific event.
  */
 const DESTINATIONS = [
-  { href: "/", label: "For You", Icon: SparkleIcon },
+  { href: "/home", label: "For You", Icon: SparkleIcon },
   { href: "/upcoming", label: "Upcoming", Icon: CalendarIcon },
   { href: "/tickets", label: "Tickets", Icon: TicketIcon },
 ] as const;
@@ -25,7 +25,7 @@ export function BottomNav() {
       <div className="pointer-events-auto mx-auto flex max-w-lg items-center gap-2 px-4">
         <div className="frosted flex flex-1 items-center rounded-full border border-white/10 p-1.5">
           {DESTINATIONS.map(({ href, label, Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+            const active = pathname.startsWith(href);
             return (
               <TransitionLink
                 key={href}

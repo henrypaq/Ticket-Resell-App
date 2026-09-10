@@ -37,5 +37,5 @@ export async function GET(request: NextRequest) {
   }
 
   const safeNext = sanitizeNextPath(searchParams.get("next"));
-  return NextResponse.redirect(safeNext ? `${origin}${safeNext}` : origin);
+  return NextResponse.redirect(`${origin}${safeNext ?? "/home"}`);
 }

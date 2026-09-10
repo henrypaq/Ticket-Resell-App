@@ -23,7 +23,7 @@ export default async function SellPage({
   return (
     <main className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <Link
-        href="/"
+        href="/home"
         aria-label="Back"
         className="pill flex h-11 w-11 items-center justify-center text-ink"
       >

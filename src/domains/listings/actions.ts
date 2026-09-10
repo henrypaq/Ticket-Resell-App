@@ -47,7 +47,7 @@ export async function createListingAction(
     if (!uploadResult.ok) evidenceWarning = uploadResult.error;
   }
 
-  revalidatePath("/");
+  revalidatePath("/home");
   revalidatePath("/tickets");
   revalidatePath(`/events/${parsed.data.eventId}`);
   return evidenceWarning ? { evidenceWarning } : {};

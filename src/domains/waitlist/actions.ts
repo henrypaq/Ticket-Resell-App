@@ -18,5 +18,5 @@ export async function toggleWaitlistAction(formData: FormData) {
 
   revalidatePath(`/events/${eventId}`);
   revalidatePath("/profile");
-  revalidatePath("/");
+  revalidatePath("/home");
 }

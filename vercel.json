@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/v1/cron/release-escrow",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }

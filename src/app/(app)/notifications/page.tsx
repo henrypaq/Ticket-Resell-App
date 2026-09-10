@@ -13,7 +13,7 @@ export default async function NotificationsPage() {
 
   return (
     <main className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <Link href="/" aria-label="Back" className="pill flex h-11 w-11 items-center justify-center">
+      <Link href="/home" aria-label="Back" className="pill flex h-11 w-11 items-center justify-center">
         <ArrowLeft className="h-5 w-5" />
       </Link>
 

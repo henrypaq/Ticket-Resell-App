@@ -78,7 +78,7 @@ export async function verifyCode(_prev: AuthState, formData: FormData): Promise<
     });
   }
 
-  redirect(sanitizeNextPath(String(formData.get("next") ?? "")) ?? "/");
+  redirect(sanitizeNextPath(String(formData.get("next") ?? "")) ?? "/home");
 }
 
 export async function signOut() {
@@ -130,7 +130,7 @@ export async function demoSignIn(nextPath?: string): Promise<AuthState> {
     await logEvent({ type: "login", userId: data.user.id, metadata: { method: "demo" } });
   }
 
-  redirect(sanitizeNextPath(nextPath) ?? "/");
+  redirect(sanitizeNextPath(nextPath) ?? "/home");
 }
 
 /**
