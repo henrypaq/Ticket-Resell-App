@@ -42,7 +42,7 @@ export default function QrDisplayPage() {
       </div>
 
       <p className="relative mt-6 text-[14px] font-semibold text-[#ffe500]">
-        mcgilltickets.vercel.app
+        www.mcgilltickets.party
       </p>
       <p className="relative mt-8 text-[12px] text-muted">
         Download posters in <code className="text-ink/80">/qr/</code> — square, portrait, and story.
