@@ -4,8 +4,8 @@
 // gets out of the way for everything else. Ticket, listing, and price data must
 // never be served stale from a cache — a stale price is a compliance problem,
 // not just a UX one — so only same-origin static assets are cached.
-const CACHE = "passe-shell-v1";
-const SHELL = ["/manifest.webmanifest", "/icon.svg"];
+const CACHE = "passe-shell-v2";
+const SHELL = ["/manifest.webmanifest", "/icon-512.png", "/favicon.ico"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

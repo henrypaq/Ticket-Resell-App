@@ -14,11 +14,19 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Passe · Montreal tickets",
+  title: "mcgill.tickets · Montreal tickets",
   description:
     "Resell and pick up tickets to parties and club nights around Montreal — at face value, with the full price breakdown up front.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Passe" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "mcgill.tickets" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {

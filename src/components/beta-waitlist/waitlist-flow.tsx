@@ -335,15 +335,20 @@ function IdentityStep({ answers, setAnswers }: StepProps) {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="headline text-[34px] leading-[1.15] tracking-tight">
-          A SPECTACULAR APP IS LAUNCHING SOON
+          DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
-        <p className="mt-4 text-[17px] font-semibold text-[#ffe500]">This is our beta.</p>
+        <p className="mt-4 text-[17px] font-semibold text-[#ffe500]">
+          Join the mcgill.tickets beta
+        </p>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
           Sign up to be notified of available tickets for sold-out events, or resell your extra
           tickets at full price.
         </p>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
           Beta members will get priority access to tickets for their favourite events on launch.
+        </p>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted">
+          Supporting Café Campus, Piknik Électronik, Montreal Frosh Week, with more coming very soon
         </p>
       </div>
       <div className="flex flex-col gap-3">

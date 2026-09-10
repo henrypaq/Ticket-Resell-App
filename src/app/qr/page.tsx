@@ -24,7 +24,7 @@ export default function QrDisplayPage() {
 
       <p className="relative section-header text-[12px] tracking-[0.12em] text-[#ffe500]">Beta</p>
       <h1 className="relative headline mt-4 max-w-xl text-[34px] leading-[1.12] tracking-tight sm:text-[44px]">
-        A SPECTACULAR APP IS LAUNCHING SOON
+        THE APP IS LAUNCHING SOON
       </h1>
       <p className="relative mt-4 max-w-sm text-[15px] leading-relaxed text-muted">
         Scan to join the waitlist — beta members get priority access on launch.
