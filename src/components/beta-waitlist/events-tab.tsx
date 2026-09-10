@@ -106,19 +106,20 @@ export function BetaEventsTab({ profile }: Props) {
 
       <MyWaitlistSection
         events={waitlistEvents}
-        onOpen={(event) => openEvent(event, event.days[0] ?? "Thursday")}
+        onOpen={(event, day) => openEvent(event, day)}
       />
 
       {groups.map(([day, events], index) => (
         <section key={day} className={index > 0 || waitlistEvents.length > 0 ? "border-t border-white/10 pt-9" : undefined}>
-          <p className="section-header mb-3.5 text-[13px] tracking-[0.08em] text-ink">
+          <p className="section-header mb-5 text-[13px] tracking-[0.08em] text-ink">
             {betaDaySectionLabel(day)}
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            {events.map((event) => (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-5">
+            {events.map((event, eventIndex) => (
               <EventPosterCard
                 key={`${event.slug}-${day}`}
                 event={event}
+                index={eventIndex + 1}
                 waitlisted={hasInterest(event.slug, "waitlist")}
                 onClick={() => openEvent(event, day)}
               />
@@ -146,7 +147,7 @@ function MyWaitlistSection({
   onOpen,
 }: {
   events: BetaEvent[];
-  onOpen: (event: BetaEvent) => void;
+  onOpen: (event: BetaEvent, day: BetaWeekday) => void;
 }) {
   return (
     <section>
@@ -156,25 +157,33 @@ function MyWaitlistSection({
           Events you join the waiting list for will show up here.
         </p>
       ) : (
-        <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {events.map((event) => (
-            <button
-              key={event.slug}
-              type="button"
-              onClick={() => onOpen(event)}
-              className="relative h-[88px] w-[72px] shrink-0 overflow-hidden rounded-2xl ring-1 ring-white/12"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={event.flyerUrl} alt="" className="h-full w-full object-cover" />
-              <div
-                aria-hidden
-                className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"
-              />
-              <span className="headline absolute inset-x-0 bottom-0 p-1.5 text-left text-[10px] leading-tight text-ink">
-                {event.name}
-              </span>
-            </button>
-          ))}
+        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {events.map((event) => {
+            const day = preferredWaitlistDay(event);
+            return (
+              <button
+                key={event.slug}
+                type="button"
+                onClick={() => onOpen(event, day)}
+                className="relative h-[118px] w-[96px] shrink-0 overflow-hidden rounded-[18px] ring-1 ring-white/12"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={event.flyerUrl} alt="" className="h-full w-full object-cover" />
+                <div
+                  aria-hidden
+                  className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/25 to-transparent"
+                />
+                <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-2">
+                  <span className="headline text-left text-[11px] leading-tight text-ink">
+                    {event.name}
+                  </span>
+                  <span className="shrink-0 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink ring-1 ring-white/15">
+                    {weekdayAbbrev(day)}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </section>
@@ -183,39 +192,69 @@ function MyWaitlistSection({
 
 function EventPosterCard({
   event,
+  index,
   waitlisted,
   onClick,
 }: {
   event: BetaEvent;
+  index: number;
   waitlisted: boolean;
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group relative block aspect-[3/4] w-full overflow-hidden rounded-[22px] text-left ring-1 ring-white/10 transition-[transform,box-shadow] duration-200 hover:ring-white/20 active:scale-[0.98]"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={event.flyerUrl}
-        alt=""
-        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-      />
-      <div
+    <div className="relative pb-4">
+      <button
+        type="button"
+        onClick={onClick}
+        className="group relative block aspect-[3/4] w-full overflow-hidden rounded-[22px] text-left ring-1 ring-white/10 transition-[transform,box-shadow] duration-200 hover:ring-white/20 active:scale-[0.98]"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={event.flyerUrl}
+          alt=""
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/90 via-black/30 to-transparent"
+        />
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3.5">
+          <h2 className="headline text-[16px] leading-[1.15] text-ink">{event.name}</h2>
+          {waitlisted && (
+            <span className="shrink-0 rounded-full bg-[#ffe500] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+              Waitlist
+            </span>
+          )}
+        </div>
+      </button>
+      <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/5"
-      />
-      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3.5">
-        <h2 className="headline text-[16px] leading-[1.15] text-ink">{event.name}</h2>
-        {waitlisted && (
-          <span className="shrink-0 rounded-full bg-[#ffe500] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
-            Waitlist
-          </span>
-        )}
-      </div>
-    </button>
+        className="pointer-events-none absolute -bottom-1 left-0 z-10 select-none text-[64px] font-bold leading-none tracking-tight text-ink"
+        style={{
+          textShadow:
+            "0 1px 0 rgba(0,0,0,0.9), 0 -1px 0 rgba(0,0,0,0.9), 1px 0 0 rgba(0,0,0,0.9), -1px 0 0 rgba(0,0,0,0.9), 0 6px 18px rgba(0,0,0,0.45)",
+        }}
+      >
+        {index}
+      </span>
+    </div>
   );
+}
+
+function weekdayAbbrev(day: BetaWeekday): string {
+  return day.slice(0, 3).toUpperCase();
+}
+
+/** Prefer today if the event runs today; otherwise the soonest listed day. */
+function preferredWaitlistDay(event: BetaEvent, from: Date = new Date()): BetaWeekday {
+  const todayName = (
+    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
+  )[from.getDay()] as BetaWeekday;
+  if (event.days.includes(todayName)) return todayName;
+  for (const day of BETA_WEEKDAYS) {
+    if (event.days.includes(day)) return day;
+  }
+  return event.days[0] ?? "Thursday";
 }
 
 function uniqueWaitlistEvents(
