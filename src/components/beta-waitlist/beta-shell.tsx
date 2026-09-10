@@ -71,8 +71,7 @@ export function BetaShell({ profile, showDevReset = false }: Props) {
         </div>
       )}
 
-      <header className="relative flex items-center justify-between gap-3">
-        <p className="headline text-[26px] leading-none tracking-tight text-[#ffe500]">mcgill.tickets</p>
+      <header className="relative flex items-center justify-end gap-3">
         <div className="flex items-center gap-2">
           <a
             href={BETA_SOCIALS.instagram}
