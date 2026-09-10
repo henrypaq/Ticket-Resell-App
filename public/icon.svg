@@ -1,5 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="112" fill="#0B0B0C"/>
-  <path d="M136 196a28 28 0 0 1 28-28h184a28 28 0 0 1 28 28v22a38 38 0 0 0 0 76v22a28 28 0 0 1-28 28H164a28 28 0 0 1-28-28v-22a38 38 0 0 0 0-76v-22z" fill="none" stroke="#F5F5F5" stroke-width="18"/>
-  <path d="M300 172v168" stroke="#F5A623" stroke-width="14" stroke-linecap="round" stroke-dasharray="14 20"/>
+  <circle cx="256" cy="256" r="256" fill="#F7CD19"/>
+  <text x="256" y="286" text-anchor="middle" font-family="Arial Black, Helvetica Neue, Arial, sans-serif" font-weight="900" font-size="210" fill="#0B0B0C" letter-spacing="-4">m.t</text>
 </svg>
