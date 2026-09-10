@@ -181,14 +181,14 @@ function MyWaitlistSection({
                   aria-hidden
                   className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/25 to-transparent"
                 />
-                <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-1 p-2">
+                <div className="absolute inset-x-0 top-0 p-2">
                   <span className="headline text-left text-[11px] leading-tight text-ink">
                     {event.name}
                   </span>
-                  <span className="shrink-0 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink ring-1 ring-white/15">
-                    {weekdayAbbrev(day)}
-                  </span>
                 </div>
+                <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ink ring-1 ring-white/15">
+                  {weekdayAbbrev(day)}
+                </span>
               </button>
             );
           })}
@@ -226,14 +226,14 @@ function EventPosterCard({
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/90 via-black/30 to-transparent"
         />
-        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3.5">
+        <div className="absolute inset-x-0 top-0 p-3.5">
           <h2 className="headline text-[16px] leading-[1.15] text-ink">{event.name}</h2>
-          {waitlisted && (
-            <span className="shrink-0 rounded-full bg-[#ffe500] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
-              Waitlist
-            </span>
-          )}
         </div>
+        {waitlisted && (
+          <span className="absolute bottom-3 right-3 z-10 rounded-full bg-[#ffe500] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+            Waitlist
+          </span>
+        )}
       </button>
       <span
         aria-hidden
@@ -610,8 +610,8 @@ function InterestButton({
       onClick={onClick}
       className={`flex w-full items-center justify-between gap-3 rounded-[18px] px-5 py-4 text-left transition-colors disabled:opacity-60 ${
         active
-          ? "border border-[#6ee1ff]/45 bg-[#6ee1ff]/12 shadow-[inset_0_0_0_1px_rgba(110,225,255,0.08)]"
-          : "border border-white/20 bg-transparent hover:border-white/35 hover:bg-white/[0.04]"
+          ? "border border-[#6ee1ff]/45 bg-[#6ee1ff]/12"
+          : "bg-white/[0.06] hover:bg-white/[0.09]"
       }`}
     >
       <span className="text-[15px] font-semibold">{label}</span>
