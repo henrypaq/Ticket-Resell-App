@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   updateBetaContactAction,
   updateBetaNotificationPrefsAction,
@@ -16,8 +16,6 @@ import { BUTTON_CLASS_COMPACT, FIELD_CLASS, FIELD_GROUP_CLASS } from "./field-st
 type Props = {
   profile: BetaSignupProfile | null;
 };
-
-const initial: BetaActionState = {};
 
 type PrefKey =
   | "notifyQueueEmail"
@@ -55,18 +53,43 @@ export function BetaNotisTab({ profile }: Props) {
 }
 
 function ContactForm({ profile }: { profile: BetaSignupProfile }) {
-  const [state, action, pending] = useActionState(updateBetaContactAction, initial);
   const parsed = splitPhone(profile.phone);
+  const initialDigits = profile.phone.replace(/\D/g, "");
+  const initialPhone = initialDigits ? `+${initialDigits}` : "";
+
   const [email, setEmail] = useState(profile.email);
   const [country, setCountry] = useState(parsed.country);
   const [national, setNational] = useState(parsed.national);
+  const [savedEmail, setSavedEmail] = useState(profile.email.trim().toLowerCase());
+  const [savedPhone, setSavedPhone] = useState(initialPhone);
+  const [state, setState] = useState<BetaActionState>({});
+  const [pending, startTransition] = useTransition();
+
   const dial = countryByIso2(country).dial;
   const digits = national.replace(/\D/g, "");
   const composedPhone = digits ? `+${dial}${digits}` : "";
-  const canSave = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const dirty =
+    email.trim().toLowerCase() !== savedEmail || composedPhone !== savedPhone;
+  const canSave = emailValid && dirty && !pending;
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!canSave) return;
+    const fd = new FormData(e.currentTarget);
+    setState({});
+    startTransition(async () => {
+      const result = await updateBetaContactAction({}, fd);
+      setState(result);
+      if (result.ok) {
+        setSavedEmail(email.trim().toLowerCase());
+        setSavedPhone(composedPhone);
+      }
+    });
+  }
 
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <Field label="Email" htmlFor="notis-email">
         <input
           id="notis-email"
@@ -97,11 +120,7 @@ function ContactForm({ profile }: { profile: BetaSignupProfile }) {
         </div>
       </Field>
       <StatusLine state={state} />
-      <button
-        type="submit"
-        disabled={pending || !canSave}
-        className={`mt-3 ${BUTTON_CLASS_COMPACT}`}
-      >
+      <button type="submit" disabled={!canSave} className={`mt-3 ${BUTTON_CLASS_COMPACT}`}>
         {pending ? "Saving…" : "Save"}
       </button>
     </form>

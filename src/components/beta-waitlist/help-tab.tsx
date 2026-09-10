@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   submitBetaSupportAction,
   type BetaActionState,
@@ -18,6 +18,14 @@ const initial: BetaActionState = {};
 /** Help / Contact tab — support form persisted to `beta_support_messages`. */
 export function BetaHelpTab({ profile }: Props) {
   const [state, action, pending] = useActionState(submitBetaSupportAction, initial);
+  const [email, setEmail] = useState(profile?.email ?? "");
+  const [category, setCategory] = useState("");
+  const [message, setMessage] = useState("");
+
+  const canSend =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
+    category !== "" &&
+    message.trim().length >= 10;
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,7 +44,8 @@ export function BetaHelpTab({ profile }: Props) {
               type="email"
               name="email"
               required
-              defaultValue={profile?.email ?? ""}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="jane@email.com"
               autoComplete="email"
               className={FIELD_CLASS}
@@ -48,7 +57,8 @@ export function BetaHelpTab({ profile }: Props) {
               id="help-category"
               name="category"
               required
-              defaultValue=""
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
               className={`${FIELD_CLASS} appearance-none`}
             >
               <option value="" disabled className="bg-card text-muted">
@@ -68,6 +78,8 @@ export function BetaHelpTab({ profile }: Props) {
               name="message"
               required
               rows={6}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
               placeholder="What's going on?"
               className={`${FIELD_CLASS} resize-none`}
             />
@@ -81,7 +93,7 @@ export function BetaHelpTab({ profile }: Props) {
 
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || !canSend}
             className={`mt-2 ${BUTTON_CLASS}`}
           >
             {pending ? "Sending…" : "Send message"}
