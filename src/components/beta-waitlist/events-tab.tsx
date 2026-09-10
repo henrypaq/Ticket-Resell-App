@@ -179,7 +179,7 @@ function MyWaitlistSection({
                 <img src={event.flyerUrl} alt="" className="h-full w-full object-cover" />
                 <div
                   aria-hidden
-                  className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/25 to-transparent"
+                  className="absolute inset-0 bg-gradient-to-b from-black/85 via-transparent to-black/75"
                 />
                 <div className="absolute inset-x-0 top-0 p-2">
                   <span className="headline text-left text-[11px] leading-tight text-ink">
