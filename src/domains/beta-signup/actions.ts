@@ -5,7 +5,6 @@ import { cookies } from "next/headers";
 import {
   BETA_ACQUISITION_COOKIE,
   isAcquisitionChannel,
-  parseAcquisitionSrc,
   type AcquisitionChannel,
 } from "@/lib/beta-acquisition";
 import { demoLoginEnabled } from "@/lib/env";
@@ -48,16 +47,6 @@ const COOKIE_BASE = {
 async function setSignupCookie(id: string) {
   const cookieStore = await cookies();
   cookieStore.set(BETA_SIGNUP_COOKIE, id, COOKIE_BASE);
-}
-
-/**
- * First-touch only. Bare `/` (Instagram bio) → `ig_bio`; `?src=qr_*` → that
- * channel. Later visits with a different src do not overwrite.
- */
-export async function captureAcquisitionChannel(src: string | null | undefined): Promise<void> {
-  const cookieStore = await cookies();
-  if (isAcquisitionChannel(cookieStore.get(BETA_ACQUISITION_COOKIE)?.value)) return;
-  cookieStore.set(BETA_ACQUISITION_COOKIE, parseAcquisitionSrc(src), COOKIE_BASE);
 }
 
 async function readAcquisitionChannel(): Promise<AcquisitionChannel> {

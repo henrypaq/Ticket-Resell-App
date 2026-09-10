@@ -1,4 +1,4 @@
-import { captureAcquisitionChannel, hasCompletedBetaSignup } from "@/domains/beta-signup/actions";
+import { hasCompletedBetaSignup } from "@/domains/beta-signup/actions";
 import { demoLoginEnabled } from "@/lib/env";
 import { WaitlistFlow } from "@/components/beta-waitlist/waitlist-flow";
 import { BetaWelcomeScreen } from "@/components/beta-waitlist/beta-welcome-screen";
@@ -11,17 +11,10 @@ export const dynamic = "force-dynamic";
  * shell's chrome (BottomNav, scan button). `/` shows this to every visitor
  * during the beta, session or no session; the real app now lives at `/home`.
  *
- * `?src=qr_share|qr_print` attributes QR entry points; bare URL (Instagram
- * bio) is stored as `ig_bio` — see `lib/beta-acquisition.ts`.
+ * Acquisition first-touch (`?src=` / bare → `ig_bio`) is stamped in `proxy.ts`
+ * — see `lib/beta-acquisition.ts`.
  */
-export default async function WaitlistPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ src?: string }>;
-}) {
-  const { src } = await searchParams;
-  await captureAcquisitionChannel(src);
-
+export default async function WaitlistPage() {
   if (await hasCompletedBetaSignup()) {
     return <BetaWelcomeScreen showDevReset={demoLoginEnabled()} />;
   }
