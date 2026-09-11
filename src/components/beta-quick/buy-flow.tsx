@@ -36,13 +36,19 @@ function splitSavedPhone(e164: string | null | undefined): { iso2: string; natio
 export function QuickBuyFlow({
   events,
   savedContact,
+  initialEventSlug,
 }: {
   events: BetaEvent[];
   savedContact?: GoContactProfile | null;
+  initialEventSlug?: string | null;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [eventSlug, setEventSlug] = useState(events[0]?.slug ?? "");
+  const preset =
+    initialEventSlug && events.some((e) => e.slug === initialEventSlug)
+      ? initialEventSlug
+      : (events[0]?.slug ?? "");
+  const [eventSlug, setEventSlug] = useState(preset);
   const [quantity, setQuantity] = useState(1);
   const savedPhone = splitSavedPhone(savedContact?.contactPhone);
   const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);

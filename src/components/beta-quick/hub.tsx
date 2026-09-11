@@ -21,7 +21,8 @@ export function QuickHub({
   otherEvents: BetaEvent[];
   waitlist: QuickWaitlistEntry[];
 }) {
-  const posters = tonight.length > 0 ? tonight : otherEvents.slice(0, 4);
+  const hasTonight = tonight.length > 0;
+  const posters = hasTonight ? tonight : otherEvents.slice(0, 4);
 
   return (
     <QuickShell>
@@ -38,27 +39,28 @@ export function QuickHub({
       {waitlist.length > 0 && (
         <section className="relative mt-8">
           <p className="section-header text-[11px] text-muted">Your waitlist</p>
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="mt-4 flex flex-col gap-4">
             {waitlist.map((entry) => (
               <li
                 key={entry.leadId}
-                className="flex items-center justify-between gap-3 rounded-[16px] border-l-2 border-[#ffe500] bg-white/[0.05] px-4 py-3"
+                className="rounded-[16px] bg-[#17171a] px-4 py-3.5 shadow-[0_7px_0_0_#c9b400,0_12px_28px_rgba(255,229,0,0.14)]"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-[15px] font-semibold text-ink">{entry.eventName}</p>
-                  <p className="mt-0.5 text-[12.5px] text-muted">
-                    ×{entry.quantity}
-                    {entry.status === "matched"
-                      ? " · matched — we’ll message you"
-                      : entry.status === "done"
-                        ? " · completed"
-                        : " · we’ll message you when a ticket opens"}
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="min-w-0 truncate text-[15px] font-semibold text-ink">
+                    {entry.eventName}
+                  </p>
+                  <p className="shrink-0 text-[15px] font-bold tabular-nums text-ink">
+                    #{entry.position}
                   </p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-[20px] font-bold tabular-nums text-[#ffe500]">#{entry.position}</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">in line</p>
-                </div>
+                <p className="mt-1 text-[12.5px] leading-snug text-muted">
+                  {entry.quantity > 1 ? `${entry.quantity} tickets · ` : ""}
+                  {entry.status === "matched"
+                    ? "Matched — we’ll message you"
+                    : entry.status === "done"
+                      ? "Completed"
+                      : "We’ll message you when a ticket opens"}
+                </p>
               </li>
             ))}
           </ul>
@@ -67,18 +69,18 @@ export function QuickHub({
 
       <section className="relative mt-8">
         <p className="section-header text-[11px] text-muted">
-          {tonight.length > 0 ? "Tonight" : "Upcoming"}
+          {hasTonight ? `Tonight · ${formatBetaEventWhen(tonightDay)}` : "Upcoming"}
         </p>
         <div className="-mx-5 mt-3 flex gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {posters.map((event) => (
             <EventPoster
               key={event.slug}
               event={event}
-              day={tonight.length > 0 ? tonightDay : event.days[0]}
+              day={hasTonight ? tonightDay : event.days[0]!}
             />
           ))}
         </div>
-        {tonight.length === 0 && (
+        {!hasTonight && (
           <p className="mt-3 text-[13px] text-muted">
             Nothing listed for tonight — more nights once you pick buy or sell.
           </p>
@@ -103,7 +105,11 @@ export function QuickHub({
 
 function EventPoster({ event, day }: { event: BetaEvent; day: BetaWeekday }) {
   return (
-    <article className="relative w-[42vw] max-w-[180px] shrink-0 overflow-hidden rounded-[20px] bg-[#17171a]">
+    <Link
+      href={`/go/buy?event=${encodeURIComponent(event.slug)}`}
+      className="relative w-[42vw] max-w-[180px] shrink-0 overflow-hidden rounded-[20px] bg-[#17171a] outline-none ring-[#ffe500]/0 transition-[box-shadow,transform] hover:ring-2 hover:ring-[#ffe500]/40 active:scale-[0.98]"
+      aria-label={`Get tickets for ${event.name}`}
+    >
       <div className="relative aspect-[3/4] w-full">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={event.flyerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -116,6 +122,6 @@ function EventPoster({ event, day }: { event: BetaEvent; day: BetaWeekday }) {
           <p className="mt-1 text-[11px] text-muted">{formatBetaEventWhen(day)}</p>
         </div>
       </div>
-    </article>
+    </Link>
   );
 }
