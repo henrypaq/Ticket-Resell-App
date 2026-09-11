@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { QuickHub } from "@/components/beta-quick/hub";
+import { loadQuickWaitlistForHub } from "@/domains/beta-quick/actions";
 import {
   currentBetaWeekday,
   supportedBetaEvents,
@@ -17,10 +18,18 @@ export const dynamic = "force-dynamic";
  * Low-friction beta hub for Instagram bio — tonight's events + buy/sell CTAs.
  * Separate from the long questionnaire at `/`.
  */
-export default function QuickGoPage() {
+export default async function QuickGoPage() {
   const tonight = tonightBetaEvents();
   const day = currentBetaWeekday();
   const other = supportedBetaEvents().filter((e) => !tonight.some((t) => t.slug === e.slug));
+  const waitlist = await loadQuickWaitlistForHub();
 
-  return <QuickHub tonight={tonight} tonightDay={day} otherEvents={other.length ? other : supportedBetaEvents()} />;
+  return (
+    <QuickHub
+      tonight={tonight}
+      tonightDay={day}
+      otherEvents={other.length ? other : supportedBetaEvents()}
+      waitlist={waitlist}
+    />
+  );
 }

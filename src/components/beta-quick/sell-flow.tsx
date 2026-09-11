@@ -23,6 +23,7 @@ import {
 } from "./shared";
 
 const initial: QuickActionState = {};
+const LAST_STEP = 5;
 
 export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
   const router = useRouter();
@@ -73,14 +74,15 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
     paidEach.trim() !== "" &&
     askEach.trim() !== "";
   const hasTicket = Boolean(ticketUrl.trim()) || Boolean(ticketFileName);
-  const detailsReady = pricesOk && (phoneOk || igOk) && hasTicket;
+  const ticketStepReady = hasTicket && terms;
 
   const etPhone = composeQuickPhone(etPhoneCountry, etPhoneNational);
   const etPhoneOk = etPhoneNational.replace(/\D/g, "").length >= 7;
   const etEmailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(etEmail.trim());
-  const payoutReady = etName.trim().length > 0 && (etPhoneOk || etEmailOk) && terms;
+  const payoutReady = etName.trim().length > 0 && (etPhoneOk || etEmailOk);
 
   const etDial = countryByIso2(etPhoneCountry).dial;
+  const stepLabel = `Sell · ${step + 1} of ${LAST_STEP + 1}`;
 
   return (
     <QuickShell>
@@ -98,7 +100,7 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
         className="relative mt-6 flex flex-col gap-6"
         encType="multipart/form-data"
         onSubmit={(e) => {
-          if (step < 2) e.preventDefault();
+          if (step < LAST_STEP) e.preventDefault();
         }}
       >
         <input type="hidden" name="eventSlug" value={eventSlug} />
@@ -123,7 +125,7 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
 
         {step === 0 && (
           <>
-            <StepHeading eyebrow="Sell · 1 of 3" title="Which event?" />
+            <StepHeading eyebrow={stepLabel} title="Which event?" />
             <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
             <button
               type="button"
@@ -138,15 +140,21 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
 
         {step === 1 && (
           <>
+            <StepHeading eyebrow={stepLabel} title="How many tickets?" />
+            <QuantityStepper value={quantity} onChange={setQuantity} />
+            <button type="button" onClick={() => setStep(2)} className={BUTTON_CLASS}>
+              Continue
+            </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
             <StepHeading
-              eyebrow="Sell · 2 of 3"
-              title="Ticket details"
+              eyebrow={stepLabel}
+              title="Pricing"
               hint="Ask price can't be higher than what you paid."
             />
-            <div>
-              <p className="mb-2 text-[13px] font-medium text-muted">How many?</p>
-              <QuantityStepper value={quantity} onChange={setQuantity} />
-            </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="You paid (each)" htmlFor="paidEach">
                 <div className="relative">
@@ -182,6 +190,24 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
             {paidEach && askEach && ask > paid && (
               <p className="text-[13px] text-urgency">Ask can&apos;t exceed what you paid.</p>
             )}
+            <button
+              type="button"
+              disabled={!pricesOk}
+              onClick={() => setStep(3)}
+              className={BUTTON_CLASS}
+            >
+              Continue
+            </button>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <StepHeading
+              eyebrow={stepLabel}
+              title="How do we reach you?"
+              hint="We'll confirm on WhatsApp or Instagram before posting."
+            />
             <ContactFields
               phoneCountry={phoneCountry}
               phoneNational={phoneNational}
@@ -190,7 +216,39 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
               onPhoneNational={setPhoneNational}
               onInstagram={setInstagram}
             />
-            <Field label="Ticket share link (optional if you upload)" htmlFor="ticketUrl">
+            <button
+              type="button"
+              disabled={!(phoneOk || igOk)}
+              onClick={() => setStep(4)}
+              className={BUTTON_CLASS}
+            >
+              Continue
+            </button>
+          </>
+        )}
+
+        {step === 4 && (
+          <>
+            <StepHeading
+              eyebrow={stepLabel}
+              title="Prove the ticket"
+              hint="Upload a clear screenshot or PDF, or paste the official share link."
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex min-h-[160px] w-full flex-col items-center justify-center gap-2 rounded-[20px] border-2 border-dashed border-white/25 bg-white/[0.05] px-5 py-8 text-center transition-colors hover:border-[#ffe500]/40 hover:bg-white/[0.08]"
+            >
+              <span className="text-[15px] font-semibold text-ink">
+                {ticketFileName ? "Replace file" : "Upload ticket screenshot / PDF"}
+              </span>
+              <span className="max-w-[16rem] text-[13px] leading-relaxed text-muted">
+                {ticketFileName
+                  ? ticketFileName
+                  : "JPEG, PNG, or PDF · up to 8MB · make sure the QR / barcode is readable"}
+              </span>
+            </button>
+            <Field label="Or paste a share link" htmlFor="ticketUrl">
               <input
                 id="ticketUrl"
                 type="url"
@@ -200,18 +258,35 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
                 className={FIELD_CLASS}
               />
             </Field>
+            {!hasTicket && (
+              <p className="text-[13px] text-muted">Add a file or a link to continue.</p>
+            )}
+            <label className="flex cursor-pointer items-start gap-3 rounded-[16px] border border-hairline bg-white/[0.04] px-4 py-4">
+              <input
+                type="checkbox"
+                checked={terms}
+                onChange={(e) => setTerms(e.target.checked)}
+                className="mt-0.5 h-5 w-5 shrink-0 accent-[#6ee1ff]"
+              />
+              <span className="text-[13px] leading-relaxed text-muted">
+                I confirm this is a <span className="font-semibold text-ink">real, unused ticket</span> I
+                own, the file/link is accurate and unedited, and I agree to the{" "}
+                <Link
+                  href={SELLER_TERMS_PATH}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-ink underline decoration-dotted underline-offset-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  seller terms
+                </Link>{" "}
+                (no fakes, follow through on sales, accurate Interac info).
+              </span>
+            </label>
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex flex-col gap-1 rounded-[14px] border border-dashed border-white/20 bg-white/[0.03] px-4 py-4 text-left"
-            >
-              <span className="text-[13px] font-medium text-muted">Or upload screenshot / PDF</span>
-              <span className="text-[13.5px] text-ink">{ticketFileName ?? "Choose file…"}</span>
-            </button>
-            <button
-              type="button"
-              disabled={!detailsReady}
-              onClick={() => setStep(2)}
+              disabled={!ticketStepReady}
+              onClick={() => setStep(5)}
               className={BUTTON_CLASS}
             >
               Continue
@@ -219,10 +294,10 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
           </>
         )}
 
-        {step === 2 && (
+        {step === 5 && (
           <>
             <StepHeading
-              eyebrow="Sell · 3 of 3"
+              eyebrow={stepLabel}
               title="Interac e-Transfer"
               hint="Where we send payment when your ticket sells."
             />
@@ -267,27 +342,6 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
                 />
               </div>
             </Field>
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={terms}
-                onChange={(e) => setTerms(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#6ee1ff]"
-              />
-              <span className="text-[12.5px] leading-relaxed text-muted">
-                I agree to the{" "}
-                <Link
-                  href={SELLER_TERMS_PATH}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-ink underline decoration-dotted underline-offset-4"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  seller terms
-                </Link>{" "}
-                (no fakes, follow through on sales).
-              </span>
-            </label>
             {state.error && (
               <p role="alert" className="text-[13.5px] text-urgency">
                 {state.error}

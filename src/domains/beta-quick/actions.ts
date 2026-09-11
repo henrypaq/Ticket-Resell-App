@@ -1,7 +1,9 @@
 "use server";
 
 import { cookies } from "next/headers";
+import type { QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import {
+  getQuickWaitlistEntries,
   quickBuySchema,
   quickSellSchema,
   submitQuickBuy,
@@ -15,10 +17,42 @@ import {
 
 export type QuickActionState = { ok?: true; error?: string };
 
+/** Cookie of buy lead UUIDs so /go can show queue position on return visits. */
+export const QUICK_BUYER_COOKIE = "passe_quick_buyer";
+
+const COOKIE_BASE = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 180,
+};
+
 async function readAcquisitionChannel(): Promise<AcquisitionChannel | undefined> {
   const jar = await cookies();
   const value = jar.get(BETA_ACQUISITION_COOKIE)?.value;
   return isAcquisitionChannel(value) ? value : undefined;
+}
+
+async function appendQuickBuyerCookie(leadId: string): Promise<void> {
+  const jar = await cookies();
+  const existing = jar.get(QUICK_BUYER_COOKIE)?.value ?? "";
+  const ids = existing
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!ids.includes(leadId)) ids.push(leadId);
+  jar.set(QUICK_BUYER_COOKIE, ids.slice(-20).join(","), COOKIE_BASE);
+}
+
+export async function loadQuickWaitlistForHub(): Promise<QuickWaitlistEntry[]> {
+  const jar = await cookies();
+  const raw = jar.get(QUICK_BUYER_COOKIE)?.value ?? "";
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return getQuickWaitlistEntries(ids);
 }
 
 export async function submitQuickBuyAction(
@@ -37,6 +71,7 @@ export async function submitQuickBuyAction(
   }
   const result = await submitQuickBuy(parsed.data);
   if (!result.ok) return { error: result.error };
+  await appendQuickBuyerCookie(result.id);
   return { ok: true };
 }
 
@@ -44,7 +79,8 @@ export async function submitQuickSellAction(
   _prev: QuickActionState,
   formData: FormData,
 ): Promise<QuickActionState> {
-  const termsOn = formData.get("sellerTermsAccepted") === "on" || formData.get("sellerTermsAccepted") === "1";
+  const termsOn =
+    formData.get("sellerTermsAccepted") === "on" || formData.get("sellerTermsAccepted") === "1";
   const parsed = quickSellSchema.safeParse({
     eventSlug: formData.get("eventSlug"),
     quantity: formData.get("quantity"),

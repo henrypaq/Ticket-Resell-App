@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import Link from "next/link";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitQuickBuyAction, type QuickActionState } from "@/domains/beta-quick/actions";
 import type { BetaEvent } from "@/lib/beta-events";
@@ -29,17 +28,16 @@ export function QuickBuyFlow({ events }: { events: BetaEvent[] }) {
   const [instagram, setInstagram] = useState("");
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
 
+  useEffect(() => {
+    if (state.ok) router.replace("/go");
+  }, [state.ok, router]);
+
   if (state.ok) {
     return (
       <QuickShell>
         <p className="text-[17px] font-semibold text-[#ffe500]">mcgill.tickets</p>
         <h1 className="headline mt-6 text-[30px] leading-tight">You&apos;re on the list</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">
-          We&apos;ll message you as soon as a ticket opens up for that event.
-        </p>
-        <Link href="/go" className={`${BUTTON_CLASS} mt-8`}>
-          Back to tonight
-        </Link>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted">Taking you back…</p>
       </QuickShell>
     );
   }

@@ -6,6 +6,9 @@ import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug } from "@/lib/beta-events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateTicketEvidenceFile } from "@/lib/verification/ticket-evidence";
+import type { QuickWaitlistEntry } from "./shared";
+
+export type { QuickWaitlistEntry } from "./shared";
 
 const contactRefine = (
   value: { contactPhone?: string; contactInstagram?: string },
@@ -214,4 +217,49 @@ export async function submitQuickSell(
   }).catch(() => {});
 
   return { ok: true, id: data.id };
+}
+
+/** Queue cards for the /go hub — positions among open buy leads for that event. */
+export async function getQuickWaitlistEntries(
+  leadIds: string[],
+): Promise<QuickWaitlistEntry[]> {
+  const ids = [...new Set(leadIds.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))].slice(0, 20);
+  if (ids.length === 0) return [];
+
+  const admin = createAdminClient();
+  const { data: mine, error } = await admin
+    .from("beta_quick_leads")
+    .select("id, event_slug, quantity, status, created_at")
+    .eq("intent", "buy")
+    .in("id", ids)
+    .order("created_at", { ascending: true });
+
+  if (error || !mine?.length) return [];
+
+  const entries: QuickWaitlistEntry[] = [];
+  for (const row of mine) {
+    if (row.status === "cancelled") continue;
+    const { data: peers } = await admin
+      .from("beta_quick_leads")
+      .select("id, created_at")
+      .eq("intent", "buy")
+      .eq("event_slug", row.event_slug)
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: true });
+
+    const idx = (peers ?? []).findIndex((p) => p.id === row.id);
+    const position = idx >= 0 ? idx + 1 : 1;
+    const event = betaEventBySlug(row.event_slug);
+    entries.push({
+      leadId: row.id,
+      eventSlug: row.event_slug,
+      eventName: event?.name ?? row.event_slug,
+      quantity: row.quantity,
+      position,
+      status: row.status,
+      createdAt: row.created_at,
+    });
+  }
+
+  return entries;
 }

@@ -23,7 +23,7 @@ export default function SellerTermsPage() {
 
       <p className="mt-10 text-[12px] text-muted">Updated {SELLER_TERMS.updated}</p>
       <Link
-        href="/"
+        href="/go"
         className="mt-6 inline-block text-[13.5px] font-semibold text-muted underline decoration-dotted underline-offset-4 hover:text-ink"
       >
         Back

@@ -6,6 +6,7 @@ import {
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
+import type { QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/beta-waitlist/field-styles";
 import { QuickShell } from "./shell";
 
@@ -13,10 +14,12 @@ export function QuickHub({
   tonight,
   tonightDay,
   otherEvents,
+  waitlist,
 }: {
   tonight: BetaEvent[];
   tonightDay: BetaWeekday;
   otherEvents: BetaEvent[];
+  waitlist: QuickWaitlistEntry[];
 }) {
   const posters = tonight.length > 0 ? tonight : otherEvents.slice(0, 4);
 
@@ -31,6 +34,36 @@ export function QuickHub({
           Buy and sell sold-out tickets — fast. We handle the handoff.
         </p>
       </header>
+
+      {waitlist.length > 0 && (
+        <section className="relative mt-8">
+          <p className="section-header text-[11px] text-muted">Your waitlist</p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {waitlist.map((entry) => (
+              <li
+                key={entry.leadId}
+                className="flex items-center justify-between gap-3 rounded-[16px] border-l-2 border-[#ffe500] bg-white/[0.05] px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-semibold text-ink">{entry.eventName}</p>
+                  <p className="mt-0.5 text-[12.5px] text-muted">
+                    ×{entry.quantity}
+                    {entry.status === "matched"
+                      ? " · matched — we’ll message you"
+                      : entry.status === "done"
+                        ? " · completed"
+                        : " · we’ll message you when a ticket opens"}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[20px] font-bold tabular-nums text-[#ffe500]">#{entry.position}</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">in line</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="relative mt-8">
         <p className="section-header text-[11px] text-muted">
