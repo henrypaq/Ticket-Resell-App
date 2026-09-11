@@ -16,11 +16,8 @@ import {
   EventPicker,
   QuantityStepper,
   StepHeading,
-  TrustNote,
   composeQuickPhone,
 } from "./shared";
-import { GO_TRUST } from "@/lib/beta-trust";
-import { currentBetaWeekday } from "@/lib/beta-events";
 
 const initial: QuickActionState = {};
 
@@ -101,12 +98,7 @@ export function QuickBuyFlow({
         {step === 0 && (
           <>
             <StepHeading eyebrow="Need a ticket · 1 of 3" title="Which event?" />
-            <EventPicker
-              events={events}
-              value={eventSlug}
-              onChange={setEventSlug}
-              nightDay={currentBetaWeekday()}
-            />
+            <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
             <button
               type="button"
               disabled={!eventSlug}
@@ -148,7 +140,6 @@ export function QuickBuyFlow({
                 {state.error}
               </p>
             )}
-            <TrustNote label={GO_TRUST.buyJoin.label}>{GO_TRUST.buyJoin.body}</TrustNote>
             <button type="submit" disabled={!canContact || pending} className={BUTTON_CLASS}>
               {pending ? "Joining…" : "Join waitlist"}
             </button>

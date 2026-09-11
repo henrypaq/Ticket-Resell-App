@@ -23,7 +23,7 @@ function daysLabel(days: string[]) {
 
 export type SellerEventEntry = QuickLeadRow & {
   eventDays: string[];
-  evidenceUrls: string[];
+  evidenceUrl: string | null;
 };
 
 export function SellersEventCards({
@@ -94,17 +94,16 @@ function SellerRow({ lead }: { lead: SellerEventEntry }) {
             {` · ${lead.status}`}
           </p>
         </div>
-        {lead.evidenceUrls.map((url, i) => (
+        {lead.evidenceUrl ? (
           <a
-            key={url}
-            href={url}
+            href={lead.evidenceUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 rounded-full bg-[#ffe500]/15 px-2.5 py-1 text-[11px] font-bold text-[#ffe500]"
           >
-            {lead.evidenceUrls.length > 1 ? `File ${i + 1}` : "Open file"}
+            Open file
           </a>
-        ))}
+        ) : null}
         {lead.ticketShareUrl ? (
           <a
             href={lead.ticketShareUrl}
@@ -115,7 +114,7 @@ function SellerRow({ lead }: { lead: SellerEventEntry }) {
             Open link
           </a>
         ) : null}
-        {!lead.evidenceUrls.length && !lead.ticketShareUrl ? (
+        {!lead.evidenceUrl && !lead.ticketShareUrl ? (
           <span className="shrink-0 text-[11px] text-muted">No proof</span>
         ) : null}
         <button
@@ -132,7 +131,7 @@ function SellerRow({ lead }: { lead: SellerEventEntry }) {
       </div>
       {expanded && (
         <div className="px-3 pb-3">
-          <LeadCard lead={lead} evidenceUrl={lead.evidenceUrls[0] ?? null} evidenceUrls={lead.evidenceUrls} />
+          <LeadCard lead={lead} evidenceUrl={lead.evidenceUrl} />
         </div>
       )}
     </li>

@@ -121,17 +121,15 @@ export async function submitQuickSellAction(
       return { error: parsed.error.issues[0]?.message ?? "Check your answers and try again." };
     }
 
-    const uploads: { bytes: Uint8Array; name: string }[] = [];
-    const all = formData.getAll("ticketImage");
-    for (const raw of all) {
-      if (raw instanceof File && raw.size > 0) {
-        uploads.push({ bytes: new Uint8Array(await raw.arrayBuffer()), name: raw.name });
-      }
+    const raw = formData.get("ticketImage");
+    let file: { bytes: Uint8Array; name: string } | null = null;
+    if (raw instanceof File && raw.size > 0) {
+      file = { bytes: new Uint8Array(await raw.arrayBuffer()), name: raw.name };
     }
 
     const result = await submitQuickSell(
       { ...parsed.data, existingContactId: await readGoContactId() },
-      uploads,
+      file,
     );
     if (!result.ok) return { error: result.error };
     if (result.contactId) await setGoContactCookie(result.contactId);

@@ -11,7 +11,7 @@ import {
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug } from "@/lib/beta-events";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { validateTicketEvidenceFile, encodeEvidencePaths } from "@/lib/verification/ticket-evidence";
+import { validateTicketEvidenceFile } from "@/lib/verification/ticket-evidence";
 import type { QuickWaitlistEntry } from "./shared";
 
 export type { QuickWaitlistEntry } from "./shared";
@@ -164,45 +164,29 @@ export async function submitQuickBuy(
 
 export async function submitQuickSell(
   input: QuickSellInput & { existingContactId?: string | null },
-  files?: { bytes: Uint8Array; name: string }[] | null,
+  file?: { bytes: Uint8Array; name: string } | null,
 ): Promise<QuickLeadResult> {
   const hasUrl = Boolean(input.ticketShareUrl);
-  const uploads = (files ?? []).filter((f) => f.bytes.byteLength > 0);
-  const hasFiles = uploads.length > 0;
-  if (!hasUrl && !hasFiles) {
+  const hasFile = Boolean(file && file.bytes.byteLength > 0);
+  if (!hasUrl && !hasFile) {
     return { ok: false, error: "Upload a ticket screenshot or paste a share link." };
   }
-  if (!hasUrl && uploads.length < input.quantity) {
-    return {
-      ok: false,
-      error:
-        input.quantity === 1
-          ? "Upload a ticket screenshot or paste a share link."
-          : `Upload all ${input.quantity} ticket files, or paste one share link.`,
-    };
-  }
 
-  const evidencePaths: string[] = [];
-  if (hasFiles) {
+  let evidencePath: string | null = null;
+  if (hasFile && file) {
+    const validation = validateTicketEvidenceFile(file.bytes);
+    if (!validation.ok) return { ok: false, error: validation.message };
+
     const admin = createAdminClient();
-    const folder = crypto.randomUUID();
-    for (let i = 0; i < uploads.length; i++) {
-      const file = uploads[i]!;
-      const validation = validateTicketEvidenceFile(file.bytes);
-      if (!validation.ok) return { ok: false, error: validation.message };
-
-      const path = `${folder}/${i}-${Date.now()}.${validation.ext}`;
-      const { error: uploadError } = await admin.storage
-        .from("beta-quick-tickets")
-        .upload(path, file.bytes, { contentType: validation.mime, upsert: false });
-      if (uploadError) {
-        return { ok: false, error: "Ticket upload failed. Try again or paste a share link." };
-      }
-      evidencePaths.push(path);
+    const path = `${crypto.randomUUID()}/${Date.now()}.${validation.ext}`;
+    const { error: uploadError } = await admin.storage
+      .from("beta-quick-tickets")
+      .upload(path, file.bytes, { contentType: validation.mime, upsert: false });
+    if (uploadError) {
+      return { ok: false, error: "Ticket upload failed. Try again or paste a share link." };
     }
+    evidencePath = path;
   }
-
-  const evidencePath = encodeEvidencePaths(evidencePaths);
 
   const contactResult = await upsertGoContact({
     contactPhone: input.contactPhone,
@@ -267,7 +251,7 @@ export async function submitQuickSell(
     paidEach: input.paidEach,
     askEach: input.askEach,
     ticketShareUrl: input.ticketShareUrl ?? undefined,
-    hasEvidence: evidencePaths.length > 0,
+    hasEvidence: Boolean(evidencePath),
     etransferName: input.etransferName,
     etransferEmail: input.etransferEmail ?? undefined,
     etransferPhone: input.etransferPhone ?? undefined,

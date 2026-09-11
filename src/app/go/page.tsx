@@ -15,8 +15,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 /**
- * Low-friction beta hub for Instagram bio — tonight's events (Montreal date)
- * + buy/sell CTAs. Recomputes each request so the night flips with the calendar.
+ * Low-friction beta hub for Instagram bio — tonight's events + buy/sell CTAs.
+ * Separate from the long questionnaire at `/`.
  */
 export default async function QuickGoPage() {
   const tonight = tonightBetaEvents();
