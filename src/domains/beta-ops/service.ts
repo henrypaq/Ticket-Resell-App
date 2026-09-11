@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug, INTEREST_OPTIONS } from "@/lib/beta-events";
 import { parseEvidencePaths } from "@/lib/verification/ticket-evidence";
 import { defaultFakeFront, getFakeFrontMap, listAllUnifiedQueueSeats, positionInSeats } from "@/domains/beta-queue/unified";
@@ -178,15 +179,7 @@ const addMemberSchema = z.object({
     .transform((v) => v.toLowerCase()),
   phone: z.string().trim().max(30).optional().default(""),
   intent: z.enum(["buy", "sell", "both"]),
-  acquisitionChannel: z.enum([
-    "qr_share",
-    "qr_print",
-    "ig_bio",
-    "manual",
-    "friend",
-    "campus",
-    "other",
-  ]),
+  acquisitionChannel: z.enum(ACQUISITION_CHANNELS),
   referralSource: z.string().trim().max(160).optional().default(""),
   notes: z.string().trim().max(500).optional().default(""),
 });

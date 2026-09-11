@@ -35,10 +35,16 @@ export default async function proxy(request: NextRequest) {
 
   await supabase.auth.getUser();
 
-  // First-touch only. Bare `/`/`/member`/`/go` → ig_bio; `?src=qr_*` → that.
+  // First-touch only. Bare `/`/`/member`/`/go` → ig_bio; `?src=qr_*` / flyer → that.
   // `/go` = Instagram-bio quick flow; `/member` = full beta member onboarding.
   const path = request.nextUrl.pathname;
-  if (path === "/" || path === "/member" || path === "/go") {
+  if (
+    path === "/" ||
+    path === "/member" ||
+    path === "/go" ||
+    path === "/go/buy" ||
+    path === "/go/sell"
+  ) {
     const existing = request.cookies.get(BETA_ACQUISITION_COOKIE)?.value;
     if (!isAcquisitionChannel(existing)) {
       response.cookies.set(
