@@ -64,7 +64,7 @@ async function readAcquisitionChannel(): Promise<AcquisitionChannel> {
 
 /**
  * There's no account behind this flow, so "once you've signed up" is tracked
- * with a cookie holding the `beta_signups.id`. Not a session — just enough to
+ * with a cookie holding the `beta_members.id`. Not a session — just enough to
  * load/update prefs without re-collecting PII on every visit. Legacy value
  * `"1"` (from the flag-only cookie) still counts as completed for the gate,
  * but preference actions need a real uuid.

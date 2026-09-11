@@ -17,7 +17,7 @@ export async function getFakeFrontMap(): Promise<Map<string, number>> {
 
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("beta_event_queue_config")
+    .from("beta_queue_config")
     .select("event_slug, fake_front");
 
   if (error) {

@@ -66,7 +66,7 @@ export async function listQuickLeads(filter?: {
 }): Promise<QuickLeadRow[]> {
   const admin = createAdminClient();
   let q = admin
-    .from("beta_quick_leads")
+    .from("beta_go_leads")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(200);
@@ -89,8 +89,8 @@ export async function listQuickLeads(filter?: {
 export async function getOpsStats(): Promise<OpsStats> {
   const admin = createAdminClient();
   const [{ data }, { data: signups }] = await Promise.all([
-    admin.from("beta_quick_leads").select("intent, status"),
-    admin.from("beta_signups").select("acquisition_channel"),
+    admin.from("beta_go_leads").select("intent, status"),
+    admin.from("beta_members").select("acquisition_channel"),
   ]);
   const rows = data ?? [];
   const open = new Set(["new", "contacted", "matched"]);
@@ -115,7 +115,7 @@ export async function getOpsStats(): Promise<OpsStats> {
 export async function listClassicMembers(): Promise<ClassicMemberRow[]> {
   const admin = createAdminClient();
   const { data: signups, error } = await admin
-    .from("beta_signups")
+    .from("beta_members")
     .select(
       "id, name, email, phone, intent, interested_events, priority, school, referral_source, acquisition_channel, created_at",
     )
@@ -131,13 +131,13 @@ export async function listClassicMembers(): Promise<ClassicMemberRow[]> {
 
   const ids = signups.map((s) => s.id);
   const { data: interests } = await admin
-    .from("beta_event_interests")
-    .select("signup_id, event_slug, intent, contact_phone, contact_instagram")
-    .in("signup_id", ids);
+    .from("beta_member_interests")
+    .select("member_id, event_slug, intent, contact_phone, contact_instagram")
+    .in("member_id", ids);
 
   const bySignup = new Map<string, ClassicInterest[]>();
   for (const row of interests ?? []) {
-    const list = bySignup.get(row.signup_id) ?? [];
+    const list = bySignup.get(row.member_id) ?? [];
     list.push({
       eventSlug: row.event_slug,
       eventName: betaEventBySlug(row.event_slug)?.name ?? row.event_slug,
@@ -145,7 +145,7 @@ export async function listClassicMembers(): Promise<ClassicMemberRow[]> {
       contactPhone: row.contact_phone ?? null,
       contactInstagram: row.contact_instagram ?? null,
     });
-    bySignup.set(row.signup_id, list);
+    bySignup.set(row.member_id, list);
   }
 
   return signups.map((s) => ({
@@ -203,7 +203,7 @@ export async function addClassicMember(
       .join(" · ") || null;
 
   const { data, error } = await admin
-    .from("beta_signups")
+    .from("beta_members")
     .insert({
       name: parsed.data.name,
       email: parsed.data.email,
@@ -241,9 +241,9 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
     getFakeFrontMap(),
     listAllUnifiedQueueSeats(),
     admin
-      .from("beta_event_interests")
+      .from("beta_member_interests")
       .select(
-        "id, signup_id, event_slug, intent, created_at, contact_phone, contact_instagram, beta_signups(name, email, phone, acquisition_channel)",
+        "id, member_id, event_slug, intent, created_at, contact_phone, contact_instagram, beta_members(name, email, phone, acquisition_channel)",
       )
       .eq("intent", "waitlist")
       .order("created_at", { ascending: false })
@@ -254,7 +254,7 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
   const interests = interestsResult.data ?? [];
 
   const classicEntries: OpsWaitlistEntry[] = interests.map((row) => {
-    const signup = row.beta_signups as
+    const signup = row.beta_members as
       | { name: string; email: string; phone: string | null; acquisition_channel: string | null }
       | null
       | { name: string; email: string; phone: string | null; acquisition_channel: string | null }[];
@@ -335,7 +335,7 @@ export async function setQueueFakeFront(
   if (!known) return { ok: false, error: "Unknown event." };
 
   const admin = createAdminClient();
-  const { error } = await admin.from("beta_event_queue_config").upsert(
+  const { error } = await admin.from("beta_queue_config").upsert(
     {
       event_slug: parsed.data.eventSlug,
       fake_front: parsed.data.fakeFront,
@@ -369,7 +369,7 @@ export async function updateQuickLead(
   if (parsed.data.adminNotes !== undefined) patch.admin_notes = parsed.data.adminNotes || null;
 
   const admin = createAdminClient();
-  const { error } = await admin.from("beta_quick_leads").update(patch).eq("id", parsed.data.id);
+  const { error } = await admin.from("beta_go_leads").update(patch).eq("id", parsed.data.id);
   if (error) return { ok: false, error: "Couldn't save that." };
   return { ok: true };
 }
@@ -394,7 +394,7 @@ export async function deleteClassicMember(
   if (!/^[0-9a-f-]{36}$/i.test(signupId)) return { ok: false, error: "Invalid member." };
 
   const admin = createAdminClient();
-  const { error } = await admin.from("beta_signups").delete().eq("id", signupId);
+  const { error } = await admin.from("beta_members").delete().eq("id", signupId);
   if (error) {
     console.warn(JSON.stringify({ level: "warn", msg: "ops_delete_member_failed", error }));
     return { ok: false, error: "Couldn't delete that member." };
@@ -410,7 +410,7 @@ export async function deleteClassicWaitlistInterest(
 
   const admin = createAdminClient();
   const { error } = await admin
-    .from("beta_event_interests")
+    .from("beta_member_interests")
     .delete()
     .eq("id", interestId)
     .eq("intent", "waitlist");
@@ -429,7 +429,7 @@ export async function deleteQuickLead(
 
   const admin = createAdminClient();
   const { data: existing } = await admin
-    .from("beta_quick_leads")
+    .from("beta_go_leads")
     .select("id, ticket_evidence_path")
     .eq("id", leadId)
     .maybeSingle();
@@ -440,7 +440,7 @@ export async function deleteQuickLead(
     await admin.storage.from("beta-quick-tickets").remove([existing.ticket_evidence_path]);
   }
 
-  const { error } = await admin.from("beta_quick_leads").delete().eq("id", leadId);
+  const { error } = await admin.from("beta_go_leads").delete().eq("id", leadId);
   if (error) {
     console.warn(JSON.stringify({ level: "warn", msg: "ops_delete_lead_failed", error }));
     return { ok: false, error: "Couldn't delete that lead." };

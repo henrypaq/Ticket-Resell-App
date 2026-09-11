@@ -4,9 +4,11 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { submitQuickBuyAction } from "@/domains/beta-quick/actions";
 import type { QuickActionState } from "@/domains/beta-quick/shared";
+import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
 import { ArrowLeft } from "@/components/icons";
 import { BUTTON_CLASS } from "@/components/beta-waitlist/field-styles";
+import { COUNTRY_CODES } from "@/lib/country-codes";
 import { QuickShell } from "./shell";
 import {
   ContactFields,
@@ -19,18 +21,37 @@ import {
 
 const initial: QuickActionState = {};
 
-export function QuickBuyFlow({ events }: { events: BetaEvent[] }) {
+function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
+  if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
+  const digits = e164.replace(/\D/g, "");
+  const sorted = [...COUNTRY_CODES].sort((a, b) => b.dial.length - a.dial.length);
+  for (const c of sorted) {
+    if (digits.startsWith(c.dial) && digits.length > c.dial.length) {
+      return { iso2: c.iso2, national: digits.slice(c.dial.length) };
+    }
+  }
+  return { iso2: DEFAULT_COUNTRY_ISO2, national: digits };
+}
+
+export function QuickBuyFlow({
+  events,
+  savedContact,
+}: {
+  events: BetaEvent[];
+  savedContact?: GoContactProfile | null;
+}) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [eventSlug, setEventSlug] = useState(events[0]?.slug ?? "");
   const [quantity, setQuantity] = useState(1);
-  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_COUNTRY_ISO2);
-  const [phoneNational, setPhoneNational] = useState("");
-  const [instagram, setInstagram] = useState("");
+  const savedPhone = splitSavedPhone(savedContact?.contactPhone);
+  const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);
+  const [phoneNational, setPhoneNational] = useState(savedPhone.national);
+  const [instagram, setInstagram] = useState(savedContact?.contactInstagram ?? "");
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
 
   useEffect(() => {
-    if (state.ok) router.replace("/go");
+    if (state.ok) router.replace("/go/done?intent=buy");
   }, [state.ok, router]);
 
   if (state.ok) {
@@ -38,7 +59,7 @@ export function QuickBuyFlow({ events }: { events: BetaEvent[] }) {
       <QuickShell>
         <p className="text-[17px] font-semibold text-[#ffe500]">mcgill.tickets</p>
         <h1 className="headline mt-6 text-[30px] leading-tight">You&apos;re on the list</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">Taking you back…</p>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted">One moment…</p>
       </QuickShell>
     );
   }

@@ -35,10 +35,10 @@ export default async function proxy(request: NextRequest) {
 
   await supabase.auth.getUser();
 
-  // First-touch only. Bare `/` or `/go` → ig_bio; `?src=qr_*` → that.
-  // `/go` is the Instagram-bio quick flow; `/` remains the long waitlist.
+  // First-touch only. Bare `/`/`/member`/`/go` → ig_bio; `?src=qr_*` → that.
+  // `/go` = Instagram-bio quick flow; `/member` = full beta member onboarding.
   const path = request.nextUrl.pathname;
-  if (path === "/" || path === "/go") {
+  if (path === "/" || path === "/member" || path === "/go") {
     const existing = request.cookies.get(BETA_ACQUISITION_COOKIE)?.value;
     if (!isAcquisitionChannel(existing)) {
       response.cookies.set(

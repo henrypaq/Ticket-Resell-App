@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { notifyAdminsOfQuickLead } from "@/domains/admin-alerts/service";
+import { upsertGoContact } from "@/domains/beta-go/contacts";
 import {
   getFakeFrontMap,
   listUnifiedQueueSeats,
@@ -109,13 +110,23 @@ export type QuickBuyInput = z.infer<typeof quickBuySchema>;
 export type QuickSellInput = z.infer<typeof quickSellSchema>;
 
 export type QuickLeadResult =
-  | { ok: true; id: string }
+  | { ok: true; id: string; contactId?: string }
   | { ok: false; error: string };
 
-export async function submitQuickBuy(input: QuickBuyInput): Promise<QuickLeadResult> {
+export async function submitQuickBuy(
+  input: QuickBuyInput & { existingContactId?: string | null },
+): Promise<QuickLeadResult> {
+  const contactResult = await upsertGoContact({
+    contactPhone: input.contactPhone,
+    contactInstagram: input.contactInstagram,
+    existingContactId: input.existingContactId,
+  });
+  const contactId = contactResult.ok ? contactResult.contact.id : null;
+  const memberId = contactResult.ok ? contactResult.contact.memberId : null;
+
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("beta_quick_leads")
+    .from("beta_go_leads")
     .insert({
       intent: "buy",
       event_slug: input.eventSlug,
@@ -123,6 +134,8 @@ export async function submitQuickBuy(input: QuickBuyInput): Promise<QuickLeadRes
       contact_phone: input.contactPhone || null,
       contact_instagram: input.contactInstagram || null,
       acquisition_channel: input.acquisitionChannel ?? null,
+      contact_id: contactId,
+      member_id: memberId,
     })
     .select("id")
     .single();
@@ -141,11 +154,11 @@ export async function submitQuickBuy(input: QuickBuyInput): Promise<QuickLeadRes
     contactInstagram: input.contactInstagram,
   }).catch(() => {});
 
-  return { ok: true, id: data.id };
+  return { ok: true, id: data.id, contactId: contactId ?? undefined };
 }
 
 export async function submitQuickSell(
-  input: QuickSellInput,
+  input: QuickSellInput & { existingContactId?: string | null },
   file?: { bytes: Uint8Array; name: string } | null,
 ): Promise<QuickLeadResult> {
   const hasUrl = Boolean(input.ticketShareUrl);
@@ -170,9 +183,20 @@ export async function submitQuickSell(
     evidencePath = path;
   }
 
+  const contactResult = await upsertGoContact({
+    contactPhone: input.contactPhone,
+    contactInstagram: input.contactInstagram,
+    etransferName: input.etransferName,
+    etransferEmail: input.etransferEmail,
+    etransferPhone: input.etransferPhone,
+    existingContactId: input.existingContactId,
+  });
+  const contactId = contactResult.ok ? contactResult.contact.id : null;
+  const memberId = contactResult.ok ? contactResult.contact.memberId : null;
+
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("beta_quick_leads")
+    .from("beta_go_leads")
     .insert({
       intent: "sell",
       event_slug: input.eventSlug,
@@ -188,6 +212,8 @@ export async function submitQuickSell(
       etransfer_phone: input.etransferPhone || null,
       seller_terms_accepted_at: new Date().toISOString(),
       acquisition_channel: input.acquisitionChannel ?? null,
+      contact_id: contactId,
+      member_id: memberId,
     })
     .select("id")
     .single();
@@ -213,7 +239,7 @@ export async function submitQuickSell(
     etransferPhone: input.etransferPhone,
   }).catch(() => {});
 
-  return { ok: true, id: data.id };
+  return { ok: true, id: data.id, contactId: contactId ?? undefined };
 }
 
 /** Queue cards for the /go hub — positions in the shared classic+/go queue. */
@@ -226,7 +252,7 @@ export async function getQuickWaitlistEntries(
   const admin = createAdminClient();
   const [{ data: mine, error }, fakeFronts] = await Promise.all([
     admin
-      .from("beta_quick_leads")
+      .from("beta_go_leads")
       .select("id, event_slug, quantity, status, created_at")
       .eq("intent", "buy")
       .in("id", ids)

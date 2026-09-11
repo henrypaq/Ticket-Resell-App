@@ -15,7 +15,7 @@ type Props = {
 
 const initial: BetaActionState = {};
 
-/** Help / Contact tab — support form persisted to `beta_support_messages`. */
+/** Help / Contact tab — support form persisted to `beta_member_support_messages`. */
 export function BetaHelpTab({ profile }: Props) {
   const [state, action, pending] = useActionState(submitBetaSupportAction, initial);
   const [email, setEmail] = useState(profile?.email ?? "");

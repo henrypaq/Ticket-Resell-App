@@ -4,8 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { defaultFakeFront, getFakeFront, getFakeFrontMap } from "@/domains/beta-queue/padding";
 
 /**
- * One shared waitlist queue per event across classic (`beta_event_interests`)
- * and `/go` (`beta_quick_leads` buy). Positions and ticket demand must match
+ * One shared waitlist queue per event across classic (`beta_member_interests`)
+ * and `/go` (`beta_go_leads` buy). Positions and ticket demand must match
  * on `/`, `/go`, and `/ops`.
  */
 
@@ -37,12 +37,12 @@ export async function listUnifiedQueueSeats(
   const admin = createAdminClient();
   const [{ data: classic }, { data: go }] = await Promise.all([
     admin
-      .from("beta_event_interests")
-      .select("id, signup_id, created_at")
+      .from("beta_member_interests")
+      .select("id, member_id, created_at")
       .eq("event_slug", eventSlug)
       .eq("intent", "waitlist"),
     admin
-      .from("beta_quick_leads")
+      .from("beta_go_leads")
       .select("id, quantity, created_at, status")
       .eq("event_slug", eventSlug)
       .eq("intent", "buy")
@@ -54,7 +54,7 @@ export async function listUnifiedQueueSeats(
       key: `classic:${row.id}`,
       source: "classic" as const,
       id: row.id,
-      signupId: row.signup_id as string,
+      signupId: row.member_id as string,
       createdAt: row.created_at as string,
       quantity: 1,
     })),
@@ -81,11 +81,11 @@ export async function listAllUnifiedQueueSeats(): Promise<Map<string, UnifiedQue
   const admin = createAdminClient();
   const [{ data: classic }, { data: go }] = await Promise.all([
     admin
-      .from("beta_event_interests")
-      .select("id, signup_id, event_slug, created_at")
+      .from("beta_member_interests")
+      .select("id, member_id, event_slug, created_at")
       .eq("intent", "waitlist"),
     admin
-      .from("beta_quick_leads")
+      .from("beta_go_leads")
       .select("id, event_slug, quantity, created_at, status")
       .eq("intent", "buy")
       .neq("status", "cancelled"),
@@ -103,7 +103,7 @@ export async function listAllUnifiedQueueSeats(): Promise<Map<string, UnifiedQue
       key: `classic:${row.id}`,
       source: "classic",
       id: row.id,
-      signupId: row.signup_id,
+      signupId: row.member_id,
       createdAt: row.created_at,
       quantity: 1,
     });

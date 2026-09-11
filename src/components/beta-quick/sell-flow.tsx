@@ -1,17 +1,18 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { submitQuickSellAction } from "@/domains/beta-quick/actions";
 import type { QuickActionState } from "@/domains/beta-quick/shared";
+import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
 import { SELLER_TERMS_PATH } from "@/lib/compliance/seller-terms";
 import { ArrowLeft } from "@/components/icons";
 import { Field } from "@/components/beta-waitlist/field";
 import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "@/components/beta-waitlist/field-styles";
 import { CountryCodeSelect } from "@/components/beta-waitlist/country-code-select";
-import { countryByIso2 } from "@/lib/country-codes";
+import { countryByIso2, COUNTRY_CODES } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
 import { QuickShell } from "./shell";
 import {
@@ -26,7 +27,25 @@ import {
 const initial: QuickActionState = {};
 const LAST_STEP = 5;
 
-export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
+function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
+  if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
+  const digits = e164.replace(/\D/g, "");
+  const sorted = [...COUNTRY_CODES].sort((a, b) => b.dial.length - a.dial.length);
+  for (const c of sorted) {
+    if (digits.startsWith(c.dial) && digits.length > c.dial.length) {
+      return { iso2: c.iso2, national: digits.slice(c.dial.length) };
+    }
+  }
+  return { iso2: DEFAULT_COUNTRY_ISO2, national: digits };
+}
+
+export function QuickSellFlow({
+  events,
+  savedContact,
+}: {
+  events: BetaEvent[];
+  savedContact?: GoContactProfile | null;
+}) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
@@ -34,29 +53,30 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
   const [quantity, setQuantity] = useState(1);
   const [paidEach, setPaidEach] = useState("");
   const [askEach, setAskEach] = useState("");
-  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_COUNTRY_ISO2);
-  const [phoneNational, setPhoneNational] = useState("");
-  const [instagram, setInstagram] = useState("");
+  const savedPhone = splitSavedPhone(savedContact?.contactPhone);
+  const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);
+  const [phoneNational, setPhoneNational] = useState(savedPhone.national);
+  const [instagram, setInstagram] = useState(savedContact?.contactInstagram ?? "");
   const [ticketUrl, setTicketUrl] = useState("");
   const [ticketFileName, setTicketFileName] = useState<string | null>(null);
-  const [etName, setEtName] = useState("");
-  const [etEmail, setEtEmail] = useState("");
-  const [etPhoneCountry, setEtPhoneCountry] = useState(DEFAULT_COUNTRY_ISO2);
-  const [etPhoneNational, setEtPhoneNational] = useState("");
+  const [etName, setEtName] = useState(savedContact?.etransferName ?? "");
+  const [etEmail, setEtEmail] = useState(savedContact?.etransferEmail ?? "");
+  const savedEtPhone = splitSavedPhone(savedContact?.etransferPhone);
+  const [etPhoneCountry, setEtPhoneCountry] = useState(savedEtPhone.iso2);
+  const [etPhoneNational, setEtPhoneNational] = useState(savedEtPhone.national);
   const [terms, setTerms] = useState(false);
   const [state, formAction, pending] = useActionState(submitQuickSellAction, initial);
+
+  useEffect(() => {
+    if (state.ok) router.replace("/go/done?intent=sell");
+  }, [state.ok, router]);
 
   if (state.ok) {
     return (
       <QuickShell>
         <p className="text-[17px] font-semibold text-[#ffe500]">mcgill.tickets</p>
         <h1 className="headline mt-6 text-[30px] leading-tight">Got it — we&apos;ll post it</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">
-          We&apos;ll reach out on WhatsApp or Instagram to confirm, then match you with a buyer.
-        </p>
-        <Link href="/go" className={`${BUTTON_CLASS} mt-8`}>
-          Back to tonight
-        </Link>
+        <p className="mt-3 text-[15px] leading-relaxed text-muted">One moment…</p>
       </QuickShell>
     );
   }

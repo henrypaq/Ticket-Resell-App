@@ -1,22 +1,22 @@
-import { hasCompletedBetaSignup } from "@/domains/beta-signup/actions";
-import { demoLoginEnabled } from "@/lib/env";
-import { WaitlistFlow } from "@/components/beta-waitlist/waitlist-flow";
-import { BetaWelcomeScreen } from "@/components/beta-waitlist/beta-welcome-screen";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The public beta waitlist — deliberately outside the `(app)` route group, so
- * it never runs through requireSessionUser() or picks up the authenticated
- * shell's chrome (BottomNav, scan button). `/` shows this to every visitor
- * during the beta, session or no session; the real app now lives at `/home`.
- *
- * Acquisition first-touch (`?src=` / bare → `ig_bio`) is stamped in `proxy.ts`
- * — see `lib/beta-acquisition.ts`.
+ * Public apex URL used by QR codes (`/?src=…`). Member onboarding + shell
+ * live at `/member`; `/go` is the low-friction Instagram bio flow.
  */
-export default async function WaitlistPage() {
-  if (await hasCompletedBetaSignup()) {
-    return <BetaWelcomeScreen showDevReset={demoLoginEnabled()} />;
+export default async function RootRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string") qs.set(key, value);
+    else if (Array.isArray(value)) for (const v of value) qs.append(key, v);
   }
-  return <WaitlistFlow showDevSkip={demoLoginEnabled()} />;
+  const suffix = qs.toString();
+  redirect(suffix ? `/member?${suffix}` : "/member");
 }

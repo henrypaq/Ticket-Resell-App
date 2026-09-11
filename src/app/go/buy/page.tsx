@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { QuickBuyFlow } from "@/components/beta-quick/buy-flow";
+import { loadSavedGoContact } from "@/domains/beta-quick/actions";
 import { supportedBetaEvents, tonightBetaEvents } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
@@ -8,10 +9,15 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function QuickBuyPage() {
+export default async function QuickBuyPage() {
   const tonight = tonightBetaEvents();
   const rest = supportedBetaEvents().filter((e) => !tonight.some((t) => t.slug === e.slug));
-  // Tonight first, then the rest — pick any supported event.
   const events = [...tonight, ...rest];
-  return <QuickBuyFlow events={events.length ? events : supportedBetaEvents()} />;
+  const savedContact = await loadSavedGoContact();
+  return (
+    <QuickBuyFlow
+      events={events.length ? events : supportedBetaEvents()}
+      savedContact={savedContact}
+    />
+  );
 }

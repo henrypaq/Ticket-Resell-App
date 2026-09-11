@@ -169,7 +169,7 @@ async function loadEmailData(
 
   const admin = createAdminClient();
   const { data: signup } = await admin
-    .from("beta_signups")
+    .from("beta_members")
     .select("name, email, phone")
     .eq("id", input.signupId)
     .maybeSingle();

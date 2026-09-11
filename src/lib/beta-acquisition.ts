@@ -32,9 +32,9 @@ export const BETA_ACQUISITION_COOKIE = "passe_beta_acq";
 
 export const ACQUISITION_LANDING = {
   /** Branded /qr share screen — QR encodes this. */
-  qr_share: "https://mcgilltickets.party/?src=qr_share",
+  qr_share: "https://mcgilltickets.party/member?src=qr_share",
   /** Plain printable QR. */
-  qr_print: "https://mcgilltickets.party/?src=qr_print",
+  qr_print: "https://mcgilltickets.party/member?src=qr_print",
   /** Instagram bio — clean URL, no query. */
   ig_bio: "https://mcgilltickets.party/go",
 } as const;

@@ -16,7 +16,7 @@ export { SUPPORT_CATEGORIES } from "./shared";
  * signed out) — not to be confused with `domains/waitlist`, which is a
  * signed-in user joining a specific event's ticket waitlist.
  *
- * All reads/writes go through the service-role client: `beta_signups` and its
+ * All reads/writes go through the service-role client: `beta_members` and its
  * sibling tables are PII write-only from the client (see migrations 0009/0010).
  */
 
@@ -165,7 +165,7 @@ export async function submitBetaSignup(input: BetaSignupInput): Promise<BetaSign
   const smsOn = input.notifyOptIn;
 
   const { data, error } = await admin
-    .from("beta_signups")
+    .from("beta_members")
     .insert({
       name: input.name,
       email: input.email,
@@ -194,7 +194,7 @@ export async function submitBetaSignup(input: BetaSignupInput): Promise<BetaSign
     }
     // Email already signed up — restore id, but do not overwrite first-touch channel.
     const { data: existing, error: lookupError } = await admin
-      .from("beta_signups")
+      .from("beta_members")
       .select("id")
       .eq("email", input.email)
       .maybeSingle();
@@ -209,15 +209,22 @@ export async function submitBetaSignup(input: BetaSignupInput): Promise<BetaSign
   // Seed questionnaire picks as waitlist interest for known supported slugs.
   const seedSlugs = input.interestedEvents.filter((slug) => KNOWN_INTEREST_SLUGS.has(slug));
   if (seedSlugs.length > 0) {
-    await admin.from("beta_event_interests").upsert(
+    await admin.from("beta_member_interests").upsert(
       seedSlugs.map((event_slug) => ({
-        signup_id: signupId,
+        member_id: signupId,
         event_slug,
         intent: "waitlist" as const,
       })),
-      { onConflict: "signup_id,event_slug,intent", ignoreDuplicates: true },
+      { onConflict: "member_id,event_slug,intent", ignoreDuplicates: true },
     );
   }
+
+  const { linkMemberToGoHistory } = await import("@/domains/beta-go/contacts");
+  await linkMemberToGoHistory({
+    memberId: signupId,
+    phone: input.phone,
+    email: input.email,
+  });
 
   return { ok: true, id: signupId };
 }
@@ -231,7 +238,7 @@ export async function findBetaSignupIdByEmail(
   if (!normalized) return { ok: false, error: "Enter a valid email." };
 
   const { data, error } = await admin
-    .from("beta_signups")
+    .from("beta_members")
     .select("id")
     .eq("email", normalized)
     .maybeSingle();
@@ -246,7 +253,7 @@ export async function getBetaSignupProfile(signupId: string): Promise<BetaSignup
   const admin = createAdminClient();
 
   const { data, error } = await admin
-    .from("beta_signups")
+    .from("beta_members")
     .select(
       "id, name, email, phone, notify_queue_email, notify_queue_sms, notify_tickets_email, notify_tickets_sms",
     )
@@ -256,9 +263,9 @@ export async function getBetaSignupProfile(signupId: string): Promise<BetaSignup
   if (error || !data) return null;
 
   const { data: interests } = await admin
-    .from("beta_event_interests")
+    .from("beta_member_interests")
     .select("event_slug, intent, contact_phone, contact_instagram")
-    .eq("signup_id", signupId);
+    .eq("member_id", signupId);
 
   return {
     id: data.id,
@@ -284,7 +291,7 @@ export async function updateBetaContact(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createAdminClient();
   const { error } = await admin
-    .from("beta_signups")
+    .from("beta_members")
     .update({ email: input.email, phone: input.phone })
     .eq("id", signupId);
 
@@ -303,7 +310,7 @@ export async function updateBetaNotificationPrefs(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("beta_signups")
+    .from("beta_members")
     .update({
       notify_queue_email: input.notifyQueueEmail,
       notify_queue_sms: input.notifyQueueSms,
@@ -349,7 +356,7 @@ export async function setBetaEventInterest(
 
   if (input.active) {
     const row: Record<string, unknown> = {
-      signup_id: signupId,
+      member_id: signupId,
       event_slug: input.eventSlug,
       intent: input.intent,
     };
@@ -357,8 +364,8 @@ export async function setBetaEventInterest(
       row.contact_phone = input.contactPhone || null;
       row.contact_instagram = input.contactInstagram || null;
     }
-    const { error } = await admin.from("beta_event_interests").upsert(row, {
-      onConflict: "signup_id,event_slug,intent",
+    const { error } = await admin.from("beta_member_interests").upsert(row, {
+      onConflict: "member_id,event_slug,intent",
       ignoreDuplicates: false,
     });
     if (error) return { ok: false, error: "Couldn't save that. Try again." };
@@ -395,9 +402,9 @@ export async function setBetaEventInterest(
   }
 
   const { error } = await admin
-    .from("beta_event_interests")
+    .from("beta_member_interests")
     .delete()
-    .eq("signup_id", signupId)
+    .eq("member_id", signupId)
     .eq("event_slug", input.eventSlug)
     .eq("intent", input.intent);
   if (error) return { ok: false, error: "Couldn't update that. Try again." };
@@ -418,8 +425,8 @@ export async function submitBetaEventRequest(
   input: z.infer<typeof eventRequestSchema>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createAdminClient();
-  const { error } = await admin.from("beta_event_requests").insert({
-    signup_id: signupId,
+  const { error } = await admin.from("beta_member_event_requests").insert({
+    member_id: signupId,
     name: input.name,
     details: input.details || null,
   });
@@ -432,8 +439,8 @@ export async function submitBetaSupportMessage(
   input: z.infer<typeof supportMessageSchema>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createAdminClient();
-  const { error } = await admin.from("beta_support_messages").insert({
-    signup_id: signupId,
+  const { error } = await admin.from("beta_member_support_messages").insert({
+    member_id: signupId,
     email: input.email,
     category: input.category,
     message: input.message,

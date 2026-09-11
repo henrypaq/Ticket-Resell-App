@@ -136,7 +136,7 @@ export function WaitlistFlow({ showDevSkip = false }: { showDevSkip?: boolean })
           return;
         }
         if (!identityReadyForNewSignup(answers)) {
-          setResumeError("New here? Add your name to join the beta.");
+          setResumeError("New here? Add your name to become a beta member.");
           return;
         }
         setTapGuard(true);
@@ -291,7 +291,7 @@ export function WaitlistFlow({ showDevSkip = false }: { showDevSkip?: boolean })
               disabled={pending || tapGuard}
               className={BUTTON_CLASS}
             >
-              {pending ? "Joining…" : "Join the beta"}
+              {pending ? "Joining…" : "Join as a beta member"}
             </button>
           ) : (
             <button
@@ -362,7 +362,7 @@ function IdentityStep({ answers, setAnswers }: StepProps) {
           DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
         <p className="mt-4 text-[17px] font-semibold text-[#ffe500]">
-          Join the mcgill.tickets beta
+          Join as a mcgill.tickets beta member
         </p>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
           Sign up to be notified of available tickets for sold-out events, or resell your extra
@@ -659,7 +659,7 @@ function SignupCompleteRefresh() {
     <div className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-col items-center justify-center px-5">
       <Starfield />
       <Glow />
-      <p className="text-[14px] text-muted">You&apos;re in — loading your beta…</p>
+      <p className="text-[14px] text-muted">You&apos;re in — loading your member hub…</p>
     </div>
   );
 }

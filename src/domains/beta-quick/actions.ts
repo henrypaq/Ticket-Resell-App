@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { GO_CONTACT_COOKIE, getGoContactById, type GoContactProfile } from "@/domains/beta-go/contacts";
 import {
   QUICK_BUYER_COOKIE,
   type QuickActionState,
@@ -33,6 +34,17 @@ async function readAcquisitionChannel(): Promise<AcquisitionChannel | undefined>
   return isAcquisitionChannel(value) ? value : undefined;
 }
 
+async function readGoContactId(): Promise<string | null> {
+  const jar = await cookies();
+  const value = jar.get(GO_CONTACT_COOKIE)?.value;
+  return value && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
+}
+
+async function setGoContactCookie(contactId: string): Promise<void> {
+  const jar = await cookies();
+  jar.set(GO_CONTACT_COOKIE, contactId, COOKIE_BASE);
+}
+
 async function appendQuickBuyerCookie(leadId: string): Promise<void> {
   const jar = await cookies();
   const existing = jar.get(QUICK_BUYER_COOKIE)?.value ?? "";
@@ -54,6 +66,12 @@ export async function loadQuickWaitlistForHub(): Promise<QuickWaitlistEntry[]> {
   return getQuickWaitlistEntries(ids);
 }
 
+export async function loadSavedGoContact(): Promise<GoContactProfile | null> {
+  const id = await readGoContactId();
+  if (!id) return null;
+  return getGoContactById(id);
+}
+
 export async function submitQuickBuyAction(
   _prev: QuickActionState,
   formData: FormData,
@@ -68,9 +86,13 @@ export async function submitQuickBuyAction(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check your answers and try again." };
   }
-  const result = await submitQuickBuy(parsed.data);
+  const result = await submitQuickBuy({
+    ...parsed.data,
+    existingContactId: await readGoContactId(),
+  });
   if (!result.ok) return { error: result.error };
   await appendQuickBuyerCookie(result.id);
+  if (result.contactId) await setGoContactCookie(result.contactId);
   return { ok: true };
 }
 
@@ -104,7 +126,11 @@ export async function submitQuickSellAction(
     file = { bytes: new Uint8Array(await raw.arrayBuffer()), name: raw.name };
   }
 
-  const result = await submitQuickSell(parsed.data, file);
+  const result = await submitQuickSell(
+    { ...parsed.data, existingContactId: await readGoContactId() },
+    file,
+  );
   if (!result.ok) return { error: result.error };
+  if (result.contactId) await setGoContactCookie(result.contactId);
   return { ok: true };
 }
