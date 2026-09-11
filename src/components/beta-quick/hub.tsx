@@ -146,6 +146,19 @@ export function QuickHub({
         </section>
       )}
 
+      <section className="relative mt-10 flex flex-col gap-3">
+        <p className="section-header text-[11px] text-muted">What do you need?</p>
+        <Link href="/go/buy" className={`${BUTTON_CLASS} min-h-[64px] text-[17px]`}>
+          I need a ticket
+        </Link>
+        <Link
+          href="/go/sell"
+          className="flex min-h-[64px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[17px] font-bold text-ink transition-colors hover:bg-white/[0.1]"
+        >
+          I have a ticket to sell
+        </Link>
+      </section>
+
       <section className="relative mt-8">
         <p className="section-header text-[11px] text-muted">
           {hasTonight ? `Tonight · ${formatBetaEventWhen(tonightDay)}` : "Upcoming"}
@@ -165,19 +178,6 @@ export function QuickHub({
             Nothing listed for tonight — more nights once you pick buy or sell.
           </p>
         )}
-      </section>
-
-      <section className="relative mt-10 flex flex-col gap-3">
-        <p className="section-header text-[11px] text-muted">What do you need?</p>
-        <Link href="/go/buy" className={`${BUTTON_CLASS} min-h-[64px] text-[17px]`}>
-          I need a ticket
-        </Link>
-        <Link
-          href="/go/sell"
-          className="flex min-h-[64px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[17px] font-bold text-ink transition-colors hover:bg-white/[0.1]"
-        >
-          I have a ticket to sell
-        </Link>
       </section>
     </QuickShell>
   );
