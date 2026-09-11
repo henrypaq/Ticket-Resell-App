@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { betaEventBySlug, INTEREST_OPTIONS } from "@/lib/beta-events";
-import { defaultFakeFront, getFakeFrontMap } from "@/domains/beta-queue/padding";
+import { defaultFakeFront, getFakeFrontMap, listAllUnifiedQueueSeats, positionInSeats } from "@/domains/beta-queue/unified";
 import { requireBetaOpsSession } from "./auth";
 import {
   LEAD_STATUSES,
@@ -234,12 +234,12 @@ function eventDaysForSlug(slug: string): string[] {
   return betaEventBySlug(slug)?.days ?? [];
 }
 
-/** Classic waitlist interests + /go buy leads, newest first, with displayed #. */
+/** Classic waitlist interests + /go buy leads — shared queue ranks. */
 export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
   const admin = createAdminClient();
-  const fakeFronts = await getFakeFrontMap();
-
-  const [{ data: interests }, goLeads] = await Promise.all([
+  const [fakeFronts, seatsByEvent, interestsResult, goLeads] = await Promise.all([
+    getFakeFrontMap(),
+    listAllUnifiedQueueSeats(),
     admin
       .from("beta_event_interests")
       .select(
@@ -251,28 +251,17 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
     listQuickLeads({ intent: "buy" }),
   ]);
 
-  // Real ranks within each classic event queue (oldest first).
-  const classicRank = new Map<string, number>();
-  const { data: ordered } = await admin
-    .from("beta_event_interests")
-    .select("id, event_slug")
-    .eq("intent", "waitlist")
-    .order("created_at", { ascending: true });
-  const counters = new Map<string, number>();
-  for (const row of ordered ?? []) {
-    const n = (counters.get(row.event_slug) ?? 0) + 1;
-    counters.set(row.event_slug, n);
-    classicRank.set(row.id, n);
-  }
+  const interests = interestsResult.data ?? [];
 
-  const classicEntries: OpsWaitlistEntry[] = (interests ?? []).map((row) => {
+  const classicEntries: OpsWaitlistEntry[] = interests.map((row) => {
     const signup = row.beta_signups as
       | { name: string; email: string; phone: string | null; acquisition_channel: string | null }
       | null
       | { name: string; email: string; phone: string | null; acquisition_channel: string | null }[];
     const person = Array.isArray(signup) ? signup[0] : signup;
-    const real = classicRank.get(row.id) ?? 1;
+    const seats = seatsByEvent.get(row.event_slug) ?? [];
     const fake = fakeFronts.get(row.event_slug) ?? defaultFakeFront(row.event_slug);
+    const pos = positionInSeats(seats, (s) => s.source === "classic" && s.id === row.id, fake);
     return {
       id: row.id,
       source: "classic" as const,
@@ -282,7 +271,7 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
       eventName: betaEventBySlug(row.event_slug)?.name ?? row.event_slug,
       eventDays: eventDaysForSlug(row.event_slug),
       quantity: 1,
-      displayedPosition: real + fake,
+      displayedPosition: pos?.displayed ?? 1 + fake,
       contactPhone: row.contact_phone || person?.phone || null,
       contactInstagram: row.contact_instagram ?? null,
       status: "classic" as const,
@@ -292,25 +281,10 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
     };
   });
 
-  // Real ranks among /go buy leads per event.
-  const goRank = new Map<string, number>();
-  const goByEvent = new Map<string, QuickLeadRow[]>();
-  for (const lead of goLeads) {
-    if (lead.status === "cancelled") continue;
-    const list = goByEvent.get(lead.eventSlug) ?? [];
-    list.push(lead);
-    goByEvent.set(lead.eventSlug, list);
-  }
-  for (const [, list] of goByEvent) {
-    list
-      .slice()
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .forEach((lead, i) => goRank.set(lead.id, i + 1));
-  }
-
   const goEntries: OpsWaitlistEntry[] = goLeads.map((lead) => {
-    const real = goRank.get(lead.id) ?? 1;
+    const seats = seatsByEvent.get(lead.eventSlug) ?? [];
     const fake = fakeFronts.get(lead.eventSlug) ?? defaultFakeFront(lead.eventSlug);
+    const pos = positionInSeats(seats, (s) => s.source === "go" && s.id === lead.id, fake);
     return {
       id: lead.id,
       source: "go" as const,
@@ -320,7 +294,7 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
       eventName: lead.eventName,
       eventDays: eventDaysForSlug(lead.eventSlug),
       quantity: lead.quantity,
-      displayedPosition: real + fake,
+      displayedPosition: pos?.displayed ?? 1 + fake,
       contactPhone: lead.contactPhone,
       contactInstagram: lead.contactInstagram,
       status: lead.status,

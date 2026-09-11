@@ -63,6 +63,7 @@ export function WaitlistEntryCard({ entry }: { entry: OpsWaitlistEntry }) {
       <dl className="mt-4 space-y-2 text-[13.5px]">
         <Row label="Event" value={entry.eventName} />
         <Row label="Nights" value={daysLabel(entry.eventDays)} />
+        <Row label="Tickets" value={`×${entry.quantity}`} />
         <Row label="Email" value={entry.email} href={entry.email ? `mailto:${entry.email}` : null} />
         <Row
           label="WhatsApp"

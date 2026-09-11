@@ -27,7 +27,8 @@ export default async function OpsWaitlistPage() {
     <OpsChrome active="waitlist">
       <h1 className="headline text-[28px] leading-tight">Waitlist</h1>
       <p className="mt-2 text-[14px] text-muted">
-        Classic questionnaire + /go needs ({classicCount} classic · {goCount} /go).
+        Shared queue across classic + /go ({classicCount} classic · {goCount} /go ·{" "}
+        {entries.reduce((n, e) => n + e.quantity, 0)} tickets asked).
       </p>
 
       <div className="mt-6">

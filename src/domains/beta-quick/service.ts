@@ -2,7 +2,11 @@ import "server-only";
 
 import { z } from "zod";
 import { notifyAdminsOfQuickLead } from "@/domains/admin-alerts/service";
-import { getFakeFrontMap } from "@/domains/beta-queue/padding";
+import {
+  getFakeFrontMap,
+  listUnifiedQueueSeats,
+  positionInSeats,
+} from "@/domains/beta-queue/unified";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug } from "@/lib/beta-events";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -220,7 +224,7 @@ export async function submitQuickSell(
   return { ok: true, id: data.id };
 }
 
-/** Queue cards for the /go hub — positions among open buy leads for that event. */
+/** Queue cards for the /go hub — positions in the shared classic+/go queue. */
 export async function getQuickWaitlistEntries(
   leadIds: string[],
 ): Promise<QuickWaitlistEntry[]> {
@@ -240,27 +244,25 @@ export async function getQuickWaitlistEntries(
 
   if (error || !mine?.length) return [];
 
+  const seatsByEvent = new Map<string, Awaited<ReturnType<typeof listUnifiedQueueSeats>>>();
   const entries: QuickWaitlistEntry[] = [];
+
   for (const row of mine) {
     if (row.status === "cancelled") continue;
-    const { data: peers } = await admin
-      .from("beta_quick_leads")
-      .select("id, created_at")
-      .eq("intent", "buy")
-      .eq("event_slug", row.event_slug)
-      .neq("status", "cancelled")
-      .order("created_at", { ascending: true });
-
-    const idx = (peers ?? []).findIndex((p) => p.id === row.id);
-    const real = idx >= 0 ? idx + 1 : 1;
+    let seats = seatsByEvent.get(row.event_slug);
+    if (!seats) {
+      seats = await listUnifiedQueueSeats(row.event_slug);
+      seatsByEvent.set(row.event_slug, seats);
+    }
     const fakeFront = fakeFronts.get(row.event_slug) ?? 0;
+    const pos = positionInSeats(seats, (s) => s.source === "go" && s.id === row.id, fakeFront);
     const event = betaEventBySlug(row.event_slug);
     entries.push({
       leadId: row.id,
       eventSlug: row.event_slug,
       eventName: event?.name ?? row.event_slug,
       quantity: row.quantity,
-      position: real + fakeFront,
+      position: pos?.displayed ?? 1 + fakeFront,
       status: row.status,
       createdAt: row.created_at,
     });
