@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Beta member onboarding + hub — full profiles, alerts, multi-event waitlists.
- * Low-friction IG flow stays at `/go`. Apex `/` redirects here (QR-compatible).
+ * Low-friction IG flow is `/go` (apex `/` redirects there). QR codes land here.
  */
 export default async function MemberPage() {
   if (await hasCompletedBetaSignup()) {

@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 /**
- * Public apex URL used by QR codes (`/?src=…`). Member onboarding + shell
- * live at `/member`; `/go` is the low-friction Instagram bio flow.
+ * Public apex URL (`mcgilltickets.party` — Instagram bio). Sends people to the
+ * low-friction `/go` buy/sell hub. Full member onboarding stays at `/member`
+ * (QR codes link there directly with `?src=qr_*`).
  */
 export default async function RootRedirect({
   searchParams,
@@ -18,5 +19,5 @@ export default async function RootRedirect({
     else if (Array.isArray(value)) for (const v of value) qs.append(key, v);
   }
   const suffix = qs.toString();
-  redirect(suffix ? `/member?${suffix}` : "/member");
+  redirect(suffix ? `/go?${suffix}` : "/go");
 }
