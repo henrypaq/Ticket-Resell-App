@@ -16,15 +16,15 @@ export function GoDoneScreen({ intent }: { intent: "buy" | "sell" }) {
       <h1 className="headline mt-6 text-[30px] leading-tight">{headline}</h1>
       <p className="mt-3 text-[15px] leading-relaxed text-muted">{sub}</p>
 
-      <section className="mt-10 rounded-[20px] border border-[#ffe500]/25 bg-[#ffe500]/08 px-5 py-6">
-        <h2 className="text-[20px] font-semibold leading-snug text-ink">
+      <section className="mt-10 flex flex-col gap-4 rounded-[20px] border border-[#ffe500]/25 bg-[#ffe500]/08 px-5 py-5">
+        <h2 className="headline text-[22px] uppercase leading-[1.15] tracking-tight text-ink sm:text-[24px]">
           Become a beta member
         </h2>
-        <p className="mt-2 text-[14px] leading-relaxed text-muted">
-          Unlock the full app: save a complete profile, get alerts when tickets drop,
-          and manage waitlists across multiple events — not just this one.
+        <p className="text-[14px] leading-relaxed text-muted">
+          Signing up as a beta member unlocks the full app: save a complete profile, see all
+          upcoming events, get alerts when tickets drop, join waitlists first.
         </p>
-        <Link href="/member" className={`${BUTTON_CLASS} mt-5`}>
+        <Link href="/member" className={`${BUTTON_CLASS} w-full`}>
           Join as a beta member
         </Link>
       </section>
