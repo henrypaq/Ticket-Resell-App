@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { getOpsStats, listQuickLeads } from "@/domains/beta-ops/service";
+import { ACQUISITION_CHANNEL_LABELS } from "@/lib/beta-acquisition";
 
 export const metadata: Metadata = {
   title: "Ops · mcgill.tickets",
@@ -21,9 +22,12 @@ export default async function OpsOverviewPage() {
   return (
     <OpsChrome active="overview">
       <h1 className="headline text-[28px] leading-tight">Overview</h1>
-      <p className="mt-2 text-[14px] text-muted">Live queue from the /go buy &amp; sell flow.</p>
+      <p className="mt-2 text-[14px] text-muted">
+        Classic questionnaire members + live /go buy &amp; sell queue.
+      </p>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Stat label="Classic members" value={stats.classicMembers} href="/ops/members" />
         <Stat label="New waitlist" value={stats.buyNew} href="/ops/waitlist" />
         <Stat label="New sellers" value={stats.sellNew} href="/ops/sellers" />
         <Stat label="Open waitlist" value={stats.buyOpen} href="/ops/waitlist" />
@@ -31,9 +35,31 @@ export default async function OpsOverviewPage() {
         <Stat label="Completed" value={stats.done} href="/ops/waitlist" />
       </div>
 
+      {stats.bySource.length > 0 && (
+        <section className="mt-8">
+          <h2 className="section-header text-[11px] text-muted">Members by source</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {stats.bySource.map((row) => (
+              <Link
+                key={row.channel}
+                href="/ops/members"
+                className="rounded-full bg-white/8 px-3 py-1.5 text-[12.5px] font-semibold text-muted hover:text-ink"
+              >
+                {row.channel in ACQUISITION_CHANNEL_LABELS
+                  ? ACQUISITION_CHANNEL_LABELS[
+                      row.channel as keyof typeof ACQUISITION_CHANNEL_LABELS
+                    ]
+                  : row.channel}{" "}
+                · {row.count}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="mt-10">
         <div className="flex items-center justify-between">
-          <h2 className="section-header text-[11px] text-muted">Latest</h2>
+          <h2 className="section-header text-[11px] text-muted">Latest /go leads</h2>
           <Link
             href="/ops/waitlist"
             className="text-[13px] font-semibold text-muted underline decoration-dotted"
@@ -42,7 +68,7 @@ export default async function OpsOverviewPage() {
           </Link>
         </div>
         {newest.length === 0 ? (
-          <p className="mt-4 text-[14px] text-muted">No leads yet — share mcgilltickets.party/go.</p>
+          <p className="mt-4 text-[14px] text-muted">No /go leads yet — share mcgilltickets.party/go.</p>
         ) : (
           <ul className="mt-4 flex flex-col gap-2">
             {newest.map((lead) => (
@@ -56,6 +82,7 @@ export default async function OpsOverviewPage() {
                   </p>
                   <p className="mt-0.5 text-[12.5px] text-muted">
                     ×{lead.quantity}
+                    {lead.acquisitionChannel ? ` · ${lead.acquisitionChannel}` : ""}
                     {lead.contactInstagram
                       ? ` · @${lead.contactInstagram}`
                       : lead.contactPhone

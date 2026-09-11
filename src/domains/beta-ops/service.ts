@@ -2,11 +2,19 @@ import "server-only";
 
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { betaEventBySlug } from "@/lib/beta-events";
+import { betaEventBySlug, INTEREST_OPTIONS } from "@/lib/beta-events";
+import { defaultFakeFront, getFakeFrontMap } from "@/domains/beta-queue/padding";
 import { requireBetaOpsSession } from "./auth";
-import { LEAD_STATUSES, type LeadStatus, type QuickLeadRow } from "./shared";
+import { LEAD_STATUSES, type LeadStatus, type QuickLeadRow, type ClassicMemberRow, type ClassicInterest, type QueuePaddingRow } from "./shared";
 
-export { LEAD_STATUSES, type LeadStatus, type QuickLeadRow } from "./shared";
+export {
+  LEAD_STATUSES,
+  type LeadStatus,
+  type QuickLeadRow,
+  type ClassicMemberRow,
+  type ClassicInterest,
+  type QueuePaddingRow,
+} from "./shared";
 
 export type OpsStats = {
   buyNew: number;
@@ -14,6 +22,8 @@ export type OpsStats = {
   buyOpen: number;
   sellOpen: number;
   done: number;
+  classicMembers: number;
+  bySource: { channel: string; count: number }[];
 };
 
 function mapLead(row: Record<string, unknown>): QuickLeadRow {
@@ -69,16 +79,187 @@ export async function listQuickLeads(filter?: {
 
 export async function getOpsStats(): Promise<OpsStats> {
   const admin = createAdminClient();
-  const { data } = await admin.from("beta_quick_leads").select("intent, status");
+  const [{ data }, { data: signups }] = await Promise.all([
+    admin.from("beta_quick_leads").select("intent, status"),
+    admin.from("beta_signups").select("acquisition_channel"),
+  ]);
   const rows = data ?? [];
   const open = new Set(["new", "contacted", "matched"]);
+  const sourceMap = new Map<string, number>();
+  for (const s of signups ?? []) {
+    const key = s.acquisition_channel ?? "(none)";
+    sourceMap.set(key, (sourceMap.get(key) ?? 0) + 1);
+  }
   return {
     buyNew: rows.filter((r) => r.intent === "buy" && r.status === "new").length,
     sellNew: rows.filter((r) => r.intent === "sell" && r.status === "new").length,
     buyOpen: rows.filter((r) => r.intent === "buy" && open.has(r.status)).length,
     sellOpen: rows.filter((r) => r.intent === "sell" && open.has(r.status)).length,
     done: rows.filter((r) => r.status === "done").length,
+    classicMembers: (signups ?? []).length,
+    bySource: [...sourceMap.entries()]
+      .map(([channel, count]) => ({ channel, count }))
+      .sort((a, b) => b.count - a.count),
   };
+}
+
+export async function listClassicMembers(): Promise<ClassicMemberRow[]> {
+  const admin = createAdminClient();
+  const { data: signups, error } = await admin
+    .from("beta_signups")
+    .select(
+      "id, name, email, phone, intent, interested_events, priority, school, referral_source, acquisition_channel, created_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(300);
+
+  if (error || !signups?.length) {
+    if (error) {
+      console.warn(JSON.stringify({ level: "warn", msg: "ops_list_members_failed", error }));
+    }
+    return [];
+  }
+
+  const ids = signups.map((s) => s.id);
+  const { data: interests } = await admin
+    .from("beta_event_interests")
+    .select("signup_id, event_slug, intent, contact_phone, contact_instagram")
+    .in("signup_id", ids);
+
+  const bySignup = new Map<string, ClassicInterest[]>();
+  for (const row of interests ?? []) {
+    const list = bySignup.get(row.signup_id) ?? [];
+    list.push({
+      eventSlug: row.event_slug,
+      eventName: betaEventBySlug(row.event_slug)?.name ?? row.event_slug,
+      intent: row.intent as "waitlist" | "sell",
+      contactPhone: row.contact_phone ?? null,
+      contactInstagram: row.contact_instagram ?? null,
+    });
+    bySignup.set(row.signup_id, list);
+  }
+
+  return signups.map((s) => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+    phone: s.phone ?? "",
+    intent: s.intent as "buy" | "sell" | "both",
+    interestedEvents: (s.interested_events as string[]) ?? [],
+    priority: s.priority,
+    school: s.school,
+    referralSource: s.referral_source,
+    acquisitionChannel: s.acquisition_channel,
+    createdAt: s.created_at,
+    interests: bySignup.get(s.id) ?? [],
+  }));
+}
+
+const addMemberSchema = z.object({
+  name: z.string().trim().min(1, "Enter a name.").max(120),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email.")
+    .max(320)
+    .transform((v) => v.toLowerCase()),
+  phone: z.string().trim().max(30).optional().default(""),
+  intent: z.enum(["buy", "sell", "both"]),
+  acquisitionChannel: z.enum([
+    "qr_share",
+    "qr_print",
+    "ig_bio",
+    "manual",
+    "friend",
+    "campus",
+    "other",
+  ]),
+  referralSource: z.string().trim().max(160).optional().default(""),
+  notes: z.string().trim().max(500).optional().default(""),
+});
+
+export async function addClassicMember(
+  input: z.infer<typeof addMemberSchema>,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  await requireBetaOpsSession();
+  const parsed = addMemberSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid member." };
+  }
+
+  const admin = createAdminClient();
+  const referral =
+    [parsed.data.referralSource, parsed.data.notes ? `note: ${parsed.data.notes}` : ""]
+      .filter(Boolean)
+      .join(" · ") || null;
+
+  const { data, error } = await admin
+    .from("beta_signups")
+    .insert({
+      name: parsed.data.name,
+      email: parsed.data.email,
+      phone: parsed.data.phone || "",
+      intent: parsed.data.intent,
+      interested_events: [],
+      priority: "both",
+      school: null,
+      referral_source: referral,
+      notify_opt_in: false,
+      acquisition_channel: parsed.data.acquisitionChannel,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, error: "That email is already on the list." };
+    }
+    console.warn(JSON.stringify({ level: "warn", msg: "ops_add_member_failed", error }));
+    return { ok: false, error: "Couldn't add that member." };
+  }
+
+  return { ok: true, id: data.id };
+}
+
+export async function listQueuePadding(): Promise<QueuePaddingRow[]> {
+  const map = await getFakeFrontMap();
+  return INTEREST_OPTIONS.map((opt) => ({
+    eventSlug: opt.value,
+    eventName: betaEventBySlug(opt.value)?.name ?? opt.label,
+    fakeFront: map.get(opt.value) ?? defaultFakeFront(opt.value),
+  }));
+}
+
+const fakeFrontSchema = z.object({
+  eventSlug: z.string().trim().min(1).max(80),
+  fakeFront: z.coerce.number().int().min(0).max(500),
+});
+
+export async function setQueueFakeFront(
+  input: z.infer<typeof fakeFrontSchema>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireBetaOpsSession();
+  const parsed = fakeFrontSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid padding value." };
+
+  const known = INTEREST_OPTIONS.some((o) => o.value === parsed.data.eventSlug);
+  if (!known) return { ok: false, error: "Unknown event." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("beta_event_queue_config").upsert(
+    {
+      event_slug: parsed.data.eventSlug,
+      fake_front: parsed.data.fakeFront,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "event_slug" },
+  );
+
+  if (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "ops_set_fake_front_failed", error }));
+    return { ok: false, error: "Couldn't save that." };
+  }
+  return { ok: true };
 }
 
 const updateSchema = z.object({

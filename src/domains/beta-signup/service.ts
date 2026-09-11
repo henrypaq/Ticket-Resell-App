@@ -4,6 +4,7 @@ import { z } from "zod";
 import { notifyAdminsOfBetaInterest } from "@/domains/admin-alerts/service";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getFakeFront } from "@/domains/beta-queue/padding";
 import { INTEREST_OPTIONS } from "@/lib/beta-events";
 import { SUPPORT_CATEGORIES, type BetaSignupProfile } from "./shared";
 
@@ -410,16 +411,19 @@ export async function getWaitlistPosition(
   eventSlug: string,
 ): Promise<number | null> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("beta_event_interests")
-    .select("signup_id, created_at")
-    .eq("event_slug", eventSlug)
-    .eq("intent", "waitlist")
-    .order("created_at", { ascending: true });
+  const [{ data, error }, fakeFront] = await Promise.all([
+    admin
+      .from("beta_event_interests")
+      .select("signup_id, created_at")
+      .eq("event_slug", eventSlug)
+      .eq("intent", "waitlist")
+      .order("created_at", { ascending: true }),
+    getFakeFront(eventSlug),
+  ]);
 
   if (error || !data) return null;
   const index = data.findIndex((row) => row.signup_id === signupId);
-  return index >= 0 ? index + 1 : null;
+  return index >= 0 ? index + 1 + fakeFront : null;
 }
 
 export async function submitBetaEventRequest(

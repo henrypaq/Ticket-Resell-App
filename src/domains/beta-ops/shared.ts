@@ -22,3 +22,32 @@ export type QuickLeadRow = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type ClassicInterest = {
+  eventSlug: string;
+  eventName: string;
+  intent: "waitlist" | "sell";
+  contactPhone: string | null;
+  contactInstagram: string | null;
+};
+
+export type ClassicMemberRow = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  intent: "buy" | "sell" | "both";
+  interestedEvents: string[];
+  priority: string;
+  school: string | null;
+  referralSource: string | null;
+  acquisitionChannel: string | null;
+  createdAt: string;
+  interests: ClassicInterest[];
+};
+
+export type QueuePaddingRow = {
+  eventSlug: string;
+  eventName: string;
+  fakeFront: number;
+};

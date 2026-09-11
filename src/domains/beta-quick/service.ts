@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { notifyAdminsOfQuickLead } from "@/domains/admin-alerts/service";
+import { getFakeFrontMap } from "@/domains/beta-queue/padding";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug } from "@/lib/beta-events";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -227,12 +228,15 @@ export async function getQuickWaitlistEntries(
   if (ids.length === 0) return [];
 
   const admin = createAdminClient();
-  const { data: mine, error } = await admin
-    .from("beta_quick_leads")
-    .select("id, event_slug, quantity, status, created_at")
-    .eq("intent", "buy")
-    .in("id", ids)
-    .order("created_at", { ascending: true });
+  const [{ data: mine, error }, fakeFronts] = await Promise.all([
+    admin
+      .from("beta_quick_leads")
+      .select("id, event_slug, quantity, status, created_at")
+      .eq("intent", "buy")
+      .in("id", ids)
+      .order("created_at", { ascending: true }),
+    getFakeFrontMap(),
+  ]);
 
   if (error || !mine?.length) return [];
 
@@ -248,14 +252,15 @@ export async function getQuickWaitlistEntries(
       .order("created_at", { ascending: true });
 
     const idx = (peers ?? []).findIndex((p) => p.id === row.id);
-    const position = idx >= 0 ? idx + 1 : 1;
+    const real = idx >= 0 ? idx + 1 : 1;
+    const fakeFront = fakeFronts.get(row.event_slug) ?? 0;
     const event = betaEventBySlug(row.event_slug);
     entries.push({
       leadId: row.id,
       eventSlug: row.event_slug,
       eventName: event?.name ?? row.event_slug,
       quantity: row.quantity,
-      position,
+      position: real + fakeFront,
       status: row.status,
       createdAt: row.created_at,
     });

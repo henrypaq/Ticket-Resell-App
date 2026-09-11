@@ -6,9 +6,27 @@
  * `ig_bio`. First cookie write wins — later links don't overwrite.
  */
 
-export const ACQUISITION_CHANNELS = ["qr_share", "qr_print", "ig_bio"] as const;
+export const ACQUISITION_CHANNELS = [
+  "qr_share",
+  "qr_print",
+  "ig_bio",
+  "manual",
+  "friend",
+  "campus",
+  "other",
+] as const;
 
 export type AcquisitionChannel = (typeof ACQUISITION_CHANNELS)[number];
+
+export const ACQUISITION_CHANNEL_LABELS: Record<AcquisitionChannel, string> = {
+  qr_share: "QR share",
+  qr_print: "QR print",
+  ig_bio: "Instagram bio",
+  manual: "Added in ops",
+  friend: "Friend",
+  campus: "Campus",
+  other: "Other",
+};
 
 export const BETA_ACQUISITION_COOKIE = "passe_beta_acq";
 
@@ -28,5 +46,5 @@ export function parseAcquisitionSrc(src: string | null | undefined): Acquisition
 }
 
 export function isAcquisitionChannel(value: string | undefined | null): value is AcquisitionChannel {
-  return value === "qr_share" || value === "qr_print" || value === "ig_bio";
+  return (ACQUISITION_CHANNELS as readonly string[]).includes(value ?? "");
 }

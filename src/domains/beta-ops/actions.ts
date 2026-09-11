@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { loginBetaOps, logoutBetaOps, requireBetaOpsSession } from "@/domains/beta-ops/auth";
 import { LEAD_STATUSES, type LeadStatus } from "@/domains/beta-ops/shared";
-import { updateQuickLead } from "@/domains/beta-ops/service";
+import { addClassicMember, setQueueFakeFront, updateQuickLead } from "@/domains/beta-ops/service";
 
 export type OpsLoginState = { error?: string };
 
@@ -52,6 +52,56 @@ export async function updateLeadNotesAction(
   const id = String(formData.get("id") ?? "");
   const adminNotes = String(formData.get("adminNotes") ?? "");
   const result = await updateQuickLead({ id, adminNotes });
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function addMemberAction(
+  _prev: OpsActionState,
+  formData: FormData,
+): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+
+  const result = await addClassicMember({
+    name: String(formData.get("name") ?? ""),
+    email: String(formData.get("email") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    intent: String(formData.get("intent") ?? "both") as "buy" | "sell" | "both",
+    acquisitionChannel: String(formData.get("acquisitionChannel") ?? "manual") as
+      | "qr_share"
+      | "qr_print"
+      | "ig_bio"
+      | "manual"
+      | "friend"
+      | "campus"
+      | "other",
+    referralSource: String(formData.get("referralSource") ?? ""),
+    notes: String(formData.get("notes") ?? ""),
+  });
+
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function setFakeFrontAction(
+  _prev: OpsActionState,
+  formData: FormData,
+): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+
+  const result = await setQueueFakeFront({
+    eventSlug: String(formData.get("eventSlug") ?? ""),
+    fakeFront: Number(formData.get("fakeFront") ?? 0),
+  });
+
   if (!result.ok) return { error: result.error };
   return { ok: true };
 }

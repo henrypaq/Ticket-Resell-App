@@ -5,6 +5,7 @@ import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 
 const TABS = [
   { href: "/ops", label: "Overview" },
+  { href: "/ops/members", label: "Members" },
   { href: "/ops/waitlist", label: "Waitlist" },
   { href: "/ops/sellers", label: "Sellers" },
 ] as const;
@@ -15,7 +16,7 @@ export async function OpsChrome({
   active,
 }: {
   children: React.ReactNode;
-  active: "overview" | "waitlist" | "sellers";
+  active: "overview" | "members" | "waitlist" | "sellers";
 }) {
   const session = await getBetaOpsSession();
   if (!session) redirect("/ops/login");
@@ -39,10 +40,8 @@ export async function OpsChrome({
 
       <nav className="mt-6 flex gap-2 overflow-x-auto border-b border-hairline pb-3">
         {TABS.map((tab) => {
-          const isActive =
-            (active === "overview" && tab.href === "/ops") ||
-            (active === "waitlist" && tab.href === "/ops/waitlist") ||
-            (active === "sellers" && tab.href === "/ops/sellers");
+          const key = tab.href === "/ops" ? "overview" : tab.href.split("/").pop()!;
+          const isActive = active === key;
           return (
             <Link
               key={tab.href}
