@@ -5,22 +5,31 @@ import { useRouter } from "next/navigation";
 import { setFakeFrontAction, type OpsActionState } from "@/domains/beta-ops/actions";
 import type { QueuePaddingRow } from "@/domains/beta-ops/shared";
 import { BUTTON_CLASS_COMPACT, FIELD_CLASS } from "@/components/beta-waitlist/field-styles";
+import { CollapsiblePanel } from "@/components/beta-ops/waitlist-entry";
 
 const initial: OpsActionState = {};
 
 export function FakeFrontControls({ rows }: { rows: QueuePaddingRow[] }) {
+  const summary = rows
+    .slice(0, 3)
+    .map((r) => `${r.eventName.split(" ")[0]} ${r.fakeFront}`)
+    .join(" · ");
+
   return (
-    <section className="rounded-[18px] border border-hairline bg-white/[0.04] p-4">
-      <h2 className="text-[15px] font-semibold text-ink">Fake waitlist front</h2>
-      <p className="mt-1 text-[13px] text-muted">
+    <CollapsiblePanel
+      title="Fake waitlist front"
+      summary={summary || undefined}
+      defaultOpen={false}
+    >
+      <p className="mb-3 text-[13px] text-muted">
         Artificial spots ahead of real joiners. Displayed position = real rank + padding.
       </p>
-      <ul className="mt-4 flex flex-col gap-3">
+      <ul className="flex flex-col gap-3">
         {rows.map((row) => (
           <FakeFrontRow key={row.eventSlug} row={row} />
         ))}
       </ul>
-    </section>
+    </CollapsiblePanel>
   );
 }
 

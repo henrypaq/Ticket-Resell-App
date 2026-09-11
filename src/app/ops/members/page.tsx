@@ -25,10 +25,16 @@ export default async function OpsMembersPage() {
 
   return (
     <OpsChrome active="members">
-      <h1 className="headline text-[28px] leading-tight">Members</h1>
-      <p className="mt-2 text-[14px] text-muted">
-        Classic questionnaire signups ({members.length}) — including how they found us.
-      </p>
+      <AddMemberForm
+        heading={
+          <>
+            <h1 className="headline text-[28px] leading-tight">Members</h1>
+            <p className="mt-2 text-[14px] text-muted">
+              Classic questionnaire signups ({members.length}) — including how they found us.
+            </p>
+          </>
+        }
+      />
 
       {bySource.size > 0 && (
         <div className="mt-5 flex flex-wrap gap-2">
@@ -45,10 +51,6 @@ export default async function OpsMembersPage() {
           ))}
         </div>
       )}
-
-      <div className="mt-8">
-        <AddMemberForm />
-      </div>
 
       {members.length === 0 ? (
         <p className="mt-8 text-[14px] text-muted">No classic signups yet.</p>

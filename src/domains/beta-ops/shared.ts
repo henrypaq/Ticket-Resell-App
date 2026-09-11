@@ -51,3 +51,26 @@ export type QueuePaddingRow = {
   eventName: string;
   fakeFront: number;
 };
+
+/** Unified waitlist row for ops — classic questionnaire + /go buy leads. */
+export type OpsWaitlistEntry = {
+  id: string;
+  source: "classic" | "go";
+  name: string | null;
+  email: string | null;
+  eventSlug: string;
+  eventName: string;
+  /** Weeknights this event runs (from beta-events config). */
+  eventDays: string[];
+  quantity: number;
+  /** What the user sees (real rank + fake front). */
+  displayedPosition: number;
+  contactPhone: string | null;
+  contactInstagram: string | null;
+  status: LeadStatus | "classic";
+  acquisitionChannel: string | null;
+  adminNotes: string | null;
+  createdAt: string;
+  /** Present for /go leads so status/notes actions keep working. */
+  goLead?: QuickLeadRow;
+};

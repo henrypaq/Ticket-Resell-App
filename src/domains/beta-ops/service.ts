@@ -5,7 +5,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { betaEventBySlug, INTEREST_OPTIONS } from "@/lib/beta-events";
 import { defaultFakeFront, getFakeFrontMap } from "@/domains/beta-queue/padding";
 import { requireBetaOpsSession } from "./auth";
-import { LEAD_STATUSES, type LeadStatus, type QuickLeadRow, type ClassicMemberRow, type ClassicInterest, type QueuePaddingRow } from "./shared";
+import {
+  LEAD_STATUSES,
+  type LeadStatus,
+  type QuickLeadRow,
+  type ClassicMemberRow,
+  type ClassicInterest,
+  type QueuePaddingRow,
+  type OpsWaitlistEntry,
+} from "./shared";
 
 export {
   LEAD_STATUSES,
@@ -14,6 +22,7 @@ export {
   type ClassicMemberRow,
   type ClassicInterest,
   type QueuePaddingRow,
+  type OpsWaitlistEntry,
 } from "./shared";
 
 export type OpsStats = {
@@ -219,6 +228,112 @@ export async function addClassicMember(
   }
 
   return { ok: true, id: data.id };
+}
+
+function eventDaysForSlug(slug: string): string[] {
+  return betaEventBySlug(slug)?.days ?? [];
+}
+
+/** Classic waitlist interests + /go buy leads, newest first, with displayed #. */
+export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
+  const admin = createAdminClient();
+  const fakeFronts = await getFakeFrontMap();
+
+  const [{ data: interests }, goLeads] = await Promise.all([
+    admin
+      .from("beta_event_interests")
+      .select(
+        "id, signup_id, event_slug, intent, created_at, contact_phone, contact_instagram, beta_signups(name, email, phone, acquisition_channel)",
+      )
+      .eq("intent", "waitlist")
+      .order("created_at", { ascending: false })
+      .limit(300),
+    listQuickLeads({ intent: "buy" }),
+  ]);
+
+  // Real ranks within each classic event queue (oldest first).
+  const classicRank = new Map<string, number>();
+  const { data: ordered } = await admin
+    .from("beta_event_interests")
+    .select("id, event_slug")
+    .eq("intent", "waitlist")
+    .order("created_at", { ascending: true });
+  const counters = new Map<string, number>();
+  for (const row of ordered ?? []) {
+    const n = (counters.get(row.event_slug) ?? 0) + 1;
+    counters.set(row.event_slug, n);
+    classicRank.set(row.id, n);
+  }
+
+  const classicEntries: OpsWaitlistEntry[] = (interests ?? []).map((row) => {
+    const signup = row.beta_signups as
+      | { name: string; email: string; phone: string | null; acquisition_channel: string | null }
+      | null
+      | { name: string; email: string; phone: string | null; acquisition_channel: string | null }[];
+    const person = Array.isArray(signup) ? signup[0] : signup;
+    const real = classicRank.get(row.id) ?? 1;
+    const fake = fakeFronts.get(row.event_slug) ?? defaultFakeFront(row.event_slug);
+    return {
+      id: row.id,
+      source: "classic" as const,
+      name: person?.name ?? null,
+      email: person?.email ?? null,
+      eventSlug: row.event_slug,
+      eventName: betaEventBySlug(row.event_slug)?.name ?? row.event_slug,
+      eventDays: eventDaysForSlug(row.event_slug),
+      quantity: 1,
+      displayedPosition: real + fake,
+      contactPhone: row.contact_phone || person?.phone || null,
+      contactInstagram: row.contact_instagram ?? null,
+      status: "classic" as const,
+      acquisitionChannel: person?.acquisition_channel ?? null,
+      adminNotes: null,
+      createdAt: row.created_at,
+    };
+  });
+
+  // Real ranks among /go buy leads per event.
+  const goRank = new Map<string, number>();
+  const goByEvent = new Map<string, QuickLeadRow[]>();
+  for (const lead of goLeads) {
+    if (lead.status === "cancelled") continue;
+    const list = goByEvent.get(lead.eventSlug) ?? [];
+    list.push(lead);
+    goByEvent.set(lead.eventSlug, list);
+  }
+  for (const [, list] of goByEvent) {
+    list
+      .slice()
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .forEach((lead, i) => goRank.set(lead.id, i + 1));
+  }
+
+  const goEntries: OpsWaitlistEntry[] = goLeads.map((lead) => {
+    const real = goRank.get(lead.id) ?? 1;
+    const fake = fakeFronts.get(lead.eventSlug) ?? defaultFakeFront(lead.eventSlug);
+    return {
+      id: lead.id,
+      source: "go" as const,
+      name: null,
+      email: null,
+      eventSlug: lead.eventSlug,
+      eventName: lead.eventName,
+      eventDays: eventDaysForSlug(lead.eventSlug),
+      quantity: lead.quantity,
+      displayedPosition: real + fake,
+      contactPhone: lead.contactPhone,
+      contactInstagram: lead.contactInstagram,
+      status: lead.status,
+      acquisitionChannel: lead.acquisitionChannel,
+      adminNotes: lead.adminNotes,
+      createdAt: lead.createdAt,
+      goLead: lead,
+    };
+  });
+
+  return [...classicEntries, ...goEntries].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  );
 }
 
 export async function listQueuePadding(): Promise<QueuePaddingRow[]> {
