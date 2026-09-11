@@ -301,8 +301,8 @@ export function QuickSellFlow({
                 className="mt-0.5 h-5 w-5 shrink-0 accent-[#6ee1ff]"
               />
               <span className="text-[13px] leading-relaxed text-muted">
-                I confirm this is a <span className="font-semibold text-ink">real, unused ticket</span> I
-                own, the file/link is accurate and unedited, and I agree to the{" "}
+                I confirm this is a real, unused ticket I own, the file/link is accurate and
+                unedited, and I agree to the{" "}
                 <Link
                   href={SELLER_TERMS_PATH}
                   target="_blank"
@@ -311,8 +311,8 @@ export function QuickSellFlow({
                   onClick={(e) => e.stopPropagation()}
                 >
                   seller terms
-                </Link>{" "}
-                (no fakes, follow through on sales, accurate Interac info).
+                </Link>
+                . Make sure your ticket is for the correct date before posting.
               </span>
             </label>
             <button
@@ -331,7 +331,7 @@ export function QuickSellFlow({
             <StepHeading
               eyebrow={stepLabel}
               title="Interac e-Transfer"
-              hint="Where we send payment when your ticket sells."
+              hint="Where we send the payment when your ticket sells."
             />
             <Field label="Name on Interac" htmlFor="etName">
               <input

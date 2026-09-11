@@ -32,7 +32,8 @@ export function QuickHub({
           DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
-          Buy and sell sold-out tickets fast. Secure, verified tickets and transactions.
+          Buy and sell sold-out tickets fast. Secure matching between buyers and sellers, we
+          refund you in case of issues.
         </p>
       </header>
 
