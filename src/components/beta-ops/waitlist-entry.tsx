@@ -7,6 +7,7 @@ import {
   LEAD_STATUSES,
   type LeadStatus,
   type OpsWaitlistEntry,
+  type OpsEventGroup,
 } from "@/domains/beta-ops/shared";
 import { formatBetaEventWhen, type BetaWeekday } from "@/lib/beta-events";
 import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
@@ -43,38 +44,7 @@ function contactHref(entry: OpsWaitlistEntry) {
   return null;
 }
 
-export type WaitlistEventGroup = {
-  eventSlug: string;
-  eventName: string;
-  eventDays: string[];
-  entries: OpsWaitlistEntry[];
-  ticketDemand: number;
-};
-
-export function groupWaitlistByEvent(entries: OpsWaitlistEntry[]): WaitlistEventGroup[] {
-  const map = new Map<string, WaitlistEventGroup>();
-  for (const entry of entries) {
-    let group = map.get(entry.eventSlug);
-    if (!group) {
-      group = {
-        eventSlug: entry.eventSlug,
-        eventName: entry.eventName,
-        eventDays: entry.eventDays,
-        entries: [],
-        ticketDemand: 0,
-      };
-      map.set(entry.eventSlug, group);
-    }
-    group.entries.push(entry);
-    group.ticketDemand += entry.quantity;
-  }
-
-  for (const group of map.values()) {
-    group.entries.sort((a, b) => a.displayedPosition - b.displayedPosition);
-  }
-
-  return [...map.values()].sort((a, b) => a.eventName.localeCompare(b.eventName));
-}
+export type WaitlistEventGroup = OpsEventGroup<OpsWaitlistEntry>;
 
 export function WaitlistEventCards({ groups }: { groups: WaitlistEventGroup[] }) {
   return (

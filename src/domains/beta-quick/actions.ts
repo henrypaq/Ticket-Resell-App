@@ -100,37 +100,42 @@ export async function submitQuickSellAction(
   _prev: QuickActionState,
   formData: FormData,
 ): Promise<QuickActionState> {
-  const termsOn =
-    formData.get("sellerTermsAccepted") === "on" || formData.get("sellerTermsAccepted") === "1";
-  const parsed = quickSellSchema.safeParse({
-    eventSlug: formData.get("eventSlug"),
-    quantity: formData.get("quantity"),
-    paidEach: formData.get("paidEach"),
-    askEach: formData.get("askEach"),
-    contactPhone: formData.get("contactPhone") || "",
-    contactInstagram: formData.get("contactInstagram") || "",
-    ticketShareUrl: formData.get("ticketShareUrl") || "",
-    etransferName: formData.get("etransferName"),
-    etransferEmail: formData.get("etransferEmail") || "",
-    etransferPhone: formData.get("etransferPhone") || "",
-    sellerTermsAccepted: termsOn ? true : false,
-    acquisitionChannel: await readAcquisitionChannel(),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Check your answers and try again." };
-  }
+  try {
+    const termsOn =
+      formData.get("sellerTermsAccepted") === "on" || formData.get("sellerTermsAccepted") === "1";
+    const parsed = quickSellSchema.safeParse({
+      eventSlug: formData.get("eventSlug"),
+      quantity: formData.get("quantity"),
+      paidEach: formData.get("paidEach"),
+      askEach: formData.get("askEach"),
+      contactPhone: formData.get("contactPhone") || "",
+      contactInstagram: formData.get("contactInstagram") || "",
+      ticketShareUrl: formData.get("ticketShareUrl") || "",
+      etransferName: formData.get("etransferName"),
+      etransferEmail: formData.get("etransferEmail") || "",
+      etransferPhone: formData.get("etransferPhone") || "",
+      sellerTermsAccepted: termsOn ? true : false,
+      acquisitionChannel: await readAcquisitionChannel(),
+    });
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Check your answers and try again." };
+    }
 
-  const raw = formData.get("ticketImage");
-  let file: { bytes: Uint8Array; name: string } | null = null;
-  if (raw instanceof File && raw.size > 0) {
-    file = { bytes: new Uint8Array(await raw.arrayBuffer()), name: raw.name };
-  }
+    const raw = formData.get("ticketImage");
+    let file: { bytes: Uint8Array; name: string } | null = null;
+    if (raw instanceof File && raw.size > 0) {
+      file = { bytes: new Uint8Array(await raw.arrayBuffer()), name: raw.name };
+    }
 
-  const result = await submitQuickSell(
-    { ...parsed.data, existingContactId: await readGoContactId() },
-    file,
-  );
-  if (!result.ok) return { error: result.error };
-  if (result.contactId) await setGoContactCookie(result.contactId);
-  return { ok: true };
+    const result = await submitQuickSell(
+      { ...parsed.data, existingContactId: await readGoContactId() },
+      file,
+    );
+    if (!result.ok) return { error: result.error };
+    if (result.contactId) await setGoContactCookie(result.contactId);
+    return { ok: true };
+  } catch (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "quick_sell_action_failed", error: String(error) }));
+    return { error: "Couldn't submit. Try again in a moment." };
+  }
 }

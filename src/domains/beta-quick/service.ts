@@ -121,8 +121,13 @@ export async function submitQuickBuy(
     contactInstagram: input.contactInstagram,
     existingContactId: input.existingContactId,
   });
-  const contactId = contactResult.ok ? contactResult.contact.id : null;
-  const memberId = contactResult.ok ? contactResult.contact.memberId : null;
+  if (!contactResult.ok) {
+    return { ok: false, error: contactResult.error };
+  }
+  const contactId = contactResult.contact.id;
+  const memberId = contactResult.contact.memberId;
+  const phone = (input.contactPhone || "").trim() || contactResult.contact.contactPhone;
+  const ig = (input.contactInstagram || "").trim() || contactResult.contact.contactInstagram;
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -131,8 +136,8 @@ export async function submitQuickBuy(
       intent: "buy",
       event_slug: input.eventSlug,
       quantity: input.quantity,
-      contact_phone: input.contactPhone || null,
-      contact_instagram: input.contactInstagram || null,
+      contact_phone: phone || null,
+      contact_instagram: ig || null,
       acquisition_channel: input.acquisitionChannel ?? null,
       contact_id: contactId,
       member_id: memberId,
@@ -150,11 +155,11 @@ export async function submitQuickBuy(
     intent: "buy",
     eventSlug: input.eventSlug,
     quantity: input.quantity,
-    contactPhone: input.contactPhone,
-    contactInstagram: input.contactInstagram,
+    contactPhone: phone ?? undefined,
+    contactInstagram: ig ?? undefined,
   }).catch(() => {});
 
-  return { ok: true, id: data.id, contactId: contactId ?? undefined };
+  return { ok: true, id: data.id, contactId };
 }
 
 export async function submitQuickSell(
@@ -191,8 +196,17 @@ export async function submitQuickSell(
     etransferPhone: input.etransferPhone,
     existingContactId: input.existingContactId,
   });
-  const contactId = contactResult.ok ? contactResult.contact.id : null;
-  const memberId = contactResult.ok ? contactResult.contact.memberId : null;
+  if (!contactResult.ok) {
+    return { ok: false, error: contactResult.error };
+  }
+  const contactId = contactResult.contact.id;
+  const memberId = contactResult.contact.memberId;
+
+  const phone = (input.contactPhone || "").trim() || contactResult.contact.contactPhone;
+  const ig = (input.contactInstagram || "").trim() || contactResult.contact.contactInstagram;
+  if (!phone && !ig) {
+    return { ok: false, error: "Add a WhatsApp number or Instagram so we can reach you." };
+  }
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -201,8 +215,8 @@ export async function submitQuickSell(
       intent: "sell",
       event_slug: input.eventSlug,
       quantity: input.quantity,
-      contact_phone: input.contactPhone || null,
-      contact_instagram: input.contactInstagram || null,
+      contact_phone: phone || null,
+      contact_instagram: ig || null,
       paid_each: input.paidEach,
       ask_each: input.askEach,
       ticket_share_url: input.ticketShareUrl || null,
@@ -220,7 +234,11 @@ export async function submitQuickSell(
 
   if (error || !data) {
     console.warn(JSON.stringify({ level: "warn", msg: "quick_sell_insert_failed", error }));
-    return { ok: false, error: "Couldn't submit. Try again in a moment." };
+    const hint =
+      error?.code === "23514"
+        ? "Check contact, Interac, and ticket proof fields."
+        : "Couldn't submit. Try again in a moment.";
+    return { ok: false, error: hint };
   }
 
   void notifyAdminsOfQuickLead({
@@ -228,18 +246,18 @@ export async function submitQuickSell(
     intent: "sell",
     eventSlug: input.eventSlug,
     quantity: input.quantity,
-    contactPhone: input.contactPhone,
-    contactInstagram: input.contactInstagram,
+    contactPhone: phone ?? undefined,
+    contactInstagram: ig ?? undefined,
     paidEach: input.paidEach,
     askEach: input.askEach,
-    ticketShareUrl: input.ticketShareUrl,
+    ticketShareUrl: input.ticketShareUrl ?? undefined,
     hasEvidence: Boolean(evidencePath),
     etransferName: input.etransferName,
-    etransferEmail: input.etransferEmail,
-    etransferPhone: input.etransferPhone,
+    etransferEmail: input.etransferEmail ?? undefined,
+    etransferPhone: input.etransferPhone ?? undefined,
   }).catch(() => {});
 
-  return { ok: true, id: data.id, contactId: contactId ?? undefined };
+  return { ok: true, id: data.id, contactId };
 }
 
 /** Queue cards for the /go hub — positions in the shared classic+/go queue. */

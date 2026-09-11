@@ -59,13 +59,24 @@ export function QuickSellFlow({
   const [instagram, setInstagram] = useState(savedContact?.contactInstagram ?? "");
   const [ticketUrl, setTicketUrl] = useState("");
   const [ticketFileName, setTicketFileName] = useState<string | null>(null);
+  const ticketFileRef = useRef<File | null>(null);
   const [etName, setEtName] = useState(savedContact?.etransferName ?? "");
   const [etEmail, setEtEmail] = useState(savedContact?.etransferEmail ?? "");
   const savedEtPhone = splitSavedPhone(savedContact?.etransferPhone);
   const [etPhoneCountry, setEtPhoneCountry] = useState(savedEtPhone.iso2);
   const [etPhoneNational, setEtPhoneNational] = useState(savedEtPhone.national);
   const [terms, setTerms] = useState(false);
-  const [state, formAction, pending] = useActionState(submitQuickSellAction, initial);
+  const [state, formAction, pending] = useActionState(
+    async (prev: QuickActionState, fd: FormData) => {
+      const existing = fd.get("ticketImage");
+      const kept = ticketFileRef.current;
+      if (kept && (!(existing instanceof File) || existing.size === 0)) {
+        fd.set("ticketImage", kept);
+      }
+      return submitQuickSellAction(prev, fd);
+    },
+    initial,
+  );
 
   useEffect(() => {
     if (state.ok) router.replace("/go/done?intent=sell");
@@ -140,7 +151,11 @@ export function QuickSellFlow({
           name="ticketImage"
           accept="image/jpeg,image/png,application/pdf"
           className="sr-only"
-          onChange={(e) => setTicketFileName(e.target.files?.[0]?.name ?? null)}
+          onChange={(e) => {
+            const file = e.target.files?.[0] ?? null;
+            ticketFileRef.current = file;
+            setTicketFileName(file?.name ?? null);
+          }}
         />
 
         {step === 0 && (

@@ -74,3 +74,42 @@ export type OpsWaitlistEntry = {
   /** Present for /go leads so status/notes actions keep working. */
   goLead?: QuickLeadRow;
 };
+
+export type OpsEventGroup<T extends { eventSlug: string; eventName: string; eventDays: string[]; quantity: number }> = {
+  eventSlug: string;
+  eventName: string;
+  eventDays: string[];
+  entries: T[];
+  ticketDemand: number;
+};
+
+/** Group ops rows by event; sort entries with an optional comparator (e.g. by #). */
+export function groupOpsEntriesByEvent<
+  T extends { eventSlug: string; eventName: string; eventDays: string[]; quantity: number },
+>(
+  entries: T[],
+  sortEntries?: (a: T, b: T) => number,
+): OpsEventGroup<T>[] {
+  const map = new Map<string, OpsEventGroup<T>>();
+  for (const entry of entries) {
+    let group = map.get(entry.eventSlug);
+    if (!group) {
+      group = {
+        eventSlug: entry.eventSlug,
+        eventName: entry.eventName,
+        eventDays: entry.eventDays,
+        entries: [],
+        ticketDemand: 0,
+      };
+      map.set(entry.eventSlug, group);
+    }
+    group.entries.push(entry);
+    group.ticketDemand += entry.quantity;
+  }
+
+  for (const group of map.values()) {
+    if (sortEntries) group.entries.sort(sortEntries);
+  }
+
+  return [...map.values()].sort((a, b) => a.eventName.localeCompare(b.eventName));
+}

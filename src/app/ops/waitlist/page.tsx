@@ -2,12 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
 import { FakeFrontControls } from "@/components/beta-ops/fake-front";
-import {
-  groupWaitlistByEvent,
-  WaitlistEventCards,
-} from "@/components/beta-ops/waitlist-entry";
+import { WaitlistEventCards } from "@/components/beta-ops/waitlist-entry";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { listOpsWaitlistEntries, listQueuePadding } from "@/domains/beta-ops/service";
+import { groupOpsEntriesByEvent } from "@/domains/beta-ops/shared";
 
 export const metadata: Metadata = {
   title: "Waitlist · Ops · mcgill.tickets",
@@ -23,7 +21,10 @@ export default async function OpsWaitlistPage() {
     listQueuePadding(),
   ]);
 
-  const groups = groupWaitlistByEvent(entries);
+  const groups = groupOpsEntriesByEvent(
+    entries,
+    (a, b) => a.displayedPosition - b.displayedPosition,
+  );
   const classicCount = entries.filter((e) => e.source === "classic").length;
   const goCount = entries.filter((e) => e.source === "go").length;
 

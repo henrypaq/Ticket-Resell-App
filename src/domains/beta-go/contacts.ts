@@ -135,13 +135,15 @@ export async function upsertGoContact(input: {
       .eq("id", existing.id)
       .select("*")
       .single();
-    if (error || !data) {
+    if (!error && data) {
+      await linkGoLeadsToContact(String(data.id), memberId);
+      return { ok: true, contact: mapContact(data as Record<string, unknown>) };
+    }
+    // Unique phone/IG conflict: fall through to the row that already owns that identity.
+    if (error?.code !== "23505") {
       console.warn(JSON.stringify({ level: "warn", msg: "go_contact_update_failed", error }));
       return { ok: false, error: "Couldn't save contact." };
     }
-    // Attach any orphan go leads that match this identity.
-    await linkGoLeadsToContact(String(data.id), memberId);
-    return { ok: true, contact: mapContact(data as Record<string, unknown>) };
   }
 
   const { data, error } = await admin
@@ -149,12 +151,56 @@ export async function upsertGoContact(input: {
     .insert(patch)
     .select("*")
     .single();
-  if (error || !data) {
+  if (!error && data) {
+    await linkGoLeadsToContact(String(data.id), memberId);
+    return { ok: true, contact: mapContact(data as Record<string, unknown>) };
+  }
+
+  // Race / unique conflict: load the winning row and refresh etransfer fields.
+  if (error && error.code !== "23505") {
     console.warn(JSON.stringify({ level: "warn", msg: "go_contact_insert_failed", error }));
     return { ok: false, error: "Couldn't save contact." };
   }
-  await linkGoLeadsToContact(String(data.id), memberId);
-  return { ok: true, contact: mapContact(data as Record<string, unknown>) };
+
+  let winner: Record<string, unknown> | null = null;
+  if (phone) {
+    const { data: byPhone } = await admin
+      .from("beta_go_contacts")
+      .select("*")
+      .eq("contact_phone", phone)
+      .maybeSingle();
+    winner = (byPhone as Record<string, unknown> | null) ?? null;
+  }
+  if (!winner && ig) {
+    const { data: byIg } = await admin
+      .from("beta_go_contacts")
+      .select("*")
+      .ilike("contact_instagram", ig)
+      .maybeSingle();
+    winner = (byIg as Record<string, unknown> | null) ?? null;
+  }
+  if (!winner?.id) {
+    return { ok: false, error: "Couldn't save contact." };
+  }
+
+  const { data: refreshed, error: refreshError } = await admin
+    .from("beta_go_contacts")
+    .update({
+      etransfer_name: patch.etransfer_name,
+      etransfer_email: patch.etransfer_email,
+      etransfer_phone: patch.etransfer_phone,
+      member_id: memberId ?? (winner.member_id as string | null),
+      last_seen_at: patch.last_seen_at,
+    })
+    .eq("id", winner.id)
+    .select("*")
+    .single();
+  if (refreshError || !refreshed) {
+    console.warn(JSON.stringify({ level: "warn", msg: "go_contact_refresh_failed", error: refreshError }));
+    return { ok: false, error: "Couldn't save contact." };
+  }
+  await linkGoLeadsToContact(String(refreshed.id), memberId);
+  return { ok: true, contact: mapContact(refreshed as Record<string, unknown>) };
 }
 
 async function linkGoLeadsToContact(contactId: string, memberId: string | null) {

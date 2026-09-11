@@ -5,6 +5,13 @@ const nextConfig: NextConfig = {
   // the home directory.
   turbopack: { root: __dirname },
 
+  // Ticket screenshots can be several MB; default server-action body limit is 1MB.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "9mb",
+    },
+  },
+
   async headers() {
     // Baseline security headers (SECURITY.md § API & infrastructure hardening).
     // CSP is intentionally omitted here until the Phase 2 payment embed (Stripe)
