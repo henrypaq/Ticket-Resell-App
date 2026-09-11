@@ -46,6 +46,9 @@ npm test                   # compliance unit tests
 | `RESEND_API_KEY` | **server only** — Resend API key for admin waitlist/sell alert emails |
 | `RESEND_FROM_EMAIL` | **server only** — optional From header (default `mcgill.tickets alerts <onboarding@resend.dev>`) |
 | `ADMIN_ALERT_EMAIL` | **server only** — comma-separated admin inboxes (default `wrymage@gmail.com`) |
+| `BETA_OPS_EMAILS` | **server only** — comma-separated emails allowed into `/ops` |
+| `BETA_OPS_PASSWORD` | **server only** — shared password for `/ops` (never commit) |
+| `BETA_OPS_SECRET` | **server only** — HMAC secret for ops session cookies |
 
 The `NEXT_PUBLIC_*` pair aliases the original `SUPABASE_PROJECT_URL` /
 `SUPABASE_PUBLISHABLE_KEY` values; Next.js only exposes prefixed variables to

@@ -125,6 +125,32 @@ export function adminAlertEmails(): string[] {
 }
 
 /**
+ * Beta ops console (`/ops`) — shared email+password gate for facilitation.
+ * Password must live in env only (never committed). Session cookie is signed
+ * with BETA_OPS_SECRET and lasts 30 days.
+ */
+export function betaOpsConfigured(): boolean {
+  return Boolean(process.env.BETA_OPS_PASSWORD && process.env.BETA_OPS_SECRET);
+}
+
+export function betaOpsPassword(): string {
+  return required("BETA_OPS_PASSWORD", process.env.BETA_OPS_PASSWORD);
+}
+
+export function betaOpsSecret(): string {
+  return required("BETA_OPS_SECRET", process.env.BETA_OPS_SECRET);
+}
+
+/** Allowed login emails (lowercase). Default: wrymage@gmail.com */
+export function betaOpsEmails(): string[] {
+  const raw = process.env.BETA_OPS_EMAILS ?? "wrymage@gmail.com";
+  return raw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0);
+}
+
+/**
  * Twilio SMS — optional later; admin alerts currently go through Resend email.
  */
 export function twilioConfigured(): boolean {
