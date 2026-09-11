@@ -31,10 +31,14 @@ export const ACQUISITION_CHANNEL_LABELS: Record<AcquisitionChannel, string> = {
 export const BETA_ACQUISITION_COOKIE = "passe_beta_acq";
 
 export const ACQUISITION_LANDING = {
-  /** Branded /qr share screen — QR encodes this. */
+  /** Branded /qr share screen — QR encodes this (member onboarding). */
   qr_share: "https://mcgilltickets.party/member?src=qr_share",
-  /** Plain printable QR. */
+  /** Plain printable QR (member onboarding). */
   qr_print: "https://mcgilltickets.party/member?src=qr_print",
+  /** Branded /qr/go share screen — QR encodes this (buy/sell hub). */
+  go_qr_share: "https://mcgilltickets.party/go?src=qr_share",
+  /** Plain printable /go QR. */
+  go_qr_print: "https://mcgilltickets.party/go?src=qr_print",
   /** Instagram bio — clean apex URL; `/` redirects to `/go`. */
   ig_bio: "https://mcgilltickets.party",
 } as const;
