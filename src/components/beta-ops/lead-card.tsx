@@ -41,9 +41,11 @@ function formatWhen(iso: string) {
 export function LeadCard({
   lead,
   evidenceUrl,
+  evidenceUrls,
 }: {
   lead: QuickLeadRow;
   evidenceUrl?: string | null;
+  evidenceUrls?: string[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -51,6 +53,7 @@ export function LeadCard({
     updateLeadNotesAction,
     {} as OpsActionState,
   );
+  const proofUrls = evidenceUrls?.length ? evidenceUrls : evidenceUrl ? [evidenceUrl] : [];
 
   function setStatus(status: LeadStatus) {
     start(async () => {
@@ -92,9 +95,14 @@ export function LeadCard({
               }
             />
             <Row label="Ticket link" value={lead.ticketShareUrl} href={lead.ticketShareUrl} />
-            {evidenceUrl && (
-              <Row label="Screenshot" value="Open upload" href={evidenceUrl} />
-            )}
+            {proofUrls.map((url, i) => (
+              <Row
+                key={url}
+                label={proofUrls.length > 1 ? `Screenshot ${i + 1}` : "Screenshot"}
+                value="Open upload"
+                href={url}
+              />
+            ))}
             <Row label="Interac name" value={lead.etransferName} />
             <Row label="Interac email" value={lead.etransferEmail} />
             <Row label="Interac phone" value={lead.etransferPhone} />

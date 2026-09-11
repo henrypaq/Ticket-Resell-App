@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { submitQuickSellAction } from "@/domains/beta-quick/actions";
@@ -21,8 +21,12 @@ import {
   EventPicker,
   QuantityStepper,
   StepHeading,
+  TrustNote,
   composeQuickPhone,
 } from "./shared";
+import { TicketUploadZone, type TicketFile } from "./ticket-upload";
+import { GO_TRUST } from "@/lib/beta-trust";
+import { currentBetaWeekday } from "@/lib/beta-events";
 
 const initial: QuickActionState = {};
 const LAST_STEP = 5;
@@ -47,7 +51,6 @@ export function QuickSellFlow({
   savedContact?: GoContactProfile | null;
 }) {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
   const [eventSlug, setEventSlug] = useState(events[0]?.slug ?? "");
   const [quantity, setQuantity] = useState(1);
@@ -58,8 +61,7 @@ export function QuickSellFlow({
   const [phoneNational, setPhoneNational] = useState(savedPhone.national);
   const [instagram, setInstagram] = useState(savedContact?.contactInstagram ?? "");
   const [ticketUrl, setTicketUrl] = useState("");
-  const [ticketFileName, setTicketFileName] = useState<string | null>(null);
-  const ticketFileRef = useRef<File | null>(null);
+  const [ticketFiles, setTicketFiles] = useState<TicketFile[]>([]);
   const [etName, setEtName] = useState(savedContact?.etransferName ?? "");
   const [etEmail, setEtEmail] = useState(savedContact?.etransferEmail ?? "");
   const savedEtPhone = splitSavedPhone(savedContact?.etransferPhone);
@@ -68,10 +70,9 @@ export function QuickSellFlow({
   const [terms, setTerms] = useState(false);
   const [state, formAction, pending] = useActionState(
     async (prev: QuickActionState, fd: FormData) => {
-      const existing = fd.get("ticketImage");
-      const kept = ticketFileRef.current;
-      if (kept && (!(existing instanceof File) || existing.size === 0)) {
-        fd.set("ticketImage", kept);
+      fd.delete("ticketImage");
+      for (const item of ticketFiles) {
+        fd.append("ticketImage", item.file);
       }
       return submitQuickSellAction(prev, fd);
     },
@@ -81,6 +82,10 @@ export function QuickSellFlow({
   useEffect(() => {
     if (state.ok) router.replace("/go/done?intent=sell");
   }, [state.ok, router]);
+
+  useEffect(() => {
+    setTicketFiles((prev) => (prev.length > quantity ? prev.slice(0, quantity) : prev));
+  }, [quantity]);
 
   if (state.ok) {
     return (
@@ -104,7 +109,9 @@ export function QuickSellFlow({
     ask >= 0 &&
     paidEach.trim() !== "" &&
     askEach.trim() !== "";
-  const hasTicket = Boolean(ticketUrl.trim()) || Boolean(ticketFileName);
+  const hasLink = Boolean(ticketUrl.trim());
+  const filesReady = ticketFiles.length >= quantity;
+  const hasTicket = hasLink || filesReady;
   const ticketStepReady = hasTicket && terms;
 
   const etPhone = composeQuickPhone(etPhoneCountry, etPhoneNational);
@@ -145,23 +152,16 @@ export function QuickSellFlow({
         <input type="hidden" name="etransferEmail" value={etEmail.trim()} />
         <input type="hidden" name="etransferPhone" value={etPhone} />
         {terms && <input type="hidden" name="sellerTermsAccepted" value="1" />}
-        <input
-          ref={fileRef}
-          type="file"
-          name="ticketImage"
-          accept="image/jpeg,image/png,application/pdf"
-          className="sr-only"
-          onChange={(e) => {
-            const file = e.target.files?.[0] ?? null;
-            ticketFileRef.current = file;
-            setTicketFileName(file?.name ?? null);
-          }}
-        />
 
         {step === 0 && (
           <>
             <StepHeading eyebrow={stepLabel} title="Which event?" />
-            <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
+            <EventPicker
+              events={events}
+              value={eventSlug}
+              onChange={setEventSlug}
+              nightDay={currentBetaWeekday()}
+            />
             <button
               type="button"
               disabled={!eventSlug}
@@ -185,10 +185,7 @@ export function QuickSellFlow({
 
         {step === 2 && (
           <>
-            <StepHeading
-              eyebrow={stepLabel}
-              title="Pricing"
-            />
+            <StepHeading eyebrow={stepLabel} title="Pricing" />
             <div className="grid grid-cols-2 gap-3">
               <Field label="You paid (each)" htmlFor="paidEach">
                 <div className="relative">
@@ -234,10 +231,7 @@ export function QuickSellFlow({
 
         {step === 3 && (
           <>
-            <StepHeading
-              eyebrow={stepLabel}
-              title="How do we reach you?"
-            />
+            <StepHeading eyebrow={stepLabel} title="How do we reach you?" />
             <ContactFields
               phoneCountry={phoneCountry}
               phoneNational={phoneNational}
@@ -263,23 +257,14 @@ export function QuickSellFlow({
           <>
             <StepHeading
               eyebrow={stepLabel}
-              title="Prove the ticket"
-              hint="Upload a clear screenshot or PDF, or paste the official share link."
+              title={quantity > 1 ? "Prove the tickets" : "Prove the ticket"}
+              hint={
+                quantity > 1
+                  ? `Upload a clear screenshot or PDF for each of the ${quantity} tickets, or paste one official share link that covers all of them.`
+                  : "Upload a clear screenshot or PDF, or paste the official share link."
+              }
             />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex min-h-[160px] w-full flex-col items-center justify-center gap-2 rounded-[20px] border-2 border-dashed border-white/25 bg-white/[0.05] px-5 py-8 text-center transition-colors hover:border-[#ffe500]/40 hover:bg-white/[0.08]"
-            >
-              <span className="text-[15px] font-semibold text-ink">
-                {ticketFileName ? "Replace file" : "Upload ticket screenshot / PDF"}
-              </span>
-              <span className="max-w-[16rem] text-[13px] leading-relaxed text-muted">
-                {ticketFileName
-                  ? ticketFileName
-                  : "JPEG, PNG, or PDF · up to 8MB · make sure the QR / barcode is readable"}
-              </span>
-            </button>
+            <TicketUploadZone quantity={quantity} files={ticketFiles} onChange={setTicketFiles} />
             <Field label="Or paste a share link" htmlFor="ticketUrl">
               <input
                 id="ticketUrl"
@@ -291,7 +276,11 @@ export function QuickSellFlow({
               />
             </Field>
             {!hasTicket && (
-              <p className="text-[13px] text-muted">Add a file or a link to continue.</p>
+              <p className="text-[13px] text-muted">
+                {quantity > 1
+                  ? `Add all ${quantity} files, or a link, to continue.`
+                  : "Add a file or a link to continue."}
+              </p>
             )}
             <label className="flex cursor-pointer items-start gap-3 rounded-[16px] border border-hairline bg-white/[0.04] px-4 py-4">
               <input
@@ -379,6 +368,7 @@ export function QuickSellFlow({
                 {state.error}
               </p>
             )}
+            <TrustNote label={GO_TRUST.sellSubmit.label}>{GO_TRUST.sellSubmit.body}</TrustNote>
             <button type="submit" disabled={!payoutReady || pending} className={BUTTON_CLASS}>
               {pending ? "Submitting…" : "Submit ticket"}
             </button>

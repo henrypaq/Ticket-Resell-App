@@ -21,6 +21,8 @@ export type BetaEvent = {
   days: BetaWeekday[];
   /** When false, shown only as interest options / request targets, not live. */
   supported: boolean;
+  /** Optional door / entry policy shown on /go (e.g. Café Campus cutoff). */
+  entryNote?: string;
 };
 
 export const BETA_WEEKDAYS = [
@@ -46,6 +48,7 @@ export const BETA_EVENTS: BetaEvent[] = [
     flyerUrl: "/flyers/cafe-campus.jpg",
     days: ["Thursday", "Friday", "Saturday"],
     supported: true,
+    entryNote: "Guaranteed entry until 11:30 PM",
   },
   {
     slug: "montreal-frosh-muzique",
@@ -100,6 +103,15 @@ export function currentBetaWeekday(from: Date = new Date()): BetaWeekday {
 export function tonightBetaEvents(from: Date = new Date()): BetaEvent[] {
   const day = currentBetaWeekday(from);
   return supportedBetaEvents().filter((e) => e.days.includes(day));
+}
+
+/**
+ * Events offered on /go buy & sell pickers — same set as the hub posters:
+ * tonight when anything is live, otherwise the full supported list.
+ */
+export function goSelectableEvents(from: Date = new Date()): BetaEvent[] {
+  const tonight = tonightBetaEvents(from);
+  return tonight.length > 0 ? tonight : supportedBetaEvents();
 }
 
 /** Section label: "Today" when the day matches the calendar, else the weekday. */

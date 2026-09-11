@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
 import { SellersEventCards, type SellerEventEntry } from "@/components/beta-ops/sellers-board";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
-import { getTicketEvidenceSignedUrl, listQuickLeads } from "@/domains/beta-ops/service";
+import { getTicketEvidenceSignedUrls, listQuickLeads } from "@/domains/beta-ops/service";
 import { groupOpsEntriesByEvent } from "@/domains/beta-ops/shared";
 import { betaEventBySlug } from "@/lib/beta-events";
 
@@ -18,14 +18,14 @@ export default async function OpsSellersPage() {
   if (!(await getBetaOpsSession())) redirect("/ops/login");
 
   const leads = await listQuickLeads({ intent: "sell" });
-  const evidenceUrls = await Promise.all(
-    leads.map((lead) => getTicketEvidenceSignedUrl(lead.ticketEvidencePath)),
+  const evidenceUrlLists = await Promise.all(
+    leads.map((lead) => getTicketEvidenceSignedUrls(lead.ticketEvidencePath)),
   );
 
   const entries: SellerEventEntry[] = leads.map((lead, i) => ({
     ...lead,
     eventDays: betaEventBySlug(lead.eventSlug)?.days ?? [],
-    evidenceUrl: evidenceUrls[i] ?? null,
+    evidenceUrls: evidenceUrlLists[i] ?? [],
   }));
 
   const groups = groupOpsEntriesByEvent(entries, (a, b) =>

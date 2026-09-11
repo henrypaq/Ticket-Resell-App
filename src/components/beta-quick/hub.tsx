@@ -6,9 +6,11 @@ import {
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
+import { GO_TRUST } from "@/lib/beta-trust";
 import type { QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/beta-waitlist/field-styles";
 import { QuickShell } from "./shell";
+import { TrustNote } from "./shared";
 
 export function QuickHub({
   tonight,
@@ -21,7 +23,11 @@ export function QuickHub({
   otherEvents: BetaEvent[];
   waitlist: QuickWaitlistEntry[];
 }) {
-  const posters = tonight.length > 0 ? tonight : otherEvents.slice(0, 4);
+  const hasTonight = tonight.length > 0;
+  const posters = hasTonight ? tonight : otherEvents.slice(0, 4);
+  const nightLabel = hasTonight
+    ? `Tonight · ${formatBetaEventWhen(tonightDay)}`
+    : "Upcoming";
 
   return (
     <QuickShell>
@@ -31,34 +37,35 @@ export function QuickHub({
           DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
-          Buy and sell sold-out tickets fast. Secure, verified tickets and transactions.
+          Buy and sell sold-out tickets for tonight — verified before money moves.
         </p>
       </header>
 
       {waitlist.length > 0 && (
         <section className="relative mt-8">
           <p className="section-header text-[11px] text-muted">Your waitlist</p>
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul className="mt-4 flex flex-col gap-4">
             {waitlist.map((entry) => (
               <li
                 key={entry.leadId}
-                className="flex items-center justify-between gap-3 rounded-[16px] border-l-2 border-[#ffe500] bg-white/[0.05] px-4 py-3"
+                className="rounded-[16px] bg-[#17171a] px-4 py-3.5 shadow-[0_7px_0_0_#c9b400,0_12px_28px_rgba(255,229,0,0.14)]"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-[15px] font-semibold text-ink">{entry.eventName}</p>
-                  <p className="mt-0.5 text-[12.5px] text-muted">
-                    ×{entry.quantity}
-                    {entry.status === "matched"
-                      ? " · matched — we’ll message you"
-                      : entry.status === "done"
-                        ? " · completed"
-                        : " · we’ll message you when a ticket opens"}
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="min-w-0 truncate text-[15px] font-semibold text-ink">
+                    {entry.eventName}
+                  </p>
+                  <p className="shrink-0 text-[15px] font-bold tabular-nums text-ink">
+                    #{entry.position}
                   </p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-[20px] font-bold tabular-nums text-[#ffe500]">#{entry.position}</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">in line</p>
-                </div>
+                <p className="mt-1 text-[12.5px] leading-snug text-muted">
+                  {entry.quantity > 1 ? `${entry.quantity} tickets · ` : ""}
+                  {entry.status === "matched"
+                    ? "Matched — we’ll message you"
+                    : entry.status === "done"
+                      ? "Completed"
+                      : "We’ll message you when a ticket opens"}
+                </p>
               </li>
             ))}
           </ul>
@@ -66,28 +73,33 @@ export function QuickHub({
       )}
 
       <section className="relative mt-8">
-        <p className="section-header text-[11px] text-muted">
-          {tonight.length > 0 ? "Tonight" : "Upcoming"}
-        </p>
+        <p className="section-header text-[11px] text-muted">{nightLabel}</p>
         <div className="-mx-5 mt-3 flex gap-3 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {posters.map((event) => (
             <EventPoster
               key={event.slug}
               event={event}
-              day={tonight.length > 0 ? tonightDay : event.days[0]}
+              day={hasTonight ? tonightDay : event.days[0]!}
             />
           ))}
         </div>
-        {tonight.length === 0 && (
+        {!hasTonight && (
           <p className="mt-3 text-[13px] text-muted">
-            Nothing listed for tonight — more nights once you pick buy or sell.
+            Nothing listed for tonight — pick buy or sell to see upcoming nights.
           </p>
         )}
       </section>
 
-      <section className="relative mt-10 flex flex-col gap-3">
+      <section className="relative mt-8">
+        <TrustNote label={GO_TRUST.hub.label}>{GO_TRUST.hub.body}</TrustNote>
+      </section>
+
+      <section className="relative mt-8 flex flex-col gap-3">
         <p className="section-header text-[11px] text-muted">What do you need?</p>
-        <Link href="/go/buy" className={`${BUTTON_CLASS} min-h-[64px] text-[17px]`}>
+        <Link
+          href="/go/buy"
+          className={`${BUTTON_CLASS} min-h-[64px] text-[17px] shadow-[0_6px_0_0_#c9b400]`}
+        >
           I need a ticket
         </Link>
         <Link
@@ -109,11 +121,16 @@ function EventPoster({ event, day }: { event: BetaEvent; day: BetaWeekday }) {
         <img src={event.flyerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
         <div
           aria-hidden
-          className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent"
+          className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent"
         />
         <div className="absolute inset-x-0 bottom-0 p-3">
           <p className="headline text-[15px] leading-tight text-ink">{event.name}</p>
           <p className="mt-1 text-[11px] text-muted">{formatBetaEventWhen(day)}</p>
+          {event.entryNote && (
+            <p className="mt-1 text-[10.5px] font-semibold leading-snug text-[#ffe500]">
+              {event.entryNote}
+            </p>
+          )}
         </div>
       </div>
     </article>

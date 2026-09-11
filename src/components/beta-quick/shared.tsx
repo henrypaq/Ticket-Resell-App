@@ -1,6 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { BetaEvent } from "@/lib/beta-events";
+import { formatBetaEventWhen, type BetaWeekday, currentBetaWeekday } from "@/lib/beta-events";
 import { DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
 import { CountryCodeSelect } from "@/components/beta-waitlist/country-code-select";
@@ -25,19 +27,42 @@ export function StepHeading({
   );
 }
 
+/** Calm trust line used across /go — not a banner shout. */
+export function TrustNote({
+  label = "Buyer protection",
+  children,
+}: {
+  label?: string;
+  children: ReactNode;
+}) {
+  return (
+    <p className="rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-[13px] leading-relaxed text-muted">
+      <span className="font-semibold text-ink">{label}. </span>
+      {children}
+    </p>
+  );
+}
+
 export function EventPicker({
   events,
   value,
   onChange,
+  nightDay,
 }: {
   events: BetaEvent[];
   value: string;
   onChange: (slug: string) => void;
+  /** When set, show that night’s date under each event (tonight picker). */
+  nightDay?: BetaWeekday;
 }) {
+  const day = nightDay ?? currentBetaWeekday();
   return (
     <div className="flex flex-col gap-2">
       {events.map((event) => {
         const selected = value === event.slug;
+        const when = formatBetaEventWhen(
+          event.days.includes(day) ? day : (event.days[0] as BetaWeekday),
+        );
         return (
           <button
             key={event.slug}
@@ -56,7 +81,12 @@ export function EventPicker({
             </span>
             <span className="min-w-0">
               <span className="block text-[15px] font-semibold text-ink">{event.name}</span>
-              <span className="mt-0.5 block text-[12.5px] text-muted">{event.venue}</span>
+              <span className="mt-0.5 block text-[12.5px] text-muted">{when}</span>
+              {event.entryNote && (
+                <span className="mt-0.5 block text-[12px] font-medium text-[#ffe500]/90">
+                  {event.entryNote}
+                </span>
+              )}
             </span>
           </button>
         );
