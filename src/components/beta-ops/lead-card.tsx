@@ -3,6 +3,7 @@
 import { useActionState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  deleteLeadAction,
   updateLeadNotesAction,
   updateLeadStatusAction,
   type OpsActionState,
@@ -13,6 +14,7 @@ import {
   type QuickLeadRow,
 } from "@/domains/beta-ops/shared";
 import { BUTTON_CLASS_COMPACT, FIELD_CLASS } from "@/components/beta-waitlist/field-styles";
+import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
   new: "New",
@@ -144,6 +146,11 @@ export function LeadCard({
             <span className="text-[12px] text-urgency">{notesState.error}</span>
           )}
           {notesState.ok && <span className="text-[12px] text-muted">Saved</span>}
+          <OpsDeleteButton
+            label="Delete"
+            confirmMessage={`Delete this ${lead.intent === "buy" ? "waitlist" : "seller"} lead for ${lead.eventName}? This removes it from the database${lead.ticketEvidencePath ? " and deletes the ticket upload" : ""}.`}
+            onConfirm={() => deleteLeadAction(lead.id)}
+          />
         </div>
       </form>
     </article>

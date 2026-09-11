@@ -386,3 +386,64 @@ export async function getTicketEvidenceSignedUrl(
   if (error || !data?.signedUrl) return null;
   return data.signedUrl;
 }
+
+export async function deleteClassicMember(
+  signupId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireBetaOpsSession();
+  if (!/^[0-9a-f-]{36}$/i.test(signupId)) return { ok: false, error: "Invalid member." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("beta_signups").delete().eq("id", signupId);
+  if (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "ops_delete_member_failed", error }));
+    return { ok: false, error: "Couldn't delete that member." };
+  }
+  return { ok: true };
+}
+
+export async function deleteClassicWaitlistInterest(
+  interestId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireBetaOpsSession();
+  if (!/^[0-9a-f-]{36}$/i.test(interestId)) return { ok: false, error: "Invalid entry." };
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("beta_event_interests")
+    .delete()
+    .eq("id", interestId)
+    .eq("intent", "waitlist");
+  if (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "ops_delete_interest_failed", error }));
+    return { ok: false, error: "Couldn't delete that waitlist entry." };
+  }
+  return { ok: true };
+}
+
+export async function deleteQuickLead(
+  leadId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireBetaOpsSession();
+  if (!/^[0-9a-f-]{36}$/i.test(leadId)) return { ok: false, error: "Invalid lead." };
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("beta_quick_leads")
+    .select("id, ticket_evidence_path")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  if (!existing) return { ok: false, error: "Lead not found." };
+
+  if (existing.ticket_evidence_path) {
+    await admin.storage.from("beta-quick-tickets").remove([existing.ticket_evidence_path]);
+  }
+
+  const { error } = await admin.from("beta_quick_leads").delete().eq("id", leadId);
+  if (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "ops_delete_lead_failed", error }));
+    return { ok: false, error: "Couldn't delete that lead." };
+  }
+  return { ok: true };
+}

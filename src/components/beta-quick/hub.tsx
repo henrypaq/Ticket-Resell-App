@@ -31,7 +31,7 @@ export function QuickHub({
           DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
-          Buy and sell sold-out tickets — fast. We handle the handoff.
+          Buy and sell sold-out tickets fast. Secure, verified tickets and transactions.
         </p>
       </header>
 
@@ -94,7 +94,7 @@ export function QuickHub({
           href="/go/sell"
           className="flex min-h-[64px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[17px] font-bold text-ink transition-colors hover:bg-white/[0.1]"
         >
-          I have a ticket
+          I have a ticket to sell
         </Link>
       </section>
     </QuickShell>

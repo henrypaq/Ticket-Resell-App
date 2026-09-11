@@ -94,14 +94,6 @@ export const quickSellSchema = z
     if (!betaEventBySlug(value.eventSlug)?.supported) {
       ctx.addIssue({ code: "custom", message: "Pick a supported event.", path: ["eventSlug"] });
     }
-    // Face-value style cap for beta facilitation: never ask above what they paid.
-    if (value.askEach > value.paidEach) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Ask price can't be higher than what you paid.",
-        path: ["askEach"],
-      });
-    }
     const etPhoneOk = (value.etransferPhone ?? "").replace(/\D/g, "").length >= 7;
     const etEmailOk = (value.etransferEmail ?? "").length > 3;
     if (!etPhoneOk && !etEmailOk) {

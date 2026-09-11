@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addMemberAction, type OpsActionState } from "@/domains/beta-ops/actions";
+import { addMemberAction, deleteMemberAction, type OpsActionState } from "@/domains/beta-ops/actions";
 import type { ClassicMemberRow } from "@/domains/beta-ops/shared";
 import {
   ACQUISITION_CHANNELS,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/beta-acquisition";
 import { BUTTON_CLASS, FIELD_CLASS } from "@/components/beta-waitlist/field-styles";
 import { Field } from "@/components/beta-waitlist/field";
+import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
 
 function formatWhen(iso: string) {
   try {
@@ -44,6 +45,14 @@ export function MemberCard({ member }: { member: ClassicMemberRow }) {
         <span className="shrink-0 rounded-full bg-[#ffe500]/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#ffe500]">
           {sourceLabel(member.acquisitionChannel)}
         </span>
+      </div>
+
+      <div className="mt-3 flex justify-end">
+        <OpsDeleteButton
+          label="Delete member"
+          confirmMessage={`Delete ${member.name} (${member.email}) and all their waitlist/sell interests? This cannot be undone.`}
+          onConfirm={() => deleteMemberAction(member.id)}
+        />
       </div>
 
       <dl className="mt-4 space-y-2 text-[13.5px]">

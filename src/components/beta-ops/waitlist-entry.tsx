@@ -1,122 +1,210 @@
 "use client";
 
-import { useState } from "react";
-import { LeadCard } from "@/components/beta-ops/lead-card";
-import type { OpsWaitlistEntry } from "@/domains/beta-ops/shared";
-
-function formatWhen(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("en-CA", {
-      timeZone: "America/Toronto",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
-}
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { deleteWaitlistEntryAction, updateLeadStatusAction } from "@/domains/beta-ops/actions";
+import {
+  LEAD_STATUSES,
+  type LeadStatus,
+  type OpsWaitlistEntry,
+} from "@/domains/beta-ops/shared";
+import { formatBetaEventWhen, type BetaWeekday } from "@/lib/beta-events";
+import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
 
 function daysLabel(days: string[]) {
-  if (!days.length) return "Interest only (no fixed night)";
-  return days.join(" · ");
+  if (!days.length) return "Interest only";
+  return days
+    .map((d) => {
+      try {
+        return formatBetaEventWhen(d as BetaWeekday);
+      } catch {
+        return d;
+      }
+    })
+    .join(" · ");
 }
 
-export function WaitlistEntryCard({ entry }: { entry: OpsWaitlistEntry }) {
-  if (entry.source === "go" && entry.goLead) {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2 px-1">
-          <span className="rounded-full bg-[#6ee1ff]/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#6ee1ff]">
-            /go
-          </span>
-          <span className="rounded-full bg-[#ffe500]/15 px-2.5 py-1 text-[11px] font-bold tabular-nums text-[#ffe500]">
-            #{entry.displayedPosition}
-          </span>
-          <span className="text-[12px] text-muted">{daysLabel(entry.eventDays)}</span>
-        </div>
-        <LeadCard lead={entry.goLead} />
-      </div>
-    );
+function contactLabel(entry: OpsWaitlistEntry) {
+  if (entry.name) return entry.name;
+  if (entry.contactInstagram) return `@${entry.contactInstagram}`;
+  if (entry.contactPhone) return entry.contactPhone;
+  if (entry.email) return entry.email;
+  return "Anonymous";
+}
+
+function contactHref(entry: OpsWaitlistEntry) {
+  if (entry.contactPhone) {
+    return `https://wa.me/${entry.contactPhone.replace(/\D/g, "")}`;
+  }
+  if (entry.contactInstagram) {
+    return `https://instagram.com/${entry.contactInstagram}`;
+  }
+  if (entry.email) return `mailto:${entry.email}`;
+  return null;
+}
+
+export type WaitlistEventGroup = {
+  eventSlug: string;
+  eventName: string;
+  eventDays: string[];
+  entries: OpsWaitlistEntry[];
+  ticketDemand: number;
+};
+
+export function groupWaitlistByEvent(entries: OpsWaitlistEntry[]): WaitlistEventGroup[] {
+  const map = new Map<string, WaitlistEventGroup>();
+  for (const entry of entries) {
+    let group = map.get(entry.eventSlug);
+    if (!group) {
+      group = {
+        eventSlug: entry.eventSlug,
+        eventName: entry.eventName,
+        eventDays: entry.eventDays,
+        entries: [],
+        ticketDemand: 0,
+      };
+      map.set(entry.eventSlug, group);
+    }
+    group.entries.push(entry);
+    group.ticketDemand += entry.quantity;
   }
 
-  return (
-    <article className="rounded-[18px] border border-hairline bg-white/[0.04] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-muted">
-              Classic
-            </span>
-            <span className="rounded-full bg-[#ffe500]/15 px-2.5 py-1 text-[11px] font-bold tabular-nums text-[#ffe500]">
-              #{entry.displayedPosition}
-            </span>
-          </div>
-          <h2 className="mt-2 text-[17px] font-semibold text-ink">
-            {entry.name ?? "Waitlist"}
-          </h2>
-          <p className="mt-0.5 text-[12.5px] text-muted">{formatWhen(entry.createdAt)}</p>
-        </div>
-      </div>
+  for (const group of map.values()) {
+    group.entries.sort((a, b) => a.displayedPosition - b.displayedPosition);
+  }
 
-      <dl className="mt-4 space-y-2 text-[13.5px]">
-        <Row label="Event" value={entry.eventName} />
-        <Row label="Nights" value={daysLabel(entry.eventDays)} />
-        <Row label="Tickets" value={`×${entry.quantity}`} />
-        <Row label="Email" value={entry.email} href={entry.email ? `mailto:${entry.email}` : null} />
-        <Row
-          label="WhatsApp"
-          value={entry.contactPhone}
-          href={
-            entry.contactPhone
-              ? `https://wa.me/${entry.contactPhone.replace(/\D/g, "")}`
-              : null
-          }
-        />
-        <Row
-          label="Instagram"
-          value={entry.contactInstagram ? `@${entry.contactInstagram}` : null}
-          href={
-            entry.contactInstagram
-              ? `https://instagram.com/${entry.contactInstagram}`
-              : null
-          }
-        />
-        {entry.acquisitionChannel && <Row label="Source" value={entry.acquisitionChannel} />}
-      </dl>
-    </article>
+  return [...map.values()].sort((a, b) => a.eventName.localeCompare(b.eventName));
+}
+
+export function WaitlistEventCards({ groups }: { groups: WaitlistEventGroup[] }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {groups.map((group) => (
+        <WaitlistEventCard key={group.eventSlug} group={group} />
+      ))}
+    </div>
   );
 }
 
-function Row({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: string | null | undefined;
-  href?: string | null;
-}) {
-  if (!value) return null;
+function WaitlistEventCard({ group }: { group: WaitlistEventGroup }) {
+  const [open, setOpen] = useState(false);
+  const dateLine = daysLabel(group.eventDays);
+
   return (
-    <div className="flex gap-3">
-      <dt className="w-28 shrink-0 text-muted">{label}</dt>
-      <dd className="min-w-0 break-all font-medium text-ink">
-        {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline decoration-dotted underline-offset-2"
+    <section className="overflow-hidden rounded-[16px] border border-hairline bg-white/[0.04]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+        aria-expanded={open}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[15px] font-semibold text-ink">{group.eventName}</p>
+          <p className="mt-0.5 truncate text-[12px] text-muted">{dateLine}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-[13px] font-semibold tabular-nums text-ink">
+            {group.entries.length} in line
+          </p>
+          <p className="text-[11px] text-muted">×{group.ticketDemand} tickets</p>
+        </div>
+        <span className="shrink-0 text-[12px] font-semibold text-muted">
+          {open ? "−" : "+"}
+        </span>
+      </button>
+
+      {open && (
+        <ul className="border-t border-hairline">
+          {group.entries.map((entry) => (
+            <WaitlistMemberRow key={`${entry.source}-${entry.id}`} entry={entry} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function WaitlistMemberRow({ entry }: { entry: OpsWaitlistEntry }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [expanded, setExpanded] = useState(false);
+  const href = contactHref(entry);
+  const label = contactLabel(entry);
+
+  function setStatus(status: LeadStatus) {
+    if (!entry.goLead) return;
+    start(async () => {
+      await updateLeadStatusAction(entry.goLead!.id, status);
+      router.refresh();
+    });
+  }
+
+  return (
+    <li className="border-b border-hairline/70 last:border-b-0">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <span className="w-8 shrink-0 text-[12px] font-bold tabular-nums text-[#ffe500]">
+          #{entry.displayedPosition}
+        </span>
+        <div className="min-w-0 flex-1">
+          {href ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block truncate text-[13px] font-medium text-ink underline decoration-dotted underline-offset-2"
+            >
+              {label}
+            </a>
+          ) : (
+            <p className="truncate text-[13px] font-medium text-ink">{label}</p>
+          )}
+        </div>
+        <span className="shrink-0 text-[11px] tabular-nums text-muted">×{entry.quantity}</span>
+        <span
+          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+            entry.source === "go"
+              ? "bg-[#6ee1ff]/15 text-[#6ee1ff]"
+              : "bg-white/10 text-muted"
+          }`}
+        >
+          {entry.source === "go" ? "go" : "app"}
+        </span>
+        {entry.source === "go" && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="shrink-0 text-[11px] font-semibold text-muted"
+            aria-expanded={expanded}
           >
-            {value}
-          </a>
-        ) : (
-          value
+            {expanded ? "Less" : "More"}
+          </button>
         )}
-      </dd>
-    </div>
+        <OpsDeleteButton
+          confirmMessage={`Remove #${entry.displayedPosition} (${contactLabel(entry)}) from ${entry.eventName}? This deletes them from the database.`}
+          onConfirm={() => deleteWaitlistEntryAction(entry.source, entry.id)}
+        />
+      </div>
+
+      {expanded && entry.goLead && (
+        <div className="flex flex-wrap gap-1.5 px-3 pb-2 pl-11">
+          {LEAD_STATUSES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              disabled={pending || entry.status === s}
+              onClick={() => setStatus(s)}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                entry.status === s
+                  ? "bg-[#ffe500] text-black"
+                  : "bg-white/8 text-muted disabled:opacity-40"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </li>
   );
 }
 

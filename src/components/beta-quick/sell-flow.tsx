@@ -71,7 +71,6 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
     Number.isFinite(ask) &&
     paid >= 0 &&
     ask >= 0 &&
-    ask <= paid &&
     paidEach.trim() !== "" &&
     askEach.trim() !== "";
   const hasTicket = Boolean(ticketUrl.trim()) || Boolean(ticketFileName);
@@ -154,7 +153,6 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
             <StepHeading
               eyebrow={stepLabel}
               title="Pricing"
-              hint="Ask price can't be higher than what you paid."
             />
             <div className="grid grid-cols-2 gap-3">
               <Field label="You paid (each)" htmlFor="paidEach">
@@ -188,9 +186,6 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
                 </div>
               </Field>
             </div>
-            {paidEach && askEach && ask > paid && (
-              <p className="text-[13px] text-urgency">Ask can&apos;t exceed what you paid.</p>
-            )}
             <button
               type="button"
               disabled={!pricesOk}
@@ -207,7 +202,6 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
             <StepHeading
               eyebrow={stepLabel}
               title="How do we reach you?"
-              hint="We'll confirm on WhatsApp or Instagram before posting."
             />
             <ContactFields
               phoneCountry={phoneCountry}
@@ -216,6 +210,8 @@ export function QuickSellFlow({ events }: { events: BetaEvent[] }) {
               onPhoneCountry={setPhoneCountry}
               onPhoneNational={setPhoneNational}
               onInstagram={setInstagram}
+              hintAbove
+              hint="Enter one of the contacts below. We'll message you there."
             />
             <button
               type="button"

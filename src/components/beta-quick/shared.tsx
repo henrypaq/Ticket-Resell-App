@@ -108,6 +108,8 @@ export function ContactFields({
   onPhoneCountry,
   onPhoneNational,
   onInstagram,
+  hint = "One is enough — we'll message you there.",
+  hintAbove = false,
 }: {
   phoneCountry: string;
   phoneNational: string;
@@ -115,12 +117,15 @@ export function ContactFields({
   onPhoneCountry: (iso2: string) => void;
   onPhoneNational: (digits: string) => void;
   onInstagram: (handle: string) => void;
+  hint?: string | null;
+  hintAbove?: boolean;
 }) {
   const dial = countryByIso2(phoneCountry).dial;
   const digits = phoneNational.replace(/\D/g, "");
 
   return (
     <div className="flex flex-col gap-3">
+      {hintAbove && hint && <p className="text-[12.5px] text-muted">{hint}</p>}
       <Field label="WhatsApp / phone" htmlFor="quick-phone">
         <div className={FIELD_GROUP_CLASS}>
           <CountryCodeSelect
@@ -153,7 +158,9 @@ export function ContactFields({
           />
         </div>
       </Field>
-      <p className="-mt-1 text-[12.5px] text-muted">One is enough — we&apos;ll message you there.</p>
+      {!hintAbove && hint && (
+        <p className="-mt-1 text-[12.5px] text-muted">{hint}</p>
+      )}
     </div>
   );
 }

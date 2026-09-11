@@ -3,7 +3,14 @@
 import { redirect } from "next/navigation";
 import { loginBetaOps, logoutBetaOps, requireBetaOpsSession } from "@/domains/beta-ops/auth";
 import { LEAD_STATUSES, type LeadStatus } from "@/domains/beta-ops/shared";
-import { addClassicMember, setQueueFakeFront, updateQuickLead } from "@/domains/beta-ops/service";
+import {
+  addClassicMember,
+  deleteClassicMember,
+  deleteClassicWaitlistInterest,
+  deleteQuickLead,
+  setQueueFakeFront,
+  updateQuickLead,
+} from "@/domains/beta-ops/service";
 
 export type OpsLoginState = { error?: string };
 
@@ -102,6 +109,45 @@ export async function setFakeFrontAction(
     fakeFront: Number(formData.get("fakeFront") ?? 0),
   });
 
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function deleteMemberAction(signupId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await deleteClassicMember(signupId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function deleteWaitlistEntryAction(
+  source: "classic" | "go",
+  id: string,
+): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result =
+    source === "classic"
+      ? await deleteClassicWaitlistInterest(id)
+      : await deleteQuickLead(id);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function deleteLeadAction(leadId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await deleteQuickLead(leadId);
   if (!result.ok) return { error: result.error };
   return { ok: true };
 }
