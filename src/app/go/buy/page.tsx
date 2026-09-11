@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { QuickBuyFlow } from "@/components/beta-quick/buy-flow";
 import { loadSavedGoContact } from "@/domains/beta-quick/actions";
-import { supportedBetaEvents, tonightBetaEvents } from "@/lib/beta-events";
+import { goSelectableEvents } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
   title: "I need a ticket · mcgill.tickets",
@@ -14,9 +14,7 @@ export default async function QuickBuyPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const tonight = tonightBetaEvents();
-  const rest = supportedBetaEvents().filter((e) => !tonight.some((t) => t.slug === e.slug));
-  const events = [...tonight, ...rest];
+  const events = goSelectableEvents();
   const savedContact = await loadSavedGoContact();
   const params = await searchParams;
   const raw = params.event;
@@ -24,7 +22,7 @@ export default async function QuickBuyPage({
 
   return (
     <QuickBuyFlow
-      events={events.length ? events : supportedBetaEvents()}
+      events={events}
       savedContact={savedContact}
       initialEventSlug={initialEventSlug}
     />

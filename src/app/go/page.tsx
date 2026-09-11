@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { QuickHub } from "@/components/beta-quick/hub";
 import { loadQuickWaitlistForHub } from "@/domains/beta-quick/actions";
 import {
-  currentBetaWeekday,
+  currentNightlifeWeekday,
   supportedBetaEvents,
   tonightBetaEvents,
 } from "@/lib/beta-events";
@@ -15,12 +15,12 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 /**
- * Low-friction beta hub for Instagram bio — tonight's events + buy/sell CTAs.
- * Separate from the long questionnaire at `/`.
+ * Low-friction beta hub — tonight's events in Montreal nightlife time
+ * (pre-6am still counts as the previous night).
  */
 export default async function QuickGoPage() {
   const tonight = tonightBetaEvents();
-  const day = currentBetaWeekday();
+  const day = currentNightlifeWeekday();
   const other = supportedBetaEvents().filter((e) => !tonight.some((t) => t.slug === e.slug));
   const waitlist = await loadQuickWaitlistForHub();
 

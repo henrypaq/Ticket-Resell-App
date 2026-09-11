@@ -87,48 +87,148 @@ export function betaEventBySlug(slug: string): BetaEvent | undefined {
   return BETA_EVENTS.find((e) => e.slug === slug);
 }
 
-/** Today's weekday name in Montreal time, e.g. "Thursday". */
-export function currentBetaWeekday(from: Date = new Date()): BetaWeekday {
-  const weekday = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Toronto",
-    weekday: "long",
-  }).format(from);
-  return weekday as BetaWeekday;
-}
+const CALENDAR_WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const satisfies readonly BetaWeekday[];
 
-/** Supported events happening tonight (Montreal calendar day). */
-export function tonightBetaEvents(from: Date = new Date()): BetaEvent[] {
-  const day = currentBetaWeekday(from);
-  return supportedBetaEvents().filter((e) => e.days.includes(day));
-}
-
-/** Section label: "Today" when the day matches the calendar, else the weekday. */
-export function betaDaySectionLabel(day: BetaWeekday, from: Date = new Date()): string {
-  return day === currentBetaWeekday(from) ? "Today" : day;
-}
-
-/** Next calendar date for a weekday name (Montreal time), including today if it matches. */
-export function nextDateForWeekday(day: BetaWeekday, from: Date = new Date()): Date {
-  const target = (
-    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
-  ).indexOf(day);
-  // Anchor "today" in America/Toronto so Vercel UTC doesn't shift the night.
-  const montrealParts = new Intl.DateTimeFormat("en-CA", {
+/** Montreal calendar parts (date + hour) so Vercel UTC doesn't shift the night. */
+export function montrealDateParts(from: Date = new Date()): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  weekday: BetaWeekday;
+} {
+  const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Toronto",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+    weekday: "long",
   }).formatToParts(from);
-  const y = Number(montrealParts.find((p) => p.type === "year")?.value);
-  const m = Number(montrealParts.find((p) => p.type === "month")?.value);
-  const dNum = Number(montrealParts.find((p) => p.type === "day")?.value);
-  const d = new Date(Date.UTC(y, m - 1, dNum, 17, 0, 0)); // noon-ish Montreal ≈ 17:00 UTC
-  const todayWeekday = (
-    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
-  ).indexOf(currentBetaWeekday(from));
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return {
+    year: Number(get("year")),
+    month: Number(get("month")),
+    day: Number(get("day")),
+    hour: Number(get("hour")),
+    weekday: get("weekday") as BetaWeekday,
+  };
+}
+
+/**
+ * Nightlife "current night" in Montreal. Before 6:00am, still counts as the
+ * previous calendar weekday (Thursday night → Friday 2am is still Thursday).
+ */
+export function currentNightlifeWeekday(from: Date = new Date()): BetaWeekday {
+  const { weekday, hour } = montrealDateParts(from);
+  if (hour >= 6) return weekday;
+  const idx = CALENDAR_WEEKDAYS.indexOf(weekday);
+  return CALENDAR_WEEKDAYS[(idx + 6) % 7]!;
+}
+
+/** @deprecated Prefer currentNightlifeWeekday — kept as an alias for call sites. */
+export function currentBetaWeekday(from: Date = new Date()): BetaWeekday {
+  return currentNightlifeWeekday(from);
+}
+
+/** Supported events happening tonight (Montreal nightlife day). */
+export function tonightBetaEvents(from: Date = new Date()): BetaEvent[] {
+  const day = currentNightlifeWeekday(from);
+  return supportedBetaEvents().filter((e) => e.days.includes(day));
+}
+
+/**
+ * Weekdays from tonight forward for the next 7 nightlife days (Montreal).
+ * Past nights in the week are excluded until they come around again.
+ */
+export function upcomingBetaWeekdays(from: Date = new Date()): BetaWeekday[] {
+  const start = CALENDAR_WEEKDAYS.indexOf(currentNightlifeWeekday(from));
+  return Array.from({ length: 7 }, (_, i) => CALENDAR_WEEKDAYS[(start + i) % 7]!);
+}
+
+/** Events offered on /go buy & sell — tonight first, then other nights this week. */
+export function goSelectableEvents(from: Date = new Date()): BetaEvent[] {
+  const tonight = tonightBetaEvents(from);
+  const seen = new Set(tonight.map((e) => e.slug));
+  const rest: BetaEvent[] = [];
+  for (const opt of upcomingEventOptions(from)) {
+    if (seen.has(opt.slug)) continue;
+    seen.add(opt.slug);
+    rest.push(opt.event);
+  }
+  return tonight.length > 0 ? [...tonight, ...rest] : rest;
+}
+
+/** Section label: "Today" for tonight, else e.g. "Saturday - September 13th". */
+export function betaDaySectionLabel(day: BetaWeekday, from: Date = new Date()): string {
+  if (day === currentNightlifeWeekday(from)) return "Today";
+  return formatBetaEventWhen(day, from);
+}
+
+/**
+ * Group live events under upcoming nightlife days only (Montreal).
+ * Multi-day venues appear once under each remaining night they run.
+ */
+export function groupEventsByUpcomingDays(
+  events: BetaEvent[],
+  from: Date = new Date(),
+): [BetaWeekday, BetaEvent[]][] {
+  const byDay = new Map<BetaWeekday, BetaEvent[]>();
+  for (const day of upcomingBetaWeekdays(from)) {
+    const list = events.filter((e) => e.days.includes(day));
+    if (list.length) byDay.set(day, list);
+  }
+  return [...byDay.entries()];
+}
+
+export type UpcomingEventOption = {
+  /** Stable key for selects: slug + day */
+  key: string;
+  slug: string;
+  day: BetaWeekday;
+  event: BetaEvent;
+  label: string;
+};
+
+/** Flat dropdown options for buy/sell — one row per upcoming night per venue. */
+export function upcomingEventOptions(from: Date = new Date()): UpcomingEventOption[] {
+  const options: UpcomingEventOption[] = [];
+  for (const [day, events] of groupEventsByUpcomingDays(supportedBetaEvents(), from)) {
+    for (const event of events) {
+      options.push({
+        key: `${event.slug}::${day}`,
+        slug: event.slug,
+        day,
+        event,
+        label: `${event.name} · ${formatBetaEventWhen(day, from)}`,
+      });
+    }
+  }
+  return options;
+}
+
+/** Next calendar date for a weekday name (Montreal time), including tonight if it matches. */
+export function nextDateForWeekday(day: BetaWeekday, from: Date = new Date()): Date {
+  const { year, month, day: dNum, hour } = montrealDateParts(from);
+  const nightlife = currentNightlifeWeekday(from);
+  const base = new Date(Date.UTC(year, month - 1, dNum, 17, 0, 0));
+  // Pre-6am: nightlife is still "yesterday", so shift the calendar anchor back one day.
+  if (hour < 6) base.setUTCDate(base.getUTCDate() - 1);
+  const todayWeekday = CALENDAR_WEEKDAYS.indexOf(nightlife);
+  const target = CALENDAR_WEEKDAYS.indexOf(day);
   const delta = (target - todayWeekday + 7) % 7;
-  d.setUTCDate(d.getUTCDate() + delta);
-  return d;
+  base.setUTCDate(base.getUTCDate() + delta);
+  return base;
 }
 
 function ordinal(n: number): string {
@@ -149,9 +249,9 @@ function ordinal(n: number): string {
 /** e.g. "Thursday - September 10th" */
 export function formatBetaEventWhen(day: BetaWeekday, from: Date = new Date()): string {
   const d = nextDateForWeekday(day, from);
-  const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
-  const month = d.toLocaleDateString("en-US", { month: "long" });
-  return `${weekday} - ${month} ${ordinal(d.getDate())}`;
+  const weekday = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  const month = d.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  return `${weekday} - ${month} ${ordinal(d.getUTCDate())}`;
 }
 
 /** Options shown on the "which events are you interested in" step. */

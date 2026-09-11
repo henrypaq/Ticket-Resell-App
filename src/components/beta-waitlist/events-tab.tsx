@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   getWaitlistPositionAction,
   setBetaEventInterestAction,
@@ -10,11 +11,14 @@ import {
 } from "@/domains/beta-signup/actions";
 import type { BetaSignupProfile } from "@/domains/beta-signup/shared";
 import {
-  BETA_WEEKDAYS,
   betaDaySectionLabel,
   betaEventBySlug,
+  currentNightlifeWeekday,
   formatBetaEventWhen,
+  groupEventsByUpcomingDays,
   supportedBetaEvents,
+  upcomingBetaWeekdays,
+  upcomingEventOptions,
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
@@ -100,7 +104,7 @@ export function BetaEventsTab({ profile }: Props) {
   }
 
   const live = supportedBetaEvents();
-  const groups = groupBySingleDay(live);
+  const groups = groupEventsByUpcomingDays(live);
   const waitlistEvents = uniqueWaitlistEvents(interests, live);
 
   return (
@@ -113,6 +117,8 @@ export function BetaEventsTab({ profile }: Props) {
           {flash}
         </p>
       )}
+
+      <QuickIntentActions />
 
       <MyWaitlistSection
         events={waitlistEvents}
@@ -149,6 +155,73 @@ export function BetaEventsTab({ profile }: Props) {
         Request an event
       </button>
     </div>
+  );
+}
+
+function QuickIntentActions() {
+  const router = useRouter();
+  const options = upcomingEventOptions();
+  const [intent, setIntent] = useState<"buy" | "sell" | null>(null);
+  const [choice, setChoice] = useState(options[0]?.key ?? "");
+
+  function continueToFlow() {
+    const selected = options.find((o) => o.key === choice) ?? options[0];
+    if (!selected || !intent) return;
+    const path = intent === "buy" ? "/go/buy" : "/go/sell";
+    router.push(`${path}?event=${encodeURIComponent(selected.slug)}`);
+  }
+
+  return (
+    <section className="flex flex-col gap-3">
+      <p className="section-header text-[12px] tracking-[0.08em] text-muted">What do you need?</p>
+      <button
+        type="button"
+        onClick={() => setIntent((v) => (v === "buy" ? null : "buy"))}
+        className={`${BUTTON_CLASS} min-h-[52px]`}
+      >
+        I need a ticket
+      </button>
+      <button
+        type="button"
+        onClick={() => setIntent((v) => (v === "sell" ? null : "sell"))}
+        className="flex min-h-[52px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[15px] font-bold text-ink transition-colors hover:bg-white/[0.1]"
+      >
+        I have a ticket to sell
+      </button>
+
+      {intent && (
+        <div className="rounded-[16px] border border-hairline bg-white/[0.04] px-4 py-4">
+          <p className="text-[13.5px] font-semibold text-ink">
+            {intent === "buy" ? "Which night do you need?" : "Which night are you selling?"}
+          </p>
+          {options.length === 0 ? (
+            <p className="mt-2 text-[13px] text-muted">No upcoming nights listed right now.</p>
+          ) : (
+            <>
+              <select
+                value={choice}
+                onChange={(e) => setChoice(e.target.value)}
+                className={`${FIELD_CLASS} mt-3`}
+              >
+                {options.map((opt) => (
+                  <option key={opt.key} value={opt.key}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={continueToFlow}
+                disabled={!choice}
+                className={`${BUTTON_CLASS} mt-3 w-full`}
+              >
+                Continue
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -259,13 +332,11 @@ function weekdayAbbrev(day: BetaWeekday): string {
   return day.slice(0, 3).toUpperCase();
 }
 
-/** Prefer today if the event runs today; otherwise the soonest listed day. */
+/** Prefer tonight if the event runs tonight; otherwise the soonest upcoming night. */
 function preferredWaitlistDay(event: BetaEvent, from: Date = new Date()): BetaWeekday {
-  const todayName = (
-    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
-  )[from.getDay()] as BetaWeekday;
-  if (event.days.includes(todayName)) return todayName;
-  for (const day of BETA_WEEKDAYS) {
+  const tonight = currentNightlifeWeekday(from);
+  if (event.days.includes(tonight)) return tonight;
+  for (const day of upcomingBetaWeekdays(from)) {
     if (event.days.includes(day)) return day;
   }
   return event.days[0] ?? "Thursday";
@@ -287,23 +358,6 @@ function uniqueWaitlistEvents(
     if (found) fromLive.push(found);
   }
   return fromLive;
-}
-
-/** One weekday header at a time; multi-day events appear under each of their days. */
-function groupBySingleDay(events: BetaEvent[]): [BetaWeekday, BetaEvent[]][] {
-  const byDay = new Map<BetaWeekday, BetaEvent[]>();
-  for (const day of BETA_WEEKDAYS) byDay.set(day, []);
-
-  for (const event of events) {
-    for (const day of event.days) {
-      byDay.get(day)!.push(event);
-    }
-  }
-
-  return BETA_WEEKDAYS.filter((day) => (byDay.get(day)?.length ?? 0) > 0).map((day) => [
-    day,
-    byDay.get(day)!,
-  ]);
 }
 
 function EventDetailView({

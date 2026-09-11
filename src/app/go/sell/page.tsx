@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { QuickSellFlow } from "@/components/beta-quick/sell-flow";
 import { loadSavedGoContact } from "@/domains/beta-quick/actions";
-import { supportedBetaEvents, tonightBetaEvents } from "@/lib/beta-events";
+import { goSelectableEvents } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
   title: "I have a ticket to sell · mcgill.tickets",
@@ -9,15 +9,22 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function QuickSellPage() {
-  const tonight = tonightBetaEvents();
-  const rest = supportedBetaEvents().filter((e) => !tonight.some((t) => t.slug === e.slug));
-  const events = [...tonight, ...rest];
+export default async function QuickSellPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const events = goSelectableEvents();
   const savedContact = await loadSavedGoContact();
+  const params = await searchParams;
+  const raw = params.event;
+  const initialEventSlug = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : null;
+
   return (
     <QuickSellFlow
-      events={events.length ? events : supportedBetaEvents()}
+      events={events}
       savedContact={savedContact}
+      initialEventSlug={initialEventSlug}
     />
   );
 }
