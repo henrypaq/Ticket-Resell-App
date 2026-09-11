@@ -57,6 +57,11 @@ export function EventPicker({
             <span className="min-w-0">
               <span className="block text-[15px] font-semibold text-ink">{event.name}</span>
               <span className="mt-0.5 block text-[12.5px] text-muted">{event.venue}</span>
+              {event.entryNote && (
+                <span className="mt-0.5 block text-[12px] font-medium text-[#ffe500]/90">
+                  {event.entryNote}
+                </span>
+              )}
             </span>
           </button>
         );

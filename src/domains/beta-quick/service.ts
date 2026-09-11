@@ -11,10 +11,10 @@ import {
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug } from "@/lib/beta-events";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { validateTicketEvidenceFile } from "@/lib/verification/ticket-evidence";
-import type { QuickWaitlistEntry } from "./shared";
+import { validateTicketEvidenceFile, encodeEvidencePaths } from "@/lib/verification/ticket-evidence";
+import type { QuickWaitlistEntry, GoActivityEntry } from "./shared";
 
-export type { QuickWaitlistEntry } from "./shared";
+export type { QuickWaitlistEntry, GoActivityEntry } from "./shared";
 
 const contactRefine = (
   value: { contactPhone?: string; contactInstagram?: string },
@@ -164,29 +164,45 @@ export async function submitQuickBuy(
 
 export async function submitQuickSell(
   input: QuickSellInput & { existingContactId?: string | null },
-  file?: { bytes: Uint8Array; name: string } | null,
+  files?: { bytes: Uint8Array; name: string }[] | null,
 ): Promise<QuickLeadResult> {
   const hasUrl = Boolean(input.ticketShareUrl);
-  const hasFile = Boolean(file && file.bytes.byteLength > 0);
-  if (!hasUrl && !hasFile) {
+  const uploads = (files ?? []).filter((f) => f.bytes.byteLength > 0);
+  const hasFiles = uploads.length > 0;
+  if (!hasUrl && !hasFiles) {
     return { ok: false, error: "Upload a ticket screenshot or paste a share link." };
   }
-
-  let evidencePath: string | null = null;
-  if (hasFile && file) {
-    const validation = validateTicketEvidenceFile(file.bytes);
-    if (!validation.ok) return { ok: false, error: validation.message };
-
-    const admin = createAdminClient();
-    const path = `${crypto.randomUUID()}/${Date.now()}.${validation.ext}`;
-    const { error: uploadError } = await admin.storage
-      .from("beta-quick-tickets")
-      .upload(path, file.bytes, { contentType: validation.mime, upsert: false });
-    if (uploadError) {
-      return { ok: false, error: "Ticket upload failed. Try again or paste a share link." };
-    }
-    evidencePath = path;
+  if (!hasUrl && uploads.length < input.quantity) {
+    return {
+      ok: false,
+      error:
+        input.quantity === 1
+          ? "Upload a ticket screenshot or paste a share link."
+          : `Upload all ${input.quantity} ticket files, or paste one share link.`,
+    };
   }
+
+  const evidencePaths: string[] = [];
+  if (hasFiles) {
+    const admin = createAdminClient();
+    const folder = crypto.randomUUID();
+    for (let i = 0; i < uploads.length; i++) {
+      const file = uploads[i]!;
+      const validation = validateTicketEvidenceFile(file.bytes);
+      if (!validation.ok) return { ok: false, error: validation.message };
+
+      const path = `${folder}/${i}-${Date.now()}.${validation.ext}`;
+      const { error: uploadError } = await admin.storage
+        .from("beta-quick-tickets")
+        .upload(path, file.bytes, { contentType: validation.mime, upsert: false });
+      if (uploadError) {
+        return { ok: false, error: "Ticket upload failed. Try again or paste a share link." };
+      }
+      evidencePaths.push(path);
+    }
+  }
+
+  const evidencePath = encodeEvidencePaths(evidencePaths);
 
   const contactResult = await upsertGoContact({
     contactPhone: input.contactPhone,
@@ -251,7 +267,7 @@ export async function submitQuickSell(
     paidEach: input.paidEach,
     askEach: input.askEach,
     ticketShareUrl: input.ticketShareUrl ?? undefined,
-    hasEvidence: Boolean(evidencePath),
+    hasEvidence: evidencePaths.length > 0,
     etransferName: input.etransferName,
     etransferEmail: input.etransferEmail ?? undefined,
     etransferPhone: input.etransferPhone ?? undefined,
@@ -305,4 +321,64 @@ export async function getQuickWaitlistEntries(
   }
 
   return entries;
+}
+
+/**
+ * All non-cancelled /go leads for a contact — buy + sell history with pricing.
+ * Powered by the `passe_go_contact` cookie; no beta member signup required.
+ */
+export async function getGoContactActivity(contactId: string): Promise<GoActivityEntry[]> {
+  if (!/^[0-9a-f-]{36}$/i.test(contactId)) return [];
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("beta_go_leads")
+    .select(
+      "id, intent, event_slug, quantity, status, paid_each, ask_each, created_at",
+    )
+    .eq("contact_id", contactId)
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(40);
+
+  if (error || !data?.length) return [];
+
+  return data.map((row) => {
+    const qty = Number(row.quantity) || 1;
+    const paid = row.paid_each != null ? Number(row.paid_each) : null;
+    const ask = row.ask_each != null ? Number(row.ask_each) : null;
+    const done = row.status === "done";
+    const proceedsCad =
+      row.intent === "sell" && done && ask != null ? ask * qty : null;
+    const netVsPaidCad =
+      proceedsCad != null && paid != null ? proceedsCad - paid * qty : null;
+    const event = betaEventBySlug(row.event_slug);
+    return {
+      leadId: row.id,
+      intent: row.intent as "buy" | "sell",
+      eventSlug: row.event_slug,
+      eventName: event?.name ?? row.event_slug,
+      quantity: qty,
+      status: row.status,
+      paidEach: paid,
+      askEach: ask,
+      proceedsCad,
+      netVsPaidCad,
+      createdAt: row.created_at,
+    };
+  });
+}
+
+/** Buy lead ids for a contact — used to hydrate waitlist when the device cookie is thin. */
+export async function listBuyLeadIdsForContact(contactId: string): Promise<string[]> {
+  if (!/^[0-9a-f-]{36}$/i.test(contactId)) return [];
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("beta_go_leads")
+    .select("id")
+    .eq("contact_id", contactId)
+    .eq("intent", "buy")
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  return (data ?? []).map((r) => r.id as string);
 }

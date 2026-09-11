@@ -7,6 +7,8 @@ import {
   isAcquisitionChannel,
   type AcquisitionChannel,
 } from "@/lib/beta-acquisition";
+import { GO_CONTACT_COOKIE } from "@/domains/beta-go/shared";
+import { QUICK_BUYER_COOKIE } from "@/domains/beta-quick/shared";
 import { demoLoginEnabled } from "@/lib/env";
 import {
   betaSignupSchema,
@@ -154,6 +156,23 @@ export async function skipBetaSignupAction(): Promise<BetaSignupState> {
 }
 
 /**
+ * Clears beta browser state (signup cookie + /go contact + waitlist cookie)
+ * so this device can run the questionnaire / /go flows as a new visitor.
+ * Safe to expose — equivalent to clearing site cookies manually.
+ */
+export async function clearBetaBrowserStateAction(): Promise<BetaActionState> {
+  const cookieStore = await cookies();
+  cookieStore.delete(BETA_SIGNUP_COOKIE);
+  cookieStore.delete(GO_CONTACT_COOKIE);
+  cookieStore.delete(QUICK_BUYER_COOKIE);
+  cookieStore.delete(BETA_ACQUISITION_COOKIE);
+  revalidatePath("/");
+  revalidatePath("/member");
+  revalidatePath("/go");
+  return { ok: true, message: "Cleared. You’re a new visitor on this device." };
+}
+
+/**
  * Dev-only shortcut: clear the signup cookie so `/` falls back to the
  * questionnaire — the reverse of `skipBetaSignupAction`. Doesn't delete the
  * underlying row; just forgets which one this browser is looking at. Same
@@ -163,10 +182,7 @@ export async function resetBetaSignupAction(): Promise<BetaActionState> {
   if (!demoLoginEnabled()) {
     return { error: "Preview reset is disabled outside development." };
   }
-
-  const cookieStore = await cookies();
-  cookieStore.delete(BETA_SIGNUP_COOKIE);
-  return { ok: true };
+  return clearBetaBrowserStateAction();
 }
 
 /**

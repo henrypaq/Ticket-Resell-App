@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { QuickHub } from "@/components/beta-quick/hub";
-import { loadQuickWaitlistForHub } from "@/domains/beta-quick/actions";
+import { loadGoActivityForHub, loadQuickWaitlistForHub } from "@/domains/beta-quick/actions";
 import {
   currentNightlifeWeekday,
   supportedBetaEvents,
@@ -22,7 +22,10 @@ export default async function QuickGoPage() {
   const tonight = tonightBetaEvents();
   const day = currentNightlifeWeekday();
   const other = supportedBetaEvents().filter((e) => !tonight.some((t) => t.slug === e.slug));
-  const waitlist = await loadQuickWaitlistForHub();
+  const [waitlist, activity] = await Promise.all([
+    loadQuickWaitlistForHub(),
+    loadGoActivityForHub(),
+  ]);
 
   return (
     <QuickHub
@@ -30,6 +33,7 @@ export default async function QuickGoPage() {
       tonightDay={day}
       otherEvents={other.length ? other : supportedBetaEvents()}
       waitlist={waitlist}
+      activity={activity}
     />
   );
 }

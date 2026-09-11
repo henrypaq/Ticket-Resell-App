@@ -4,11 +4,15 @@ import { cookies } from "next/headers";
 import { GO_CONTACT_COOKIE, getGoContactById, type GoContactProfile } from "@/domains/beta-go/contacts";
 import {
   QUICK_BUYER_COOKIE,
+  QUICK_SELLER_COOKIE,
   type QuickActionState,
   type QuickWaitlistEntry,
+  type GoActivityEntry,
 } from "@/domains/beta-quick/shared";
 import {
+  getGoContactActivity,
   getQuickWaitlistEntries,
+  listBuyLeadIdsForContact,
   quickBuySchema,
   quickSellSchema,
   submitQuickBuy,
@@ -56,14 +60,35 @@ async function appendQuickBuyerCookie(leadId: string): Promise<void> {
   jar.set(QUICK_BUYER_COOKIE, ids.slice(-20).join(","), COOKIE_BASE);
 }
 
-export async function loadQuickWaitlistForHub(): Promise<QuickWaitlistEntry[]> {
+async function appendQuickSellerCookie(leadId: string): Promise<void> {
   const jar = await cookies();
-  const raw = jar.get(QUICK_BUYER_COOKIE)?.value ?? "";
-  const ids = raw
+  const existing = jar.get(QUICK_SELLER_COOKIE)?.value ?? "";
+  const ids = existing
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  if (!ids.includes(leadId)) ids.push(leadId);
+  jar.set(QUICK_SELLER_COOKIE, ids.slice(-20).join(","), COOKIE_BASE);
+}
+
+export async function loadQuickWaitlistForHub(): Promise<QuickWaitlistEntry[]> {
+  const jar = await cookies();
+  const raw = jar.get(QUICK_BUYER_COOKIE)?.value ?? "";
+  const fromCookie = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const contactId = await readGoContactId();
+  const fromContact = contactId ? await listBuyLeadIdsForContact(contactId) : [];
+  const ids = [...new Set([...fromCookie, ...fromContact])].slice(0, 20);
   return getQuickWaitlistEntries(ids);
+}
+
+/** Buy + sell history for this device’s /go contact (no beta signup needed). */
+export async function loadGoActivityForHub(): Promise<GoActivityEntry[]> {
+  const contactId = await readGoContactId();
+  if (!contactId) return [];
+  return getGoContactActivity(contactId);
 }
 
 export async function loadSavedGoContact(): Promise<GoContactProfile | null> {
@@ -121,18 +146,21 @@ export async function submitQuickSellAction(
       return { error: parsed.error.issues[0]?.message ?? "Check your answers and try again." };
     }
 
-    const raw = formData.get("ticketImage");
-    let file: { bytes: Uint8Array; name: string } | null = null;
-    if (raw instanceof File && raw.size > 0) {
-      file = { bytes: new Uint8Array(await raw.arrayBuffer()), name: raw.name };
+    const uploads: { bytes: Uint8Array; name: string }[] = [];
+    const all = formData.getAll("ticketImage");
+    for (const raw of all) {
+      if (raw instanceof File && raw.size > 0) {
+        uploads.push({ bytes: new Uint8Array(await raw.arrayBuffer()), name: raw.name });
+      }
     }
 
     const result = await submitQuickSell(
       { ...parsed.data, existingContactId: await readGoContactId() },
-      file,
+      uploads,
     );
     if (!result.ok) return { error: result.error };
     if (result.contactId) await setGoContactCookie(result.contactId);
+    await appendQuickSellerCookie(result.id);
     return { ok: true };
   } catch (error) {
     console.warn(JSON.stringify({ level: "warn", msg: "quick_sell_action_failed", error: String(error) }));

@@ -20,6 +20,7 @@ import {
 } from "./shared";
 
 const initial: QuickActionState = {};
+const LAST_STEP = 2;
 
 function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
   if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
@@ -44,6 +45,7 @@ export function QuickBuyFlow({
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [tapGuard, setTapGuard] = useState(false);
   const preset =
     initialEventSlug && events.some((e) => e.slug === initialEventSlug)
       ? initialEventSlug
@@ -74,6 +76,17 @@ export function QuickBuyFlow({
   const phoneOk = phoneNational.replace(/\D/g, "").length >= 7;
   const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
   const canContact = phoneOk || igOk;
+  const isLast = step === LAST_STEP;
+
+  const stepReady =
+    (step === 0 && Boolean(eventSlug)) || step === 1 || (step === 2 && canContact);
+
+  function goNext() {
+    if (!stepReady || tapGuard || pending || isLast) return;
+    setTapGuard(true);
+    setTimeout(() => setTapGuard(false), 400);
+    setStep((s) => s + 1);
+  }
 
   return (
     <QuickShell>
@@ -88,11 +101,11 @@ export function QuickBuyFlow({
 
       <form
         action={formAction}
-        className="relative mt-6 flex flex-col gap-6"
+        className="relative mt-6 flex flex-col"
         onSubmit={(e) => {
-          if (step < 2) {
+          if (!isLast) {
             e.preventDefault();
-            setStep((s) => s + 1);
+            goNext();
           }
         }}
       >
@@ -101,56 +114,56 @@ export function QuickBuyFlow({
         <input type="hidden" name="contactPhone" value={phone} />
         <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
 
-        {step === 0 && (
-          <>
-            <StepHeading eyebrow="Need a ticket · 1 of 3" title="Which event?" />
-            <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
-            <button
-              type="button"
-              disabled={!eventSlug}
-              onClick={() => setStep(1)}
-              className={BUTTON_CLASS}
-            >
-              Continue
-            </button>
-          </>
+        <div key={step} className="flex flex-col gap-6">
+          {step === 0 && (
+            <>
+              <StepHeading eyebrow="Need a ticket · 1 of 3" title="Which event?" />
+              <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
+            </>
+          )}
+
+          {step === 1 && (
+            <>
+              <StepHeading eyebrow="Need a ticket · 2 of 3" title="How many tickets?" />
+              <QuantityStepper value={quantity} onChange={setQuantity} />
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <StepHeading
+                eyebrow="Need a ticket · 3 of 3"
+                title="How do we reach you?"
+                hint="We'll message you when a ticket is ready."
+              />
+              <ContactFields
+                phoneCountry={phoneCountry}
+                phoneNational={phoneNational}
+                instagram={instagram}
+                onPhoneCountry={setPhoneCountry}
+                onPhoneNational={setPhoneNational}
+                onInstagram={setInstagram}
+              />
+            </>
+          )}
+        </div>
+
+        {state.error && (
+          <p role="alert" className="mt-4 text-[13.5px] text-urgency">
+            {state.error}
+          </p>
         )}
 
-        {step === 1 && (
-          <>
-            <StepHeading eyebrow="Need a ticket · 2 of 3" title="How many tickets?" />
-            <QuantityStepper value={quantity} onChange={setQuantity} />
-            <button type="button" onClick={() => setStep(2)} className={BUTTON_CLASS}>
-              Continue
-            </button>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <StepHeading
-              eyebrow="Need a ticket · 3 of 3"
-              title="How do we reach you?"
-              hint="We'll message you when a ticket is ready."
-            />
-            <ContactFields
-              phoneCountry={phoneCountry}
-              phoneNational={phoneNational}
-              instagram={instagram}
-              onPhoneCountry={setPhoneCountry}
-              onPhoneNational={setPhoneNational}
-              onInstagram={setInstagram}
-            />
-            {state.error && (
-              <p role="alert" className="text-[13.5px] text-urgency">
-                {state.error}
-              </p>
-            )}
-            <button type="submit" disabled={!canContact || pending} className={BUTTON_CLASS}>
-              {pending ? "Joining…" : "Join waitlist"}
-            </button>
-          </>
-        )}
+        <button
+          type={isLast ? "submit" : "button"}
+          disabled={!stepReady || pending || tapGuard}
+          onClick={() => {
+            if (!isLast) goNext();
+          }}
+          className={`${BUTTON_CLASS} relative z-10 mt-6 w-full shrink-0`}
+        >
+          {isLast ? (pending ? "Joining…" : "Join waitlist") : "Continue"}
+        </button>
       </form>
     </QuickShell>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { submitQuickSellAction } from "@/domains/beta-quick/actions";
@@ -23,9 +23,12 @@ import {
   StepHeading,
   composeQuickPhone,
 } from "./shared";
+import { TicketUploadZone, type TicketFile } from "./ticket-upload";
 
 const initial: QuickActionState = {};
 const LAST_STEP = 5;
+const TICKET_URL_RE = /^https?:\/\//i;
+const TICKET_URL_ERROR = "Paste a full link starting with https://";
 
 function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
   if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
@@ -39,6 +42,11 @@ function splitSavedPhone(e164: string | null | undefined): { iso2: string; natio
   return { iso2: DEFAULT_COUNTRY_ISO2, national: digits };
 }
 
+function isValidTicketUrl(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed === "" || TICKET_URL_RE.test(trimmed);
+}
+
 export function QuickSellFlow({
   events,
   savedContact,
@@ -49,8 +57,9 @@ export function QuickSellFlow({
   initialEventSlug?: string | null;
 }) {
   const router = useRouter();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
+  const [tapGuard, setTapGuard] = useState(false);
+  const [ticketUrlError, setTicketUrlError] = useState<string | null>(null);
   const preset =
     initialEventSlug && events.some((e) => e.slug === initialEventSlug)
       ? initialEventSlug
@@ -64,8 +73,7 @@ export function QuickSellFlow({
   const [phoneNational, setPhoneNational] = useState(savedPhone.national);
   const [instagram, setInstagram] = useState(savedContact?.contactInstagram ?? "");
   const [ticketUrl, setTicketUrl] = useState("");
-  const [ticketFileName, setTicketFileName] = useState<string | null>(null);
-  const ticketFileRef = useRef<File | null>(null);
+  const [ticketFiles, setTicketFiles] = useState<TicketFile[]>([]);
   const [etName, setEtName] = useState(savedContact?.etransferName ?? "");
   const [etEmail, setEtEmail] = useState(savedContact?.etransferEmail ?? "");
   const savedEtPhone = splitSavedPhone(savedContact?.etransferPhone);
@@ -74,10 +82,9 @@ export function QuickSellFlow({
   const [terms, setTerms] = useState(false);
   const [state, formAction, pending] = useActionState(
     async (prev: QuickActionState, fd: FormData) => {
-      const existing = fd.get("ticketImage");
-      const kept = ticketFileRef.current;
-      if (kept && (!(existing instanceof File) || existing.size === 0)) {
-        fd.set("ticketImage", kept);
+      fd.delete("ticketImage");
+      for (const item of ticketFiles) {
+        fd.append("ticketImage", item.file);
       }
       return submitQuickSellAction(prev, fd);
     },
@@ -87,6 +94,27 @@ export function QuickSellFlow({
   useEffect(() => {
     if (state.ok) router.replace("/go/done?intent=sell");
   }, [state.ok, router]);
+
+  useEffect(() => {
+    setTicketFiles((prev) => (prev.length > quantity ? prev.slice(0, quantity) : prev));
+  }, [quantity]);
+
+  // Ticket-proof errors belong on the prove-ticket step, not payout.
+  useEffect(() => {
+    if (!state.error) return;
+    const msg = state.error.toLowerCase();
+    if (
+      state.error.includes("https://") ||
+      msg.includes("link") ||
+      msg.includes("upload all") ||
+      msg.includes("screenshot")
+    ) {
+      setTicketUrlError(
+        state.error.includes("https://") || msg.includes("link") ? state.error : null,
+      );
+      setStep(4);
+    }
+  }, [state.error]);
 
   if (state.ok) {
     return (
@@ -110,8 +138,13 @@ export function QuickSellFlow({
     ask >= 0 &&
     paidEach.trim() !== "" &&
     askEach.trim() !== "";
-  const hasTicket = Boolean(ticketUrl.trim()) || Boolean(ticketFileName);
-  const ticketStepReady = hasTicket && terms;
+
+  const ticketUrlTrimmed = ticketUrl.trim();
+  const ticketUrlOk = isValidTicketUrl(ticketUrl);
+  const hasValidLink = ticketUrlTrimmed.length > 0 && ticketUrlOk;
+  const filesReady = ticketFiles.length >= quantity;
+  const hasEvidence = hasValidLink || filesReady;
+  const ticketStepReady = hasEvidence && ticketUrlOk && terms;
 
   const etPhone = composeQuickPhone(etPhoneCountry, etPhoneNational);
   const etPhoneOk = etPhoneNational.replace(/\D/g, "").length >= 7;
@@ -120,6 +153,43 @@ export function QuickSellFlow({
 
   const etDial = countryByIso2(etPhoneCountry).dial;
   const stepLabel = `Sell · ${step + 1} of ${LAST_STEP + 1}`;
+  const isLast = step === LAST_STEP;
+
+  const stepReady =
+    (step === 0 && Boolean(eventSlug)) ||
+    step === 1 ||
+    (step === 2 && pricesOk) ||
+    (step === 3 && (phoneOk || igOk)) ||
+    (step === 4 && ticketStepReady) ||
+    (step === 5 && payoutReady);
+
+  function armTapGuard() {
+    setTapGuard(true);
+    setTimeout(() => setTapGuard(false), 400);
+  }
+
+  function goNext() {
+    if (!stepReady || tapGuard || pending) return;
+    if (step === 4) {
+      if (!ticketUrlOk) {
+        setTicketUrlError(TICKET_URL_ERROR);
+        return;
+      }
+      setTicketUrlError(null);
+    }
+    if (step < LAST_STEP) {
+      armTapGuard();
+      setStep((s) => s + 1);
+    }
+  }
+
+  const showFormError =
+    Boolean(state.error) &&
+    step === LAST_STEP &&
+    !state.error?.includes("https://") &&
+    !state.error?.toLowerCase().includes("link") &&
+    !state.error?.toLowerCase().includes("upload all") &&
+    !state.error?.toLowerCase().includes("screenshot");
 
   return (
     <QuickShell>
@@ -134,10 +204,13 @@ export function QuickSellFlow({
 
       <form
         action={formAction}
-        className="relative mt-6 flex flex-col gap-6"
+        className="relative mt-6 flex flex-col"
         encType="multipart/form-data"
         onSubmit={(e) => {
-          if (step < LAST_STEP) e.preventDefault();
+          if (!isLast) {
+            e.preventDefault();
+            goNext();
+          }
         }}
       >
         <input type="hidden" name="eventSlug" value={eventSlug} />
@@ -146,250 +219,228 @@ export function QuickSellFlow({
         <input type="hidden" name="askEach" value={askEach} />
         <input type="hidden" name="contactPhone" value={phone} />
         <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
-        <input type="hidden" name="ticketShareUrl" value={ticketUrl.trim()} />
+        <input type="hidden" name="ticketShareUrl" value={ticketUrlTrimmed} />
         <input type="hidden" name="etransferName" value={etName.trim()} />
         <input type="hidden" name="etransferEmail" value={etEmail.trim()} />
         <input type="hidden" name="etransferPhone" value={etPhone} />
         {terms && <input type="hidden" name="sellerTermsAccepted" value="1" />}
-        <input
-          ref={fileRef}
-          type="file"
-          name="ticketImage"
-          accept="image/jpeg,image/png,application/pdf"
-          className="sr-only"
-          onChange={(e) => {
-            const file = e.target.files?.[0] ?? null;
-            ticketFileRef.current = file;
-            setTicketFileName(file?.name ?? null);
-          }}
-        />
 
-        {step === 0 && (
-          <>
-            <StepHeading eyebrow={stepLabel} title="Which event?" />
-            <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
-            <button
-              type="button"
-              disabled={!eventSlug}
-              onClick={() => setStep(1)}
-              className={BUTTON_CLASS}
-            >
-              Continue
-            </button>
-          </>
-        )}
+        {/* Step body remounts; the CTA below stays mounted so it doesn’t ghost/morph. */}
+        <div key={step} className="flex flex-col gap-6">
+          {step === 0 && (
+            <>
+              <StepHeading eyebrow={stepLabel} title="Which event?" />
+              <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
+            </>
+          )}
 
-        {step === 1 && (
-          <>
-            <StepHeading eyebrow={stepLabel} title="How many tickets?" />
-            <QuantityStepper value={quantity} onChange={setQuantity} />
-            <button type="button" onClick={() => setStep(2)} className={BUTTON_CLASS}>
-              Continue
-            </button>
-          </>
-        )}
+          {step === 1 && (
+            <>
+              <StepHeading eyebrow={stepLabel} title="How many tickets?" />
+              <QuantityStepper value={quantity} onChange={setQuantity} />
+            </>
+          )}
 
-        {step === 2 && (
-          <>
-            <StepHeading
-              eyebrow={stepLabel}
-              title="Pricing"
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="You paid (each)" htmlFor="paidEach">
-                <div className="relative">
-                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
-                    $
-                  </span>
-                  <input
-                    id="paidEach"
-                    inputMode="decimal"
-                    placeholder="45"
-                    value={paidEach}
-                    onChange={(e) => setPaidEach(e.target.value.replace(/[^\d.]/g, ""))}
-                    className={`${FIELD_CLASS} pl-8`}
-                  />
-                </div>
-              </Field>
-              <Field label="You want (each)" htmlFor="askEach">
-                <div className="relative">
-                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
-                    $
-                  </span>
-                  <input
-                    id="askEach"
-                    inputMode="decimal"
-                    placeholder="45"
-                    value={askEach}
-                    onChange={(e) => setAskEach(e.target.value.replace(/[^\d.]/g, ""))}
-                    className={`${FIELD_CLASS} pl-8`}
-                  />
-                </div>
-              </Field>
-            </div>
-            <button
-              type="button"
-              disabled={!pricesOk}
-              onClick={() => setStep(3)}
-              className={BUTTON_CLASS}
-            >
-              Continue
-            </button>
-          </>
-        )}
-
-        {step === 3 && (
-          <>
-            <StepHeading
-              eyebrow={stepLabel}
-              title="How do we reach you?"
-            />
-            <ContactFields
-              phoneCountry={phoneCountry}
-              phoneNational={phoneNational}
-              instagram={instagram}
-              onPhoneCountry={setPhoneCountry}
-              onPhoneNational={setPhoneNational}
-              onInstagram={setInstagram}
-              hintAbove
-              hint="Enter one of the contacts below. We'll message you there."
-            />
-            <button
-              type="button"
-              disabled={!(phoneOk || igOk)}
-              onClick={() => setStep(4)}
-              className={BUTTON_CLASS}
-            >
-              Continue
-            </button>
-          </>
-        )}
-
-        {step === 4 && (
-          <>
-            <StepHeading
-              eyebrow={stepLabel}
-              title="Prove the ticket"
-              hint="Upload a clear screenshot or PDF, or paste the official share link."
-            />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex min-h-[160px] w-full flex-col items-center justify-center gap-2 rounded-[20px] border-2 border-dashed border-white/25 bg-white/[0.05] px-5 py-8 text-center transition-colors hover:border-[#ffe500]/40 hover:bg-white/[0.08]"
-            >
-              <span className="text-[15px] font-semibold text-ink">
-                {ticketFileName ? "Replace file" : "Upload ticket screenshot / PDF"}
-              </span>
-              <span className="max-w-[16rem] text-[13px] leading-relaxed text-muted">
-                {ticketFileName
-                  ? ticketFileName
-                  : "JPEG, PNG, or PDF · up to 8MB · make sure the QR / barcode is readable"}
-              </span>
-            </button>
-            <Field label="Or paste a share link" htmlFor="ticketUrl">
-              <input
-                id="ticketUrl"
-                type="url"
-                placeholder="https://…"
-                value={ticketUrl}
-                onChange={(e) => setTicketUrl(e.target.value)}
-                className={FIELD_CLASS}
-              />
-            </Field>
-            {!hasTicket && (
-              <p className="text-[13px] text-muted">Add a file or a link to continue.</p>
-            )}
-            <label className="flex cursor-pointer items-start gap-3 rounded-[16px] border border-hairline bg-white/[0.04] px-4 py-4">
-              <input
-                type="checkbox"
-                checked={terms}
-                onChange={(e) => setTerms(e.target.checked)}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-[#6ee1ff]"
-              />
-              <span className="text-[13px] leading-relaxed text-muted">
-                I confirm this is a real, unused ticket I own, the file/link is accurate and
-                unedited, and I agree to the{" "}
-                <Link
-                  href={SELLER_TERMS_PATH}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-ink underline decoration-dotted underline-offset-4"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  seller terms
-                </Link>
-                . Make sure your ticket is for the correct date before posting.
-              </span>
-            </label>
-            <button
-              type="button"
-              disabled={!ticketStepReady}
-              onClick={() => setStep(5)}
-              className={BUTTON_CLASS}
-            >
-              Continue
-            </button>
-          </>
-        )}
-
-        {step === 5 && (
-          <>
-            <StepHeading
-              eyebrow={stepLabel}
-              title="Interac e-Transfer"
-              hint="Where we send the payment when your ticket sells."
-            />
-            <Field label="Name on Interac" htmlFor="etName">
-              <input
-                id="etName"
-                autoComplete="name"
-                placeholder="Jane Doe"
-                value={etName}
-                onChange={(e) => setEtName(e.target.value)}
-                className={FIELD_CLASS}
-              />
-            </Field>
-            <Field label="Interac email" htmlFor="etEmail">
-              <input
-                id="etEmail"
-                type="email"
-                autoComplete="email"
-                placeholder="jane@email.com"
-                value={etEmail}
-                onChange={(e) => setEtEmail(e.target.value)}
-                className={FIELD_CLASS}
-              />
-            </Field>
-            <Field label="Or Interac phone" htmlFor="etPhone">
-              <div className={FIELD_GROUP_CLASS}>
-                <CountryCodeSelect
-                  value={etPhoneCountry}
-                  onChange={setEtPhoneCountry}
-                  className="border-r border-white/10"
-                />
-                <input
-                  id="etPhone"
-                  type="tel"
-                  placeholder={etDial === "1" ? "(514) 555-0123" : "Phone number"}
-                  value={formatPhoneNational(etPhoneNational.replace(/\D/g, ""), etDial)}
-                  onChange={(e) =>
-                    setEtPhoneNational(e.target.value.replace(/\D/g, "").slice(0, 15))
-                  }
-                  inputMode="tel"
-                  className="min-w-0 flex-1 bg-transparent py-4 pl-3 pr-5 text-[16px] text-ink outline-none placeholder:text-muted/70"
-                />
+          {step === 2 && (
+            <>
+              <StepHeading eyebrow={stepLabel} title="Pricing" />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="You paid (each)" htmlFor="paidEach">
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
+                      $
+                    </span>
+                    <input
+                      id="paidEach"
+                      inputMode="decimal"
+                      placeholder="45"
+                      value={paidEach}
+                      onChange={(e) => setPaidEach(e.target.value.replace(/[^\d.]/g, ""))}
+                      className={`${FIELD_CLASS} pl-8`}
+                    />
+                  </div>
+                </Field>
+                <Field label="You want (each)" htmlFor="askEach">
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
+                      $
+                    </span>
+                    <input
+                      id="askEach"
+                      inputMode="decimal"
+                      placeholder="45"
+                      value={askEach}
+                      onChange={(e) => setAskEach(e.target.value.replace(/[^\d.]/g, ""))}
+                      className={`${FIELD_CLASS} pl-8`}
+                    />
+                  </div>
+                </Field>
               </div>
-            </Field>
-            {state.error && (
-              <p role="alert" className="text-[13.5px] text-urgency">
-                {state.error}
-              </p>
-            )}
-            <button type="submit" disabled={!payoutReady || pending} className={BUTTON_CLASS}>
-              {pending ? "Submitting…" : "Submit ticket"}
-            </button>
-          </>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <StepHeading eyebrow={stepLabel} title="How do we reach you?" />
+              <ContactFields
+                phoneCountry={phoneCountry}
+                phoneNational={phoneNational}
+                instagram={instagram}
+                onPhoneCountry={setPhoneCountry}
+                onPhoneNational={setPhoneNational}
+                onInstagram={setInstagram}
+                hintAbove
+                hint="Enter one of the contacts below. We'll message you there."
+              />
+            </>
+          )}
+
+          {step === 4 && (
+            <>
+              <StepHeading
+                eyebrow={stepLabel}
+                title={quantity > 1 ? "Prove the tickets" : "Prove the ticket"}
+                hint={
+                  quantity > 1
+                    ? `Upload a clear screenshot or PDF for each of the ${quantity} tickets, or paste one official share link that covers all of them.`
+                    : "Upload a clear screenshot or PDF, or paste the official share link."
+                }
+              />
+              <TicketUploadZone quantity={quantity} files={ticketFiles} onChange={setTicketFiles} />
+              <Field label="Or paste a share link" htmlFor="ticketUrl">
+                <input
+                  id="ticketUrl"
+                  type="url"
+                  placeholder="https://…"
+                  value={ticketUrl}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setTicketUrl(next);
+                    if (!next.trim() || isValidTicketUrl(next)) {
+                      setTicketUrlError(null);
+                    } else {
+                      setTicketUrlError(TICKET_URL_ERROR);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (ticketUrl.trim() && !isValidTicketUrl(ticketUrl)) {
+                      setTicketUrlError(TICKET_URL_ERROR);
+                    }
+                  }}
+                  className={FIELD_CLASS}
+                />
+              </Field>
+              {(ticketUrlError || (ticketUrlTrimmed.length > 0 && !ticketUrlOk)) && (
+                <p role="alert" className="-mt-3 text-[13.5px] text-urgency">
+                  {ticketUrlError ?? TICKET_URL_ERROR}
+                </p>
+              )}
+              {!hasEvidence && ticketUrlOk && (
+                <p className="-mt-3 text-[13px] text-muted">
+                  {quantity > 1
+                    ? `Add all ${quantity} files, or a link, to continue.`
+                    : "Add a file or a link to continue."}
+                </p>
+              )}
+              {quantity > 1 && ticketFiles.length > 0 && ticketFiles.length < quantity && !hasValidLink && (
+                <p className="-mt-3 text-[13.5px] text-urgency">
+                  {quantity - ticketFiles.length} more ticket
+                  {quantity - ticketFiles.length === 1 ? "" : "s"} needed.
+                </p>
+              )}
+              <label className="flex cursor-pointer items-start gap-3 rounded-[16px] border border-hairline bg-white/[0.04] px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={terms}
+                  onChange={(e) => setTerms(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[#6ee1ff]"
+                />
+                <span className="text-[13px] leading-relaxed text-muted">
+                  I confirm this is a real, unused ticket I own, the file/link is accurate and
+                  unedited, and I agree to the{" "}
+                  <Link
+                    href={SELLER_TERMS_PATH}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-ink underline decoration-dotted underline-offset-4"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    seller terms
+                  </Link>
+                  . Make sure your ticket is for the correct date before posting.
+                </span>
+              </label>
+            </>
+          )}
+
+          {step === 5 && (
+            <>
+              <StepHeading
+                eyebrow={stepLabel}
+                title="Interac e-Transfer"
+                hint="Where we send the payment when your ticket sells."
+              />
+              <Field label="Name on Interac" htmlFor="etName">
+                <input
+                  id="etName"
+                  autoComplete="name"
+                  placeholder="Jane Doe"
+                  value={etName}
+                  onChange={(e) => setEtName(e.target.value)}
+                  className={FIELD_CLASS}
+                />
+              </Field>
+              <Field label="Interac email" htmlFor="etEmail">
+                <input
+                  id="etEmail"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="jane@email.com"
+                  value={etEmail}
+                  onChange={(e) => setEtEmail(e.target.value)}
+                  className={FIELD_CLASS}
+                />
+              </Field>
+              <Field label="Or Interac phone" htmlFor="etPhone">
+                <div className={FIELD_GROUP_CLASS}>
+                  <CountryCodeSelect
+                    value={etPhoneCountry}
+                    onChange={setEtPhoneCountry}
+                    className="border-r border-white/10"
+                  />
+                  <input
+                    id="etPhone"
+                    type="tel"
+                    placeholder={etDial === "1" ? "(514) 555-0123" : "Phone number"}
+                    value={formatPhoneNational(etPhoneNational.replace(/\D/g, ""), etDial)}
+                    onChange={(e) =>
+                      setEtPhoneNational(e.target.value.replace(/\D/g, "").slice(0, 15))
+                    }
+                    inputMode="tel"
+                    className="min-w-0 flex-1 bg-transparent py-4 pl-3 pr-5 text-[16px] text-ink outline-none placeholder:text-muted/70"
+                  />
+                </div>
+              </Field>
+            </>
+          )}
+        </div>
+
+        {showFormError && (
+          <p role="alert" className="mt-4 text-[13.5px] text-urgency">
+            {state.error}
+          </p>
         )}
+
+        <button
+          type={isLast ? "submit" : "button"}
+          disabled={!stepReady || pending || tapGuard}
+          onClick={() => {
+            if (!isLast) goNext();
+          }}
+          className={`${BUTTON_CLASS} relative z-10 mt-6 w-full shrink-0`}
+        >
+          {isLast ? (pending ? "Submitting…" : "Submit ticket") : "Continue"}
+        </button>
       </form>
     </QuickShell>
   );

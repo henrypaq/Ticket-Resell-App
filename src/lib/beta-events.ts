@@ -21,6 +21,8 @@ export type BetaEvent = {
   days: BetaWeekday[];
   /** When false, shown only as interest options / request targets, not live. */
   supported: boolean;
+  /** Optional door / entry policy shown on posters (e.g. Café Campus cutoff). */
+  entryNote?: string;
 };
 
 export const BETA_WEEKDAYS = [
@@ -46,6 +48,7 @@ export const BETA_EVENTS: BetaEvent[] = [
     flyerUrl: "/flyers/cafe-campus.jpg",
     days: ["Thursday", "Friday", "Saturday"],
     supported: true,
+    entryNote: "Guaranteed entry until 11:30 PM",
   },
   {
     slug: "montreal-frosh-muzique",

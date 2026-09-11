@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { betaEventBySlug, INTEREST_OPTIONS } from "@/lib/beta-events";
+import { parseEvidencePaths } from "@/lib/verification/ticket-evidence";
 import { defaultFakeFront, getFakeFrontMap, listAllUnifiedQueueSeats, positionInSeats } from "@/domains/beta-queue/unified";
 import { requireBetaOpsSession } from "./auth";
 import {
@@ -374,17 +375,29 @@ export async function updateQuickLead(
   return { ok: true };
 }
 
-/** Signed URL for a private ticket screenshot (1 hour). */
+/** Signed URL for a private ticket screenshot (1 hour). First path if many. */
 export async function getTicketEvidenceSignedUrl(
   path: string | null,
 ): Promise<string | null> {
-  if (!path) return null;
+  const urls = await getTicketEvidenceSignedUrls(path);
+  return urls[0] ?? null;
+}
+
+/** Signed URLs for every uploaded ticket proof on a lead. */
+export async function getTicketEvidenceSignedUrls(
+  path: string | null,
+): Promise<string[]> {
+  const paths = parseEvidencePaths(path);
+  if (!paths.length) return [];
   const admin = createAdminClient();
-  const { data, error } = await admin.storage
-    .from("beta-quick-tickets")
-    .createSignedUrl(path, 60 * 60);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  const urls: string[] = [];
+  for (const p of paths) {
+    const { data, error } = await admin.storage
+      .from("beta-quick-tickets")
+      .createSignedUrl(p, 60 * 60);
+    if (!error && data?.signedUrl) urls.push(data.signedUrl);
+  }
+  return urls;
 }
 
 export async function deleteClassicMember(
@@ -437,7 +450,10 @@ export async function deleteQuickLead(
   if (!existing) return { ok: false, error: "Lead not found." };
 
   if (existing.ticket_evidence_path) {
-    await admin.storage.from("beta-quick-tickets").remove([existing.ticket_evidence_path]);
+    const paths = parseEvidencePaths(existing.ticket_evidence_path);
+    if (paths.length) {
+      await admin.storage.from("beta-quick-tickets").remove(paths);
+    }
   }
 
   const { error } = await admin.from("beta_go_leads").delete().eq("id", leadId);

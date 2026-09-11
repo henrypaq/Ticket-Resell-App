@@ -59,3 +59,28 @@ export function validateTicketEvidenceFile(bytes: Uint8Array): EvidenceValidatio
 
   return { ok: true, mime: match.mime, ext: match.ext };
 }
+
+/** Encode one or many storage paths into the legacy text column. */
+export function encodeEvidencePaths(paths: string[]): string | null {
+  const clean = paths.map((p) => p.trim()).filter(Boolean);
+  if (clean.length === 0) return null;
+  if (clean.length === 1) return clean[0]!;
+  return JSON.stringify(clean);
+}
+
+/** Decode a single path or JSON array stored in ticket_evidence_path. */
+export function parseEvidencePaths(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+      }
+    } catch {
+      /* fall through — treat as a literal path */
+    }
+  }
+  return [trimmed];
+}

@@ -307,6 +307,11 @@ function EventPosterCard({
         />
         <div className="absolute inset-x-0 top-0 p-3.5">
           <h2 className="headline text-[16px] leading-[1.15] text-ink">{event.name}</h2>
+          {event.entryNote && (
+            <p className="mt-1.5 text-[10.5px] font-semibold leading-snug text-[#ffe500]">
+              {event.entryNote}
+            </p>
+          )}
         </div>
         {waitlisted && (
           <span className="absolute bottom-3 right-3 z-10 rounded-full bg-[#ffe500] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
@@ -462,6 +467,9 @@ function EventDetailView({
       <div>
         <h1 className="headline text-[30px] leading-[1.12] tracking-tight">{event.name}</h1>
         <p className="mt-2 text-[15px] text-muted">{formatBetaEventWhen(day)}</p>
+        {event.entryNote && (
+          <p className="mt-2 text-[13px] font-semibold text-[#ffe500]">{event.entryNote}</p>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">
