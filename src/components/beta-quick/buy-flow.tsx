@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { submitQuickBuyAction, type QuickActionState } from "@/domains/beta-quick/actions";
+import { submitQuickBuyAction } from "@/domains/beta-quick/actions";
+import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { BetaEvent } from "@/lib/beta-events";
 import { ArrowLeft } from "@/components/icons";
 import { BUTTON_CLASS } from "@/components/beta-waitlist/field-styles";

@@ -1,7 +1,11 @@
 "use server";
 
 import { cookies } from "next/headers";
-import type { QuickWaitlistEntry } from "@/domains/beta-quick/shared";
+import {
+  QUICK_BUYER_COOKIE,
+  type QuickActionState,
+  type QuickWaitlistEntry,
+} from "@/domains/beta-quick/shared";
 import {
   getQuickWaitlistEntries,
   quickBuySchema,
@@ -14,11 +18,6 @@ import {
   isAcquisitionChannel,
   type AcquisitionChannel,
 } from "@/lib/beta-acquisition";
-
-export type QuickActionState = { ok?: true; error?: string };
-
-/** Cookie of buy lead UUIDs so /go can show queue position on return visits. */
-export const QUICK_BUYER_COOKIE = "passe_quick_buyer";
 
 const COOKIE_BASE = {
   httpOnly: true,

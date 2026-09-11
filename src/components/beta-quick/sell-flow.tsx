@@ -3,7 +3,8 @@
 import { useActionState, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { submitQuickSellAction, type QuickActionState } from "@/domains/beta-quick/actions";
+import { submitQuickSellAction } from "@/domains/beta-quick/actions";
+import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { BetaEvent } from "@/lib/beta-events";
 import { SELLER_TERMS_PATH } from "@/lib/compliance/seller-terms";
 import { ArrowLeft } from "@/components/icons";
