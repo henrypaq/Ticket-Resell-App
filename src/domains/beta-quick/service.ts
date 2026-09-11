@@ -346,6 +346,47 @@ export async function leaveWaitlistLead(input: {
   return { ok: true, id: input.leadId, contactId: input.contactId ?? undefined };
 }
 
+/** Seller removes their /go listing — soft-cancel, same ownership as waitlist leave. */
+export async function removeSellLead(input: {
+  leadId: string;
+  contactId: string | null;
+  allowedLeadIds: string[];
+}): Promise<QuickLeadResult> {
+  if (!/^[0-9a-f-]{36}$/i.test(input.leadId)) {
+    return { ok: false, error: "Invalid listing." };
+  }
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("beta_go_leads")
+    .select("id, intent, status, contact_id")
+    .eq("id", input.leadId)
+    .maybeSingle();
+
+  if (!row || row.intent !== "sell") {
+    return { ok: false, error: "Listing not found." };
+  }
+  if (row.status === "cancelled") {
+    return { ok: true, id: input.leadId, contactId: input.contactId ?? undefined };
+  }
+
+  const ownsByContact = Boolean(input.contactId && row.contact_id === input.contactId);
+  const ownsByCookie = input.allowedLeadIds.includes(row.id);
+  if (!ownsByContact && !ownsByCookie) {
+    return { ok: false, error: "You can only remove your own listing." };
+  }
+
+  const { error } = await admin
+    .from("beta_go_leads")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", input.leadId);
+
+  if (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "sell_remove_failed", error }));
+    return { ok: false, error: "Couldn't remove that listing. Try again." };
+  }
+  return { ok: true, id: input.leadId, contactId: input.contactId ?? undefined };
+}
+
 export async function submitQuickSell(
   input: QuickSellInput & { existingContactId?: string | null },
   files?: { bytes: Uint8Array; name: string }[] | null,

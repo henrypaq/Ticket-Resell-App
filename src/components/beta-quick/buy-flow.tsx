@@ -21,7 +21,6 @@ import {
 } from "./shared";
 
 const initial: QuickActionState = {};
-const LAST_STEP = 2;
 
 function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
   if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
@@ -51,7 +50,6 @@ export function QuickBuyFlow({
   // Deep link from an event card (?event=) locks the venue — skip the picker.
   const eventLocked = Boolean(initialEventSlug?.trim());
   const firstStep = eventLocked ? 1 : 0;
-  const totalSteps = LAST_STEP - firstStep + 1;
   const [step, setStep] = useState(firstStep);
   const [tapGuard, setTapGuard] = useState(false);
   const preset = eventLocked
@@ -77,23 +75,30 @@ export function QuickBuyFlow({
   const redirecting = Boolean(state.ok);
 
   const isCafeCampus = eventSlug === "cafe-campus";
+  // Café Campus adds a transfer-recipient step after contact.
+  const lastStep = isCafeCampus ? 3 : 2;
+  const totalSteps = lastStep - firstStep + 1;
   const phone = composeQuickPhone(phoneCountry, phoneNational);
   const phoneOk = phoneNational.replace(/\D/g, "").length >= 7;
   const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
   const canContact = phoneOk || igOk;
   const transferOk =
-    !isCafeCampus ||
-    (transferFirstName.trim().length >= 1 &&
-      transferLastName.trim().length >= 1 &&
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(transferEmail.trim()));
-  const isLast = step === LAST_STEP;
+    transferFirstName.trim().length >= 1 &&
+    transferLastName.trim().length >= 1 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(transferEmail.trim());
+  const isLast = step === lastStep;
   const stepIndex = step - firstStep + 1;
   const stepLabel = `Need a ticket · ${stepIndex} of ${totalSteps}`;
+
+  useEffect(() => {
+    if (step > lastStep) setStep(lastStep);
+  }, [step, lastStep]);
 
   const stepReady =
     (step === 0 && Boolean(eventSlug)) ||
     step === 1 ||
-    (step === 2 && canContact && transferOk);
+    (step === 2 && canContact) ||
+    (step === 3 && transferOk);
 
   function goNext() {
     if (!stepReady || tapGuard || pending || isLast || redirecting) return;
@@ -166,55 +171,6 @@ export function QuickBuyFlow({
                 title="How do we reach you?"
                 hint="We'll message you when a ticket is ready."
               />
-              {isCafeCampus && (
-                <div className="flex flex-col gap-4 rounded-[16px] border border-hairline bg-white/[0.04] p-4">
-                  <div>
-                    <p className="text-[14px] font-semibold text-ink">
-                      Café Campus ticket transfer
-                    </p>
-                    <p className="mt-1 text-[13px] leading-relaxed text-muted">
-                      We need your name and email exactly as they should appear on the ticket —
-                      Café Campus transfers into this account.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="First name" htmlFor="transferFirstName">
-                      <input
-                        id="transferFirstName"
-                        type="text"
-                        autoComplete="given-name"
-                        placeholder="Alex"
-                        value={transferFirstName}
-                        onChange={(e) => setTransferFirstName(e.target.value)}
-                        className={FIELD_CLASS}
-                      />
-                    </Field>
-                    <Field label="Last name" htmlFor="transferLastName">
-                      <input
-                        id="transferLastName"
-                        type="text"
-                        autoComplete="family-name"
-                        placeholder="Nguyen"
-                        value={transferLastName}
-                        onChange={(e) => setTransferLastName(e.target.value)}
-                        className={FIELD_CLASS}
-                      />
-                    </Field>
-                  </div>
-                  <Field label="Email" htmlFor="transferEmail">
-                    <input
-                      id="transferEmail"
-                      type="email"
-                      autoComplete="email"
-                      inputMode="email"
-                      placeholder="you@mail.mcgill.ca"
-                      value={transferEmail}
-                      onChange={(e) => setTransferEmail(e.target.value)}
-                      className={FIELD_CLASS}
-                    />
-                  </Field>
-                </div>
-              )}
               <ContactFields
                 phoneCountry={phoneCountry}
                 phoneNational={phoneNational}
@@ -223,6 +179,52 @@ export function QuickBuyFlow({
                 onPhoneNational={setPhoneNational}
                 onInstagram={setInstagram}
               />
+            </>
+          )}
+
+          {step === 3 && isCafeCampus && (
+            <>
+              <StepHeading
+                eyebrow={stepLabel}
+                title="Ticket transfer details"
+                hint="Café Campus transfers the ticket into this name and email — use them exactly as they should appear."
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="First name" htmlFor="transferFirstName">
+                  <input
+                    id="transferFirstName"
+                    type="text"
+                    autoComplete="given-name"
+                    placeholder="Alex"
+                    value={transferFirstName}
+                    onChange={(e) => setTransferFirstName(e.target.value)}
+                    className={FIELD_CLASS}
+                  />
+                </Field>
+                <Field label="Last name" htmlFor="transferLastName">
+                  <input
+                    id="transferLastName"
+                    type="text"
+                    autoComplete="family-name"
+                    placeholder="Nguyen"
+                    value={transferLastName}
+                    onChange={(e) => setTransferLastName(e.target.value)}
+                    className={FIELD_CLASS}
+                  />
+                </Field>
+              </div>
+              <Field label="Email" htmlFor="transferEmail">
+                <input
+                  id="transferEmail"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="you@mail.mcgill.ca"
+                  value={transferEmail}
+                  onChange={(e) => setTransferEmail(e.target.value)}
+                  className={FIELD_CLASS}
+                />
+              </Field>
             </>
           )}
         </div>

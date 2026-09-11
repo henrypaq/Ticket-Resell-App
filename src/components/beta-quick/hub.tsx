@@ -10,12 +10,13 @@ import {
 } from "@/lib/beta-events";
 import {
   leaveWaitlistLeadAction,
+  removeSellLeadAction,
   updateWaitlistLeadAction,
 } from "@/domains/beta-quick/actions";
 import type { GoActivityEntry, QuickActionState, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/beta-waitlist/field-styles";
-import { ArrowLeft } from "@/components/icons";
+import { ArrowLeft, MoreVerticalIcon } from "@/components/icons";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./shared";
 import { QuickShell } from "./shell";
@@ -130,36 +131,7 @@ export function QuickHub({
           <p className="section-header text-[11px] text-muted">Your tickets for sale</p>
           <ul className="mt-3 flex flex-col gap-2">
             {sellActivity.map((entry) => (
-              <li
-                key={entry.leadId}
-                className="rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-[14.5px] font-semibold text-ink">{entry.eventName}</p>
-                    <p className="mt-0.5 text-[12.5px] text-muted">
-                      ×{entry.quantity}
-                      {entry.askEach != null ? ` · $${entry.askEach.toFixed(0)} each` : ""}
-                      {entry.status === "done"
-                        ? " · sold"
-                        : entry.status === "matched"
-                          ? " · matched"
-                          : " · listed"}
-                    </p>
-                  </div>
-                  {entry.status === "done" && entry.proceedsCad != null && (
-                    <p className="shrink-0 text-right text-[13px] font-semibold tabular-nums text-ink">
-                      ${entry.proceedsCad.toFixed(0)}
-                      {entry.netVsPaidCad != null && entry.netVsPaidCad !== 0 && (
-                        <span className="mt-0.5 block text-[11px] font-medium text-muted">
-                          {entry.netVsPaidCad > 0 ? "+" : ""}
-                          ${entry.netVsPaidCad.toFixed(0)} vs paid
-                        </span>
-                      )}
-                    </p>
-                  )}
-                </div>
-              </li>
+              <SellListingRow key={entry.leadId} entry={entry} />
             ))}
           </ul>
           {doneSells.length > 0 && (
@@ -208,6 +180,109 @@ export function QuickHub({
         </Link>
       </section>
     </QuickShell>
+  );
+}
+
+function SellListingRow({ entry }: { entry: GoActivityEntry }) {
+  const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  function onRemove() {
+    const ok = window.confirm(
+      entry.status === "done"
+        ? `Remove this sold ${entry.eventName} ticket from your list?`
+        : `Remove your ${entry.eventName} ticket listing? Buyers won’t see it anymore.`,
+    );
+    if (!ok) {
+      setMenuOpen(false);
+      return;
+    }
+    setError(null);
+    start(async () => {
+      const result = await removeSellLeadAction(entry.leadId);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setMenuOpen(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <li className="relative rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14.5px] font-semibold text-ink">{entry.eventName}</p>
+          <p className="mt-0.5 text-[12.5px] text-muted">
+            ×{entry.quantity}
+            {entry.askEach != null ? ` · $${entry.askEach.toFixed(0)} each` : ""}
+            {entry.status === "done"
+              ? " · sold"
+              : entry.status === "matched"
+                ? " · matched"
+                : " · listed"}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-start gap-2">
+          {entry.status === "done" && entry.proceedsCad != null && (
+            <p className="text-right text-[13px] font-semibold tabular-nums text-ink">
+              ${entry.proceedsCad.toFixed(0)}
+              {entry.netVsPaidCad != null && entry.netVsPaidCad !== 0 && (
+                <span className="mt-0.5 block text-[11px] font-medium text-muted">
+                  {entry.netVsPaidCad > 0 ? "+" : ""}
+                  ${entry.netVsPaidCad.toFixed(0)} vs paid
+                </span>
+              )}
+            </p>
+          )}
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Listing options"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              disabled={pending}
+              onClick={() => setMenuOpen((o) => !o)}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/10 hover:text-ink disabled:opacity-50"
+            >
+              <MoreVerticalIcon className="h-5 w-5" />
+            </button>
+            {menuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  className="fixed inset-0 z-20 cursor-default"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 top-9 z-30 min-w-[148px] overflow-hidden rounded-[12px] border border-white/12 bg-[#1c1c20] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={pending}
+                    onClick={onRemove}
+                    className="flex w-full px-3.5 py-2.5 text-left text-[13.5px] font-semibold text-urgency hover:bg-white/[0.06] disabled:opacity-50"
+                  >
+                    {pending ? "Removing…" : "Remove"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      {error && (
+        <p role="alert" className="mt-2 text-[12.5px] text-urgency">
+          {error}
+        </p>
+      )}
+    </li>
   );
 }
 

@@ -16,6 +16,7 @@ import {
   listBuyLeadIdsForContact,
   quickBuySchema,
   quickSellSchema,
+  removeSellLead,
   submitQuickBuy,
   submitQuickSell,
   updateWaitlistLead,
@@ -134,6 +135,25 @@ export async function updateWaitlistLeadAction(
   return { ok: true };
 }
 
+async function readSellerLeadIds(): Promise<string[]> {
+  const jar = await cookies();
+  const raw = jar.get(QUICK_SELLER_COOKIE)?.value ?? "";
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+async function removeSellerLeadId(leadId: string): Promise<void> {
+  const jar = await cookies();
+  const ids = (await readSellerLeadIds()).filter((id) => id !== leadId);
+  if (ids.length === 0) {
+    jar.delete(QUICK_SELLER_COOKIE);
+  } else {
+    jar.set(QUICK_SELLER_COOKIE, ids.join(","), COOKIE_BASE);
+  }
+}
+
 export async function leaveWaitlistLeadAction(
   leadId: string,
 ): Promise<QuickActionState> {
@@ -144,6 +164,17 @@ export async function leaveWaitlistLeadAction(
   });
   if (!result.ok) return { error: result.error };
   await removeBuyerLeadId(leadId);
+  return { ok: true };
+}
+
+export async function removeSellLeadAction(leadId: string): Promise<QuickActionState> {
+  const result = await removeSellLead({
+    leadId,
+    contactId: await readGoContactId(),
+    allowedLeadIds: await readSellerLeadIds(),
+  });
+  if (!result.ok) return { error: result.error };
+  await removeSellerLeadId(leadId);
   return { ok: true };
 }
 
