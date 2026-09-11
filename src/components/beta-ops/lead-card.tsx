@@ -11,7 +11,7 @@ import {
   LEAD_STATUSES,
   type LeadStatus,
   type QuickLeadRow,
-} from "@/domains/beta-ops/service";
+} from "@/domains/beta-ops/shared";
 import { BUTTON_CLASS_COMPACT, FIELD_CLASS } from "@/components/beta-waitlist/field-styles";
 
 const STATUS_LABEL: Record<LeadStatus, string> = {

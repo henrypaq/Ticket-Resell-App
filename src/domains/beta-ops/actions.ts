@@ -2,11 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { loginBetaOps, logoutBetaOps, requireBetaOpsSession } from "@/domains/beta-ops/auth";
-import {
-  LEAD_STATUSES,
-  updateQuickLead,
-  type LeadStatus,
-} from "@/domains/beta-ops/service";
+import { LEAD_STATUSES, type LeadStatus } from "@/domains/beta-ops/shared";
+import { updateQuickLead } from "@/domains/beta-ops/service";
 
 export type OpsLoginState = { error?: string };
 
