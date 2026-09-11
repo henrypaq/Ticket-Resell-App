@@ -24,8 +24,7 @@ export function GoDoneScreen({ intent }: { intent: "buy" | "sell" }) {
           Back to home
         </Link>
 
-        {/* Sit at the mobile viewport bottom after buy/sell completion. */}
-        <section className="mt-auto flex flex-col gap-4 rounded-[20px] border border-[#ffe500]/25 bg-[#ffe500]/08 px-5 py-5 pt-5">
+        <section className="mt-auto flex flex-col gap-4 rounded-[20px] border border-[#ffe500]/25 bg-[#ffe500]/08 px-5 py-5">
           <h2 className="headline text-[22px] uppercase leading-[1.15] tracking-tight text-ink sm:text-[24px]">
             Become a beta member
           </h2>
