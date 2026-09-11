@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
+  resumeBetaSignupByEmailAction,
   updateBetaContactAction,
   updateBetaNotificationPrefsAction,
   type BetaActionState,
@@ -11,7 +13,7 @@ import { COUNTRY_CODES, DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/countr
 import { formatPhoneNational } from "@/lib/phone-format";
 import { CountryCodeSelect } from "./country-code-select";
 import { Field } from "./field";
-import { BUTTON_CLASS_COMPACT, FIELD_CLASS, FIELD_GROUP_CLASS } from "./field-styles";
+import { BUTTON_CLASS, BUTTON_CLASS_COMPACT, FIELD_CLASS, FIELD_GROUP_CLASS } from "./field-styles";
 
 type Props = {
   profile: BetaSignupProfile | null;
@@ -32,12 +34,7 @@ type Prefs = Record<PrefKey, boolean>;
  */
 export function BetaNotisTab({ profile }: Props) {
   if (!profile) {
-    return (
-      <p className="text-[14px] leading-relaxed text-muted">
-        Rejoin the waitlist to manage notification preferences. (If you already signed up on
-        another device or cleared cookies, fill the form once more — same email is fine.)
-      </p>
-    );
+    return <ResumeProfileCard />;
   }
 
   return (
@@ -48,6 +45,64 @@ export function BetaNotisTab({ profile }: Props) {
         <p className="section-header mb-3 text-[12px] text-muted">Alerts</p>
         <PrefsForm profile={profile} />
       </div>
+    </div>
+  );
+}
+
+/** Recover prefs when the signup cookie is missing/stale (other device, cleared cookies). */
+function ResumeProfileCard() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!emailOk || pending) return;
+    setError(null);
+    start(async () => {
+      const result = await resumeBetaSignupByEmailAction(email.trim());
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      if (!result.resumed) {
+        setError("No beta member found for that email. Sign up from Events, or try another email.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-[14px] leading-relaxed text-muted">
+        Enter the email you used as a beta member to restore notification preferences on this
+        device.
+      </p>
+      <form onSubmit={onSubmit} className="flex flex-col gap-3">
+        <Field label="Email" htmlFor="resume-email">
+          <input
+            id="resume-email"
+            type="email"
+            required
+            placeholder="jane@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            className={FIELD_CLASS}
+          />
+        </Field>
+        {error && (
+          <p role="alert" className="text-[13.5px] text-urgency">
+            {error}
+          </p>
+        )}
+        <button type="submit" disabled={!emailOk || pending} className={BUTTON_CLASS}>
+          {pending ? "Looking up…" : "Restore my preferences"}
+        </button>
+      </form>
     </div>
   );
 }
@@ -151,7 +206,6 @@ function PrefsForm({ profile }: { profile: BetaSignupProfile }) {
 
       const result = await updateBetaNotificationPrefsAction({}, fd);
       if (result.error) {
-        // Roll the toggle back if the write failed.
         setPrefs(prefs);
         setState({ error: result.error });
         return;
@@ -275,12 +329,9 @@ function StatusLine({ state }: { state: BetaActionState }) {
 
 function splitPhone(e164: string): { country: string; national: string } {
   const digits = e164.replace(/\D/g, "");
-  // Longest matching dial code wins (avoid CA/US both claiming "1" awkwardly —
-  // we keep CA as default for +1).
   const sorted = [...COUNTRY_CODES].sort((a, b) => b.dial.length - a.dial.length);
   for (const c of sorted) {
     if (digits.startsWith(c.dial) && digits.length > c.dial.length) {
-      // Prefer CA over US when dial is 1
       if (c.dial === "1") {
         return { country: "CA", national: digits.slice(1) };
       }

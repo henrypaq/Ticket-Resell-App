@@ -118,6 +118,7 @@ export async function resumeBetaSignupByEmailAction(email: string): Promise<Beta
 
   await setSignupCookie(found.id);
   revalidatePath("/");
+  revalidatePath("/member");
   return { ok: true, resumed: true };
 }
 
@@ -168,10 +169,17 @@ export async function resetBetaSignupAction(): Promise<BetaActionState> {
   return { ok: true };
 }
 
+/**
+ * There's no account behind this flow, so "once you've signed up" is tracked
+ * with a cookie holding the `beta_members.id`. Not a session — just enough to
+ * load/update prefs without re-collecting PII on every visit.
+ *
+ * Only a real uuid that still resolves to a member counts as completed. A
+ * legacy `"1"` flag or a stale/deleted id must NOT open the empty shell.
+ */
 export async function hasCompletedBetaSignup(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const value = cookieStore.get(BETA_SIGNUP_COOKIE)?.value;
-  return Boolean(value);
+  const profile = await loadBetaProfile();
+  return profile !== null;
 }
 
 export async function getBetaSignupId(): Promise<string | null> {
