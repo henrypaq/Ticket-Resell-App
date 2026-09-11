@@ -18,7 +18,7 @@ export const ACQUISITION_LANDING = {
   /** Plain printable QR. */
   qr_print: "https://mcgilltickets.party/?src=qr_print",
   /** Instagram bio — clean URL, no query. */
-  ig_bio: "https://mcgilltickets.party",
+  ig_bio: "https://mcgilltickets.party/go",
 } as const;
 
 export function parseAcquisitionSrc(src: string | null | undefined): AcquisitionChannel {

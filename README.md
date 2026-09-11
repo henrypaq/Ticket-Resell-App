@@ -43,6 +43,9 @@ npm test                   # compliance unit tests
 | `ENABLE_DEMO_LOGIN` | **server only** — set to `true` to show the demo sign-in button |
 | `DEMO_LOGIN_EMAIL` | account the demo button signs into (default `demo@passe.local`) |
 | `CRON_SECRET` | **server only** — authorizes the Tier B auto-release cron endpoint; see § Tiered verification |
+| `RESEND_API_KEY` | **server only** — Resend API key for admin waitlist/sell alert emails |
+| `RESEND_FROM_EMAIL` | **server only** — optional From header (default `mcgill.tickets alerts <onboarding@resend.dev>`) |
+| `ADMIN_ALERT_EMAIL` | **server only** — comma-separated admin inboxes (default `wrymage@gmail.com`) |
 
 The `NEXT_PUBLIC_*` pair aliases the original `SUPABASE_PROJECT_URL` /
 `SUPABASE_PUBLISHABLE_KEY` values; Next.js only exposes prefixed variables to

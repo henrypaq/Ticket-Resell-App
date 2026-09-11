@@ -60,11 +60,11 @@ type Step = {
 
 const STEPS: Step[] = [
   // Email alone is enough to Continue — returning visitors resume that way;
-  // new signups still need a name (phone is optional).
+  // new signups still need a name (phone is optional). Skip is never shown here.
   { id: "identity", isComplete: (a) => isValidEmail(a.email) },
   { id: "intent", isComplete: (a) => a.intent !== "" },
   { id: "interestedEvents", isComplete: () => true },
-  { id: "priority", isComplete: (a) => a.priority !== "" },
+  { id: "priority", isComplete: () => true },
   { id: "school", isComplete: () => true },
   { id: "referralSource", isComplete: () => true },
   { id: "consent", isComplete: () => true },
@@ -153,6 +153,18 @@ export function WaitlistFlow({ showDevSkip = false }: { showDevSkip?: boolean })
 
   function back() {
     setStep((s) => Math.max(s - 1, 0));
+  }
+
+  /** Skip this question (every step except identity). Last step submits. */
+  function skipStep(form: HTMLFormElement | null) {
+    if (current.id === "identity" || tapGuard || pending) return;
+    if (isLast) {
+      form?.requestSubmit();
+      return;
+    }
+    setTapGuard(true);
+    setTimeout(() => setTapGuard(false), 400);
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }
 
   function toggleEvent(value: string) {
@@ -262,7 +274,17 @@ export function WaitlistFlow({ showDevSkip = false }: { showDevSkip?: boolean })
           </p>
         )}
 
-        <div className="mt-6 flex justify-end pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="mt-6 flex items-center justify-end gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {current.id !== "identity" && (
+            <button
+              type="button"
+              onClick={(e) => skipStep(e.currentTarget.form)}
+              disabled={tapGuard || pending}
+              className="flex min-h-[52px] items-center justify-center rounded-[14px] border border-white/15 px-6 text-[15px] font-semibold text-muted transition-colors hover:border-white/25 hover:text-ink disabled:opacity-50"
+            >
+              Skip
+            </button>
+          )}
           {isLast ? (
             <button
               type="submit"
@@ -298,7 +320,7 @@ function HiddenFields({ answers, exclude }: { answers: Answers; exclude: Step["i
           <input type="hidden" name="phone" value={composePhone(answers)} />
         </>
       )}
-      {exclude !== "intent" && <input type="hidden" name="intent" value={answers.intent} />}
+      {exclude !== "intent" && <input type="hidden" name="intent" value={answers.intent || "both"} />}
       {exclude !== "interestedEvents" &&
         answers.interestedEvents.map((v) => (
           <input key={v} type="hidden" name="interestedEvents" value={v} />
@@ -306,7 +328,9 @@ function HiddenFields({ answers, exclude }: { answers: Answers; exclude: Step["i
       {exclude !== "interestedEvents" && (
         <input type="hidden" name="interestedOther" value={answers.interestedOther} />
       )}
-      {exclude !== "priority" && <input type="hidden" name="priority" value={answers.priority} />}
+      {exclude !== "priority" && (
+        <input type="hidden" name="priority" value={answers.priority || "both"} />
+      )}
       {exclude !== "school" && <input type="hidden" name="school" value={answers.school} />}
       {exclude !== "referralSource" && (
         <input type="hidden" name="referralSource" value={answers.referralSource} />

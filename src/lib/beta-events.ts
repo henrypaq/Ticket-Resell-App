@@ -87,11 +87,19 @@ export function betaEventBySlug(slug: string): BetaEvent | undefined {
   return BETA_EVENTS.find((e) => e.slug === slug);
 }
 
-/** Today's weekday name in `BETA_WEEKDAYS` order, e.g. "Thursday". */
+/** Today's weekday name in Montreal time, e.g. "Thursday". */
 export function currentBetaWeekday(from: Date = new Date()): BetaWeekday {
-  return (
-    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
-  )[from.getDay()] as BetaWeekday;
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Toronto",
+    weekday: "long",
+  }).format(from);
+  return weekday as BetaWeekday;
+}
+
+/** Supported events happening tonight (Montreal calendar day). */
+export function tonightBetaEvents(from: Date = new Date()): BetaEvent[] {
+  const day = currentBetaWeekday(from);
+  return supportedBetaEvents().filter((e) => e.days.includes(day));
 }
 
 /** Section label: "Today" when the day matches the calendar, else the weekday. */
@@ -99,15 +107,27 @@ export function betaDaySectionLabel(day: BetaWeekday, from: Date = new Date()): 
   return day === currentBetaWeekday(from) ? "Today" : day;
 }
 
-/** Next calendar date for a weekday name, including today if it matches. */
+/** Next calendar date for a weekday name (Montreal time), including today if it matches. */
 export function nextDateForWeekday(day: BetaWeekday, from: Date = new Date()): Date {
   const target = (
     ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
   ).indexOf(day);
-  const d = new Date(from);
-  d.setHours(12, 0, 0, 0);
-  const delta = (target - d.getDay() + 7) % 7;
-  d.setDate(d.getDate() + delta);
+  // Anchor "today" in America/Toronto so Vercel UTC doesn't shift the night.
+  const montrealParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(from);
+  const y = Number(montrealParts.find((p) => p.type === "year")?.value);
+  const m = Number(montrealParts.find((p) => p.type === "month")?.value);
+  const dNum = Number(montrealParts.find((p) => p.type === "day")?.value);
+  const d = new Date(Date.UTC(y, m - 1, dNum, 17, 0, 0)); // noon-ish Montreal ≈ 17:00 UTC
+  const todayWeekday = (
+    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const
+  ).indexOf(currentBetaWeekday(from));
+  const delta = (target - todayWeekday + 7) % 7;
+  d.setUTCDate(d.getUTCDate() + delta);
   return d;
 }
 

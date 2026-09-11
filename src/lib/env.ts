@@ -89,3 +89,71 @@ export function stripeWebhookSecret(): string {
 export function cronSecret(): string | null {
   return process.env.CRON_SECRET || null;
 }
+
+/**
+ * Resend email (admin alerts for beta waitlist / sell interest).
+ * Inert until `RESEND_API_KEY` is set — missing config must not break saves.
+ */
+export function resendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY);
+}
+
+export function resendApiKey(): string {
+  return required("RESEND_API_KEY", process.env.RESEND_API_KEY);
+}
+
+/**
+ * From address. Until you verify a domain in Resend, use their test sender:
+ * `McGill Tickets <onboarding@resend.dev>` (can only deliver to your Resend
+ * account email). After verifying mcgilltickets.party, set e.g.
+ * `mcgill.tickets alerts <alerts@mcgilltickets.party>`.
+ */
+export function resendFromEmail(): string {
+  return (
+    process.env.RESEND_FROM_EMAIL ||
+    "mcgill.tickets alerts <onboarding@resend.dev>"
+  );
+}
+
+/** Comma-separated admin inboxes for beta interest alerts. */
+export function adminAlertEmails(): string[] {
+  const raw = process.env.ADMIN_ALERT_EMAIL ?? "wrymage@gmail.com";
+  return raw
+    .split(",")
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0);
+}
+
+/**
+ * Twilio SMS — optional later; admin alerts currently go through Resend email.
+ */
+export function twilioConfigured(): boolean {
+  return Boolean(
+    process.env.TWILIO_ACCOUNT_SID &&
+      process.env.TWILIO_AUTH_TOKEN &&
+      process.env.TWILIO_FROM_NUMBER &&
+      process.env.ADMIN_SMS_TO,
+  );
+}
+
+export function twilioAccountSid(): string {
+  return required("TWILIO_ACCOUNT_SID", process.env.TWILIO_ACCOUNT_SID);
+}
+
+export function twilioAuthToken(): string {
+  return required("TWILIO_AUTH_TOKEN", process.env.TWILIO_AUTH_TOKEN);
+}
+
+/** E.164 Twilio number or Messaging Service sender, e.g. +15145551234. */
+export function twilioFromNumber(): string {
+  return required("TWILIO_FROM_NUMBER", process.env.TWILIO_FROM_NUMBER);
+}
+
+/** Comma-separated E.164 admin phones that receive beta interest alerts. */
+export function adminSmsRecipients(): string[] {
+  const raw = process.env.ADMIN_SMS_TO ?? "";
+  return raw
+    .split(",")
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0);
+}

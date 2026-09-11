@@ -244,6 +244,7 @@ export async function setBetaEventInterestAction(
     active: formData.get("active") === "1",
     contactPhone: formData.get("contactPhone") || "",
     contactInstagram: formData.get("contactInstagram") || "",
+    sellerTermsAccepted: formData.get("sellerTermsAccepted") === "1",
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid request." };

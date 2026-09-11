@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   getWaitlistPositionAction,
   setBetaEventInterestAction,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/beta-events";
 import { DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/country-codes";
 import { SERVICE_FEE_CAD, SERVICE_FEE_LABEL } from "@/lib/compliance/fees";
+import { SELLER_TERMS_PATH } from "@/lib/compliance/seller-terms";
 import { formatCad } from "@/lib/format";
 import { formatPhoneNational } from "@/lib/phone-format";
 import { ArrowLeft, CheckIcon } from "@/components/icons";
@@ -453,7 +455,7 @@ function EventDetailView({
             defaultPhone={profilePhone}
             pending={pending}
             onCancel={() => setShowSellForm(false)}
-            onSubmit={(phone, instagram) => {
+            onSubmit={(phone, instagram, termsAccepted) => {
               setError(null);
               startTransition(async () => {
                 const fd = new FormData();
@@ -462,6 +464,7 @@ function EventDetailView({
                 fd.set("active", "1");
                 fd.set("contactPhone", phone);
                 fd.set("contactInstagram", instagram);
+                if (termsAccepted) fd.set("sellerTermsAccepted", "1");
                 const result: BetaActionState = await setBetaEventInterestAction({}, fd);
                 if (result.error) {
                   setError(result.error);
@@ -515,19 +518,20 @@ function SellContactForm({
   defaultPhone: string;
   pending: boolean;
   onCancel: () => void;
-  onSubmit: (phone: string, instagram: string) => void;
+  onSubmit: (phone: string, instagram: string, termsAccepted: boolean) => void;
 }) {
   const parsed = splitPhone(defaultPhone);
   const [country, setCountry] = useState(parsed.country);
   const [national, setNational] = useState(parsed.national);
   const [instagram, setInstagram] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const dial = countryByIso2(country).dial;
   const digits = national.replace(/\D/g, "");
   const composedPhone = digits ? `+${dial}${digits}` : "";
   const phoneOk = digits.length >= 7;
   const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
-  const canSubmit = (phoneOk || igOk) && !pending;
+  const canSubmit = (phoneOk || igOk) && termsAccepted && !pending;
 
   return (
     <div className="flex flex-col gap-3 rounded-[18px] bg-white/[0.06] p-4">
@@ -563,11 +567,34 @@ function SellContactForm({
           />
         </div>
       </Field>
+      <label className="flex cursor-pointer items-start gap-3 pt-1">
+        <input
+          type="checkbox"
+          checked={termsAccepted}
+          onChange={(e) => setTermsAccepted(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#6ee1ff]"
+        />
+        <span className="text-[12.5px] leading-relaxed text-muted">
+          I agree to the{" "}
+          <Link
+            href={SELLER_TERMS_PATH}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-ink underline decoration-dotted underline-offset-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            seller terms
+          </Link>{" "}
+          (no fakes, follow through on sales).
+        </span>
+      </label>
       <div className="mt-1 flex gap-2">
         <button
           type="button"
           disabled={!canSubmit}
-          onClick={() => onSubmit(composedPhone, instagram.replace(/^@+/, "").trim())}
+          onClick={() =>
+            onSubmit(composedPhone, instagram.replace(/^@+/, "").trim(), termsAccepted)
+          }
           className={`flex-1 ${BUTTON_CLASS}`}
         >
           {pending ? "Saving…" : "Confirm"}

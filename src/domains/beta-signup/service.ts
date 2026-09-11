@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { notifyAdminsOfBetaInterest } from "@/domains/admin-alerts/service";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { INTEREST_OPTIONS } from "@/lib/beta-events";
@@ -35,10 +36,18 @@ export const betaSignupSchema = z.object({
       "Enter a valid phone number.",
     )
     .default(""),
-  intent: z.enum(["buy", "sell", "both"], { message: "Choose an option." }),
+  // Empty string from a skipped step — treat as unset, then default to "both".
+  intent: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : v),
+    z.enum(["buy", "sell", "both"]).default("both"),
+  ),
   interestedEvents: z.array(z.string().trim().min(1)).max(10).default([]),
   interestedOther: z.string().trim().max(120).optional(),
-  priority: z.enum(["speed", "profit", "both"], { message: "Choose an option." }),
+  // Empty string from a skipped step — treat as unset, then default to "both".
+  priority: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : v),
+    z.enum(["speed", "profit", "both"]).default("both"),
+  ),
   school: z.string().trim().max(160).optional(),
   referralSource: z.string().trim().max(160).optional(),
   notifyOptIn: z.boolean().default(false),
@@ -97,9 +106,18 @@ export const eventInterestSchema = z
       .transform((value) => value.replace(/^@+/, "").replace(/\s+/g, ""))
       .optional()
       .default(""),
+    /** Required only when activating sell interest — see seller-terms. */
+    sellerTermsAccepted: z.boolean().optional().default(false),
   })
   .superRefine((value, ctx) => {
     if (value.intent !== "sell" || !value.active) return;
+    if (!value.sellerTermsAccepted) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Confirm the seller terms before we contact you.",
+        path: ["sellerTermsAccepted"],
+      });
+    }
     const phoneOk = (value.contactPhone ?? "").replace(/\D/g, "").length >= 7;
     const igOk = (value.contactInstagram ?? "").length >= 2;
     if (!phoneOk && !igOk) {
@@ -343,20 +361,45 @@ export async function setBetaEventInterest(
       ignoreDuplicates: false,
     });
     if (error) return { ok: false, error: "Couldn't save that. Try again." };
-  } else {
-    const { error } = await admin
-      .from("beta_event_interests")
-      .delete()
-      .eq("signup_id", signupId)
-      .eq("event_slug", input.eventSlug)
-      .eq("intent", input.intent);
-    if (error) return { ok: false, error: "Couldn't update that. Try again." };
+
+    let waitlistPosition: number | undefined;
+    if (input.intent === "waitlist") {
+      waitlistPosition = (await getWaitlistPosition(signupId, input.eventSlug)) ?? undefined;
+    }
+
+    // Admin email — never block the user on Resend failures.
+    void notifyAdminsOfBetaInterest({
+      signupId,
+      eventSlug: input.eventSlug,
+      intent: input.intent,
+      contactPhone: input.contactPhone || undefined,
+      contactInstagram: input.contactInstagram || undefined,
+      waitlistPosition,
+    }).catch((err) => {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "admin_email_unexpected",
+          error: String(err),
+          intent: input.intent,
+          eventSlug: input.eventSlug,
+        }),
+      );
+    });
+
+    if (input.intent === "waitlist") {
+      return { ok: true, waitlistPosition };
+    }
+    return { ok: true };
   }
 
-  if (input.intent === "waitlist" && input.active) {
-    const position = await getWaitlistPosition(signupId, input.eventSlug);
-    return { ok: true, waitlistPosition: position ?? undefined };
-  }
+  const { error } = await admin
+    .from("beta_event_interests")
+    .delete()
+    .eq("signup_id", signupId)
+    .eq("event_slug", input.eventSlug)
+    .eq("intent", input.intent);
+  if (error) return { ok: false, error: "Couldn't update that. Try again." };
 
   return { ok: true };
 }

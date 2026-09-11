@@ -35,8 +35,10 @@ export default async function proxy(request: NextRequest) {
 
   await supabase.auth.getUser();
 
-  // First-touch only, landing page only. Bare `/` → ig_bio; `?src=qr_*` → that.
-  if (request.nextUrl.pathname === "/") {
+  // First-touch only. Bare `/` or `/go` → ig_bio; `?src=qr_*` → that.
+  // `/go` is the Instagram-bio quick flow; `/` remains the long waitlist.
+  const path = request.nextUrl.pathname;
+  if (path === "/" || path === "/go") {
     const existing = request.cookies.get(BETA_ACQUISITION_COOKIE)?.value;
     if (!isAcquisitionChannel(existing)) {
       response.cookies.set(
