@@ -9,6 +9,9 @@ export type QuickLeadRow = {
   quantity: number;
   contactPhone: string | null;
   contactInstagram: string | null;
+  transferFirstName: string | null;
+  transferLastName: string | null;
+  transferEmail: string | null;
   paidEach: number | null;
   askEach: number | null;
   ticketShareUrl: string | null;

@@ -12,12 +12,15 @@ import {
 import {
   getGoContactActivity,
   getQuickWaitlistEntries,
+  leaveWaitlistLead,
   listBuyLeadIdsForContact,
   quickBuySchema,
   quickSellSchema,
   submitQuickBuy,
   submitQuickSell,
+  updateWaitlistLead,
 } from "@/domains/beta-quick/service";
+import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
 import {
   BETA_ACQUISITION_COOKIE,
   isAcquisitionChannel,
@@ -71,13 +74,27 @@ async function appendQuickSellerCookie(leadId: string): Promise<void> {
   jar.set(QUICK_SELLER_COOKIE, ids.slice(-20).join(","), COOKIE_BASE);
 }
 
-export async function loadQuickWaitlistForHub(): Promise<QuickWaitlistEntry[]> {
+async function readBuyerLeadIds(): Promise<string[]> {
   const jar = await cookies();
   const raw = jar.get(QUICK_BUYER_COOKIE)?.value ?? "";
-  const fromCookie = raw
+  return raw
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+async function removeBuyerLeadId(leadId: string): Promise<void> {
+  const jar = await cookies();
+  const ids = (await readBuyerLeadIds()).filter((id) => id !== leadId);
+  if (ids.length === 0) {
+    jar.delete(QUICK_BUYER_COOKIE);
+  } else {
+    jar.set(QUICK_BUYER_COOKIE, ids.join(","), COOKIE_BASE);
+  }
+}
+
+export async function loadQuickWaitlistForHub(): Promise<QuickWaitlistEntry[]> {
+  const fromCookie = await readBuyerLeadIds();
   const contactId = await readGoContactId();
   const fromContact = contactId ? await listBuyLeadIdsForContact(contactId) : [];
   const ids = [...new Set([...fromCookie, ...fromContact])].slice(0, 20);
@@ -97,6 +114,39 @@ export async function loadSavedGoContact(): Promise<GoContactProfile | null> {
   return getGoContactById(id);
 }
 
+export async function updateWaitlistLeadAction(
+  _prev: QuickActionState,
+  formData: FormData,
+): Promise<QuickActionState> {
+  const leadId = String(formData.get("leadId") ?? "");
+  const quantity = Number(formData.get("quantity") ?? 1);
+  const result = await updateWaitlistLead({
+    leadId,
+    contactId: await readGoContactId(),
+    allowedLeadIds: await readBuyerLeadIds(),
+    quantity: Number.isFinite(quantity) ? quantity : 1,
+    contactPhone: String(formData.get("contactPhone") ?? ""),
+    contactInstagram: String(formData.get("contactInstagram") ?? ""),
+  });
+  if (!result.ok) return { error: result.error };
+  await appendQuickBuyerCookie(result.id);
+  if (result.contactId) await setGoContactCookie(result.contactId);
+  return { ok: true };
+}
+
+export async function leaveWaitlistLeadAction(
+  leadId: string,
+): Promise<QuickActionState> {
+  const result = await leaveWaitlistLead({
+    leadId,
+    contactId: await readGoContactId(),
+    allowedLeadIds: await readBuyerLeadIds(),
+  });
+  if (!result.ok) return { error: result.error };
+  await removeBuyerLeadId(leadId);
+  return { ok: true };
+}
+
 export async function submitQuickBuyAction(
   _prev: QuickActionState,
   formData: FormData,
@@ -106,10 +156,16 @@ export async function submitQuickBuyAction(
     quantity: formData.get("quantity"),
     contactPhone: formData.get("contactPhone") || "",
     contactInstagram: formData.get("contactInstagram") || "",
+    transferFirstName: formData.get("transferFirstName") || "",
+    transferLastName: formData.get("transferLastName") || "",
+    transferEmail: formData.get("transferEmail") || "",
     acquisitionChannel: await readAcquisitionChannel(),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check your answers and try again." };
+  }
+  if (parsed.data.quantity > QUICK_MAX_TICKETS) {
+    return { error: `Max ${QUICK_MAX_TICKETS} tickets.` };
   }
   const result = await submitQuickBuy({
     ...parsed.data,

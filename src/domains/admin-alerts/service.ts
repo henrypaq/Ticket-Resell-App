@@ -31,6 +31,9 @@ export type QuickLeadAlertInput = {
   quantity: number;
   contactPhone?: string;
   contactInstagram?: string;
+  transferFirstName?: string;
+  transferLastName?: string;
+  transferEmail?: string;
   paidEach?: number;
   askEach?: number;
   ticketShareUrl?: string;
@@ -119,6 +122,9 @@ export async function notifyAdminsOfQuickLead(input: QuickLeadAlertInput): Promi
     quantity: input.quantity,
     contactPhone: input.contactPhone,
     contactInstagram: input.contactInstagram,
+    transferFirstName: input.transferFirstName,
+    transferLastName: input.transferLastName,
+    transferEmail: input.transferEmail,
     paidEach: input.paidEach,
     askEach: input.askEach,
     ticketShareUrl: input.ticketShareUrl,

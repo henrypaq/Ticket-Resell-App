@@ -46,6 +46,9 @@ function mapLead(row: Record<string, unknown>): QuickLeadRow {
     quantity: Number(row.quantity),
     contactPhone: (row.contact_phone as string | null) ?? null,
     contactInstagram: (row.contact_instagram as string | null) ?? null,
+    transferFirstName: (row.transfer_first_name as string | null) ?? null,
+    transferLastName: (row.transfer_last_name as string | null) ?? null,
+    transferEmail: (row.transfer_email as string | null) ?? null,
     paidEach: row.paid_each != null ? Number(row.paid_each) : null,
     askEach: row.ask_each != null ? Number(row.ask_each) : null,
     ticketShareUrl: (row.ticket_share_url as string | null) ?? null,
@@ -286,11 +289,15 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
     const seats = seatsByEvent.get(lead.eventSlug) ?? [];
     const fake = fakeFronts.get(lead.eventSlug) ?? defaultFakeFront(lead.eventSlug);
     const pos = positionInSeats(seats, (s) => s.source === "go" && s.id === lead.id, fake);
+    const transferName = [lead.transferFirstName, lead.transferLastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
     return {
       id: lead.id,
       source: "go" as const,
-      name: null,
-      email: null,
+      name: transferName || null,
+      email: lead.transferEmail,
       eventSlug: lead.eventSlug,
       eventName: lead.eventName,
       eventDays: eventDaysForSlug(lead.eventSlug),

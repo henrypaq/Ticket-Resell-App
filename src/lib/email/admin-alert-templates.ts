@@ -124,6 +124,9 @@ export type QuickLeadEmailData = {
   quantity: number;
   contactPhone?: string;
   contactInstagram?: string;
+  transferFirstName?: string;
+  transferLastName?: string;
+  transferEmail?: string;
   paidEach?: number;
   askEach?: number;
   ticketShareUrl?: string;
@@ -150,6 +153,11 @@ export function quickLeadEmailText(data: QuickLeadEmailData): string {
     `WhatsApp: ${data.contactPhone || "—"}`,
     `Instagram: ${data.contactInstagram ? `@${data.contactInstagram}` : "—"}`,
   ];
+  if (data.intent === "buy" && (data.transferFirstName || data.transferLastName || data.transferEmail)) {
+    const name = [data.transferFirstName, data.transferLastName].filter(Boolean).join(" ");
+    lines.push(`Transfer name: ${name || "—"}`);
+    lines.push(`Transfer email: ${data.transferEmail || "—"}`);
+  }
   if (data.intent === "sell") {
     lines.push(`Paid: $${(data.paidEach ?? 0).toFixed(2)} each`);
     lines.push(`Asking: $${(data.askEach ?? 0).toFixed(2)} each`);
@@ -178,6 +186,11 @@ export function quickLeadEmailHtml(data: QuickLeadEmailData): string {
       value: data.contactInstagram ? `@${escapeHtml(data.contactInstagram)}` : "—",
     },
   ];
+  if (data.intent === "buy" && (data.transferFirstName || data.transferLastName || data.transferEmail)) {
+    const name = [data.transferFirstName, data.transferLastName].filter(Boolean).join(" ");
+    rows.push({ label: "Transfer name", value: escapeHtml(name || "—") });
+    rows.push({ label: "Transfer email", value: escapeHtml(data.transferEmail || "—") });
+  }
   if (data.intent === "sell") {
     rows.push({ label: "Paid", value: `$${(data.paidEach ?? 0).toFixed(2)} each` });
     rows.push({ label: "Asking", value: `$${(data.askEach ?? 0).toFixed(2)} each` });

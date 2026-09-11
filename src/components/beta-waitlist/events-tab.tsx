@@ -168,7 +168,9 @@ function QuickIntentActions() {
     const selected = options.find((o) => o.key === choice) ?? options[0];
     if (!selected || !intent) return;
     const path = intent === "buy" ? "/go/buy" : "/go/sell";
-    router.push(`${path}?event=${encodeURIComponent(selected.slug)}`);
+    router.push(
+      `${path}?event=${encodeURIComponent(selected.slug)}&from=member`,
+    );
   }
 
   return (
@@ -473,8 +475,24 @@ function EventDetailView({
       </div>
 
       <div className="flex flex-col gap-3">
+        <p className="section-header text-[11px] text-muted">What do you need?</p>
+        <Link
+          href={`/go/buy?event=${encodeURIComponent(event.slug)}&from=member`}
+          className={`${BUTTON_CLASS} min-h-[52px]`}
+        >
+          I need a ticket
+        </Link>
+        <Link
+          href={`/go/sell?event=${encodeURIComponent(event.slug)}&from=member`}
+          className="flex min-h-[52px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[15px] font-bold text-ink transition-colors hover:bg-white/[0.1]"
+        >
+          I have a ticket to sell
+        </Link>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-hairline pt-6">
         <InterestButton
-          label={waitlisted ? "On the waitlist" : "Join waitlist"}
+          label={waitlisted ? "On the waitlist" : "Join waitlist (alerts)"}
           active={waitlisted}
           pending={pending}
           onClick={toggleWaitlist}
@@ -538,21 +556,7 @@ function EventDetailView({
               });
             }}
           />
-        ) : (
-          <InterestButton
-            label="I have a ticket to sell"
-            active={false}
-            pending={pending}
-            onClick={() => {
-              if (!canSave) {
-                setError("Rejoin the waitlist so we can save your preferences.");
-                return;
-              }
-              setShowSellForm(true);
-              setError(null);
-            }}
-          />
-        )}
+        ) : null}
       </div>
 
       {error && (

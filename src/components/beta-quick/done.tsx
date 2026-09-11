@@ -16,7 +16,14 @@ export function GoDoneScreen({ intent }: { intent: "buy" | "sell" }) {
       <h1 className="headline mt-6 text-[30px] leading-tight">{headline}</h1>
       <p className="mt-3 text-[15px] leading-relaxed text-muted">{sub}</p>
 
-      <section className="mt-10 flex flex-col gap-4 rounded-[20px] border border-[#ffe500]/25 bg-[#ffe500]/08 px-5 py-5">
+      <Link
+        href="/go"
+        className="mt-10 flex min-h-[52px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[15px] font-semibold text-ink"
+      >
+        Back to home
+      </Link>
+
+      <section className="mt-4 flex flex-col gap-4 rounded-[20px] border border-[#ffe500]/25 bg-[#ffe500]/08 px-5 py-5">
         <h2 className="headline text-[22px] uppercase leading-[1.15] tracking-tight text-ink sm:text-[24px]">
           Become a beta member
         </h2>
@@ -28,13 +35,6 @@ export function GoDoneScreen({ intent }: { intent: "buy" | "sell" }) {
           Join as a beta member
         </Link>
       </section>
-
-      <Link
-        href="/go"
-        className="mt-4 flex min-h-[52px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[15px] font-semibold text-ink"
-      >
-        Back to home
-      </Link>
     </QuickShell>
   );
 }

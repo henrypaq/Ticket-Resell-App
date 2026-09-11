@@ -13,8 +13,10 @@ import { betaEventBySlug } from "@/lib/beta-events";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateTicketEvidenceFile, encodeEvidencePaths } from "@/lib/verification/ticket-evidence";
 import type { QuickWaitlistEntry, GoActivityEntry } from "./shared";
+import { QUICK_MAX_TICKETS } from "./shared";
 
 export type { QuickWaitlistEntry, GoActivityEntry } from "./shared";
+export { QUICK_MAX_TICKETS } from "./shared";
 
 const contactRefine = (
   value: { contactPhone?: string; contactInstagram?: string },
@@ -34,7 +36,7 @@ const contactRefine = (
 export const quickBuySchema = z
   .object({
     eventSlug: z.string().trim().min(1).max(80),
-    quantity: z.coerce.number().int().min(1).max(20),
+    quantity: z.coerce.number().int().min(1).max(QUICK_MAX_TICKETS),
     contactPhone: z.string().trim().max(30).optional().default(""),
     contactInstagram: z
       .string()
@@ -43,6 +45,16 @@ export const quickBuySchema = z
       .transform((v) => v.replace(/^@+/, "").replace(/\s+/g, ""))
       .optional()
       .default(""),
+    /** Café Campus ticket-transfer recipient — required only for that event. */
+    transferFirstName: z.string().trim().max(80).optional().default(""),
+    transferLastName: z.string().trim().max(80).optional().default(""),
+    transferEmail: z
+      .string()
+      .trim()
+      .max(320)
+      .optional()
+      .default("")
+      .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid email."),
     acquisitionChannel: z.enum(ACQUISITION_CHANNELS).optional(),
   })
   .superRefine(contactRefine)
@@ -50,12 +62,35 @@ export const quickBuySchema = z
     if (!betaEventBySlug(value.eventSlug)?.supported) {
       ctx.addIssue({ code: "custom", message: "Pick a supported event.", path: ["eventSlug"] });
     }
+    if (value.eventSlug === "cafe-campus") {
+      if (!value.transferFirstName.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Enter your first name for the Café Campus ticket transfer.",
+          path: ["transferFirstName"],
+        });
+      }
+      if (!value.transferLastName.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Enter your last name for the Café Campus ticket transfer.",
+          path: ["transferLastName"],
+        });
+      }
+      if (!value.transferEmail.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Enter your email for the Café Campus ticket transfer.",
+          path: ["transferEmail"],
+        });
+      }
+    }
   });
 
 export const quickSellSchema = z
   .object({
     eventSlug: z.string().trim().min(1).max(80),
-    quantity: z.coerce.number().int().min(1).max(20),
+    quantity: z.coerce.number().int().min(1).max(QUICK_MAX_TICKETS),
     paidEach: z.coerce.number().min(0).max(5000),
     askEach: z.coerce.number().min(0).max(5000),
     contactPhone: z.string().trim().max(30).optional().default(""),
@@ -130,6 +165,50 @@ export async function submitQuickBuy(
   const ig = (input.contactInstagram || "").trim() || contactResult.contact.contactInstagram;
 
   const admin = createAdminClient();
+
+  // Same contact + event → update the open waitlist row instead of duplicating.
+  const { data: existing } = await admin
+    .from("beta_go_leads")
+    .select("id, status")
+    .eq("intent", "buy")
+    .eq("contact_id", contactId)
+    .eq("event_slug", input.eventSlug)
+    .neq("status", "cancelled")
+    .neq("status", "done")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const transferFirstName =
+    input.eventSlug === "cafe-campus" ? input.transferFirstName.trim() : "";
+  const transferLastName =
+    input.eventSlug === "cafe-campus" ? input.transferLastName.trim() : "";
+  const transferEmail =
+    input.eventSlug === "cafe-campus" ? input.transferEmail.trim().toLowerCase() : "";
+
+  if (existing?.id) {
+    const { error: updateError } = await admin
+      .from("beta_go_leads")
+      .update({
+        quantity: input.quantity,
+        contact_phone: phone || null,
+        contact_instagram: ig || null,
+        transfer_first_name: transferFirstName || null,
+        transfer_last_name: transferLastName || null,
+        transfer_email: transferEmail || null,
+        member_id: memberId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+    if (updateError) {
+      console.warn(
+        JSON.stringify({ level: "warn", msg: "quick_buy_update_failed", error: updateError }),
+      );
+      return { ok: false, error: "Couldn't update your waitlist. Try again in a moment." };
+    }
+    return { ok: true, id: existing.id, contactId };
+  }
+
   const { data, error } = await admin
     .from("beta_go_leads")
     .insert({
@@ -138,6 +217,9 @@ export async function submitQuickBuy(
       quantity: input.quantity,
       contact_phone: phone || null,
       contact_instagram: ig || null,
+      transfer_first_name: transferFirstName || null,
+      transfer_last_name: transferLastName || null,
+      transfer_email: transferEmail || null,
       acquisition_channel: input.acquisitionChannel ?? null,
       contact_id: contactId,
       member_id: memberId,
@@ -157,9 +239,111 @@ export async function submitQuickBuy(
     quantity: input.quantity,
     contactPhone: phone ?? undefined,
     contactInstagram: ig ?? undefined,
+    transferFirstName: transferFirstName || undefined,
+    transferLastName: transferLastName || undefined,
+    transferEmail: transferEmail || undefined,
   }).catch(() => {});
 
   return { ok: true, id: data.id, contactId };
+}
+
+export async function updateWaitlistLead(input: {
+  leadId: string;
+  contactId: string | null;
+  allowedLeadIds: string[];
+  quantity: number;
+  contactPhone?: string;
+  contactInstagram?: string;
+}): Promise<QuickLeadResult> {
+  if (!/^[0-9a-f-]{36}$/i.test(input.leadId)) {
+    return { ok: false, error: "Invalid waitlist entry." };
+  }
+  const qty = Math.min(QUICK_MAX_TICKETS, Math.max(1, Math.floor(input.quantity)));
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("beta_go_leads")
+    .select("id, intent, status, contact_id")
+    .eq("id", input.leadId)
+    .maybeSingle();
+
+  if (!row || row.intent !== "buy") {
+    return { ok: false, error: "Waitlist entry not found." };
+  }
+  if (row.status === "cancelled" || row.status === "done") {
+    return { ok: false, error: "That waitlist entry can’t be edited anymore." };
+  }
+
+  const ownsByContact = Boolean(input.contactId && row.contact_id === input.contactId);
+  const ownsByCookie = input.allowedLeadIds.includes(row.id);
+  if (!ownsByContact && !ownsByCookie) {
+    return { ok: false, error: "You can only edit your own waitlist." };
+  }
+
+  const contactResult = await upsertGoContact({
+    contactPhone: input.contactPhone,
+    contactInstagram: input.contactInstagram,
+    existingContactId: input.contactId ?? (row.contact_id as string | null),
+  });
+  if (!contactResult.ok) return { ok: false, error: contactResult.error };
+
+  const phone =
+    (input.contactPhone || "").trim() || contactResult.contact.contactPhone;
+  const ig =
+    (input.contactInstagram || "").trim() || contactResult.contact.contactInstagram;
+
+  const { error } = await admin
+    .from("beta_go_leads")
+    .update({
+      quantity: qty,
+      contact_phone: phone || null,
+      contact_instagram: ig || null,
+      contact_id: contactResult.contact.id,
+      member_id: contactResult.contact.memberId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.leadId);
+
+  if (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "waitlist_update_failed", error }));
+    return { ok: false, error: "Couldn't save those changes." };
+  }
+  return { ok: true, id: input.leadId, contactId: contactResult.contact.id };
+}
+
+export async function leaveWaitlistLead(input: {
+  leadId: string;
+  contactId: string | null;
+  allowedLeadIds: string[];
+}): Promise<QuickLeadResult> {
+  if (!/^[0-9a-f-]{36}$/i.test(input.leadId)) {
+    return { ok: false, error: "Invalid waitlist entry." };
+  }
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("beta_go_leads")
+    .select("id, intent, status, contact_id")
+    .eq("id", input.leadId)
+    .maybeSingle();
+
+  if (!row || row.intent !== "buy") {
+    return { ok: false, error: "Waitlist entry not found." };
+  }
+  const ownsByContact = Boolean(input.contactId && row.contact_id === input.contactId);
+  const ownsByCookie = input.allowedLeadIds.includes(row.id);
+  if (!ownsByContact && !ownsByCookie) {
+    return { ok: false, error: "You can only leave your own waitlist." };
+  }
+
+  const { error } = await admin
+    .from("beta_go_leads")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", input.leadId);
+
+  if (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "waitlist_leave_failed", error }));
+    return { ok: false, error: "Couldn't leave the waitlist. Try again." };
+  }
+  return { ok: true, id: input.leadId, contactId: input.contactId ?? undefined };
 }
 
 export async function submitQuickSell(
@@ -287,7 +471,7 @@ export async function getQuickWaitlistEntries(
   const [{ data: mine, error }, fakeFronts] = await Promise.all([
     admin
       .from("beta_go_leads")
-      .select("id, event_slug, quantity, status, created_at")
+      .select("id, event_slug, quantity, status, created_at, contact_phone, contact_instagram")
       .eq("intent", "buy")
       .in("id", ids)
       .order("created_at", { ascending: true }),
@@ -313,10 +497,12 @@ export async function getQuickWaitlistEntries(
       leadId: row.id,
       eventSlug: row.event_slug,
       eventName: event?.name ?? row.event_slug,
-      quantity: row.quantity,
+      quantity: Math.min(QUICK_MAX_TICKETS, Math.max(1, Number(row.quantity) || 1)),
       position: pos?.displayed ?? 1 + fakeFront,
       status: row.status,
       createdAt: row.created_at,
+      contactPhone: (row.contact_phone as string | null) ?? null,
+      contactInstagram: (row.contact_instagram as string | null) ?? null,
     });
   }
 

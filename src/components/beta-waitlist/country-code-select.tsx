@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { COUNTRY_CODES, countryByIso2 } from "@/lib/country-codes";
+
+const DROPDOWN_MAX_H = 256; // max-h-64
+const GAP = 8;
 
 /**
  * Custom combobox replacing a native `<select>` for the country-code picker
  * — a native select's open popup can't be restyled to match the app's dark
  * theme (browser-native chrome), so this renders its own dark, rounded
  * dropdown instead.
+ *
+ * Opens upward when there isn't room below (common on mobile when the phone
+ * field sits low on the page), so the list stays on-screen and scrollable.
  */
 export function CountryCodeSelect({
   value,
@@ -19,8 +25,20 @@ export function CountryCodeSelect({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<"below" | "above">("below");
   const rootRef = useRef<HTMLDivElement>(null);
   const current = countryByIso2(value);
+
+  useLayoutEffect(() => {
+    if (!open || !rootRef.current) return;
+    const rect = rootRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - GAP;
+    const spaceAbove = rect.top - GAP;
+    // Prefer above when the field is in the lower half / cramped below.
+    setPlacement(
+      spaceBelow < DROPDOWN_MAX_H && spaceAbove > spaceBelow ? "above" : "below",
+    );
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -61,7 +79,11 @@ export function CountryCodeSelect({
         <div
           role="listbox"
           aria-label="Country code"
-          className="surface absolute left-0 top-[calc(100%+8px)] z-50 max-h-64 w-60 overflow-y-auto rounded-2xl p-1.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.6)]"
+          className={`surface absolute left-0 z-50 max-h-64 w-60 overflow-y-auto overscroll-contain rounded-2xl p-1.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.6)] ${
+            placement === "above"
+              ? "bottom-[calc(100%+8px)]"
+              : "top-[calc(100%+8px)]"
+          }`}
         >
           {COUNTRY_CODES.map((c) => (
             <button

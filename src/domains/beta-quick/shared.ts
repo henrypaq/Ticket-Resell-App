@@ -6,7 +6,12 @@ export type QuickWaitlistEntry = {
   position: number;
   status: string;
   createdAt: string;
+  contactPhone: string | null;
+  contactInstagram: string | null;
 };
+
+/** Max tickets per /go buy waitlist or sell listing. */
+export const QUICK_MAX_TICKETS = 2;
 
 /** Activity tied to a /go contact cookie — no beta member signup required. */
 export type GoActivityEntry = {

@@ -1,16 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   formatBetaEventWhen,
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
-import type { GoActivityEntry, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
+import {
+  leaveWaitlistLeadAction,
+  updateWaitlistLeadAction,
+} from "@/domains/beta-quick/actions";
+import type { GoActivityEntry, QuickActionState, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
+import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/beta-waitlist/field-styles";
 import { ArrowLeft } from "@/components/icons";
+import { COUNTRY_CODES } from "@/lib/country-codes";
+import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./shared";
 import { QuickShell } from "./shell";
+
+function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
+  if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
+  const digits = e164.replace(/\D/g, "");
+  const sorted = [...COUNTRY_CODES].sort((a, b) => b.dial.length - a.dial.length);
+  for (const c of sorted) {
+    if (digits.startsWith(c.dial) && digits.length > c.dial.length) {
+      return { iso2: c.iso2, national: digits.slice(c.dial.length) };
+    }
+  }
+  return { iso2: DEFAULT_COUNTRY_ISO2, national: digits };
+}
 
 export function QuickHub({
   tonight,
@@ -26,8 +46,17 @@ export function QuickHub({
   activity: GoActivityEntry[];
 }) {
   const [selected, setSelected] = useState<{ event: BetaEvent; day: BetaWeekday } | null>(null);
+  const [editing, setEditing] = useState<QuickWaitlistEntry | null>(null);
   const hasTonight = tonight.length > 0;
   const posters = hasTonight ? tonight : otherEvents.slice(0, 4);
+
+  if (editing) {
+    return (
+      <QuickShell>
+        <WaitlistEditView entry={editing} onBack={() => setEditing(null)} />
+      </QuickShell>
+    );
+  }
 
   if (selected) {
     return (
@@ -64,25 +93,32 @@ export function QuickHub({
           <p className="section-header text-[11px] text-muted">Your waitlist</p>
           <ul className="mt-4 flex flex-col gap-4">
             {waitlist.map((entry) => (
-              <li
-                key={entry.leadId}
-                className="flex items-center justify-between gap-3 rounded-[16px] bg-[#17171a] px-4 py-3.5 shadow-[0_7px_0_0_#c9b400,0_12px_28px_rgba(255,229,0,0.14)]"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-[15px] font-semibold text-ink">{entry.eventName}</p>
-                  <p className="mt-0.5 text-[12.5px] text-muted">
-                    ×{entry.quantity}
-                    {entry.status === "matched"
-                      ? " · matched — we’ll message you"
-                      : entry.status === "done"
-                        ? " · completed"
-                        : " · we’ll message you when a ticket opens"}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-[20px] font-bold tabular-nums text-[#ffe500]">#{entry.position}</p>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">in line</p>
-                </div>
+              <li key={entry.leadId}>
+                <button
+                  type="button"
+                  onClick={() => setEditing(entry)}
+                  className="flex w-full items-center justify-between gap-3 rounded-[16px] bg-[#17171a] px-4 py-3.5 text-left shadow-[0_7px_0_0_#c9b400,0_12px_28px_rgba(255,229,0,0.14)] transition-transform active:scale-[0.99]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[15px] font-semibold text-ink">{entry.eventName}</p>
+                    <p className="mt-0.5 text-[12.5px] text-muted">
+                      ×{entry.quantity}
+                      {entry.status === "matched"
+                        ? " · matched — we’ll message you"
+                        : entry.status === "done"
+                          ? " · completed"
+                          : " · tap to edit · we’ll message you when a ticket opens"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[20px] font-bold tabular-nums text-[#ffe500]">
+                      #{entry.position}
+                    </p>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
+                      in line
+                    </p>
+                  </div>
+                </button>
               </li>
             ))}
           </ul>
@@ -142,7 +178,6 @@ export function QuickHub({
         <p className="section-header text-[11px] text-muted">
           {hasTonight ? `Tonight · ${formatBetaEventWhen(tonightDay)}` : "Upcoming"}
         </p>
-        {/* py so the selection ring isn’t clipped by overflow-x */}
         <div className="-mx-5 mt-3 flex gap-3 overflow-x-auto px-5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {posters.map((event) => (
             <EventPoster
@@ -173,6 +208,132 @@ export function QuickHub({
         </Link>
       </section>
     </QuickShell>
+  );
+}
+
+function WaitlistEditView({
+  entry,
+  onBack,
+}: {
+  entry: QuickWaitlistEntry;
+  onBack: () => void;
+}) {
+  const router = useRouter();
+  const savedPhone = splitSavedPhone(entry.contactPhone);
+  const [quantity, setQuantity] = useState(
+    Math.min(QUICK_MAX_TICKETS, Math.max(1, entry.quantity)),
+  );
+  const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);
+  const [phoneNational, setPhoneNational] = useState(savedPhone.national);
+  const [instagram, setInstagram] = useState(entry.contactInstagram ?? "");
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [leavePending, startLeave] = useTransition();
+  const [state, formAction, pending] = useActionState(
+    updateWaitlistLeadAction,
+    {} as QuickActionState,
+  );
+
+  const phone = composeQuickPhone(phoneCountry, phoneNational);
+  const phoneOk = phoneNational.replace(/\D/g, "").length >= 7;
+  const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
+  const canSave = phoneOk || igOk;
+
+  useEffect(() => {
+    if (state.ok) {
+      onBack();
+      router.refresh();
+    }
+  }, [state.ok, onBack, router]);
+
+  function onLeave() {
+    setLeaveError(null);
+    startLeave(async () => {
+      const result = await leaveWaitlistLeadAction(entry.leadId);
+      if (result.error) {
+        setLeaveError(result.error);
+        return;
+      }
+      onBack();
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="relative flex flex-col gap-6">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back
+      </button>
+
+      <div>
+        <p className="section-header text-[11px] text-muted">Your waitlist</p>
+        <h1 className="headline mt-2 text-[28px] leading-[1.12] tracking-tight">{entry.eventName}</h1>
+        <p className="mt-2 text-[14px] text-muted">
+          You’re #{entry.position} in line
+          {entry.status === "matched" ? " · matched" : ""}. Update your details anytime.
+        </p>
+      </div>
+
+      <form action={formAction} className="flex flex-col gap-6">
+        <input type="hidden" name="leadId" value={entry.leadId} />
+        <input type="hidden" name="quantity" value={quantity} />
+        <input type="hidden" name="contactPhone" value={phone} />
+        <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
+
+        <div>
+          <p className="mb-3 text-[13.5px] font-semibold text-ink">How many tickets? (max {QUICK_MAX_TICKETS})</p>
+          <QuantityStepper value={quantity} onChange={setQuantity} max={QUICK_MAX_TICKETS} />
+        </div>
+
+        <div>
+          <p className="mb-3 text-[13.5px] font-semibold text-ink">How do we reach you?</p>
+          <ContactFields
+            phoneCountry={phoneCountry}
+            phoneNational={phoneNational}
+            instagram={instagram}
+            onPhoneCountry={setPhoneCountry}
+            onPhoneNational={setPhoneNational}
+            onInstagram={setInstagram}
+            hintAbove
+            hint="Enter one of the contacts below."
+          />
+        </div>
+
+        {(state.error || leaveError) && (
+          <p role="alert" className="text-[13.5px] text-urgency">
+            {state.error ?? leaveError}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={!canSave || pending || leavePending}
+          className={`${BUTTON_CLASS} w-full`}
+        >
+          {pending ? "Saving…" : "Save changes"}
+        </button>
+      </form>
+
+      <button
+        type="button"
+        onClick={onLeave}
+        disabled={pending || leavePending}
+        className="text-[14px] font-semibold text-urgency underline decoration-dotted underline-offset-4 disabled:opacity-50"
+      >
+        {leavePending ? "Leaving…" : "Leave this waitlist"}
+      </button>
+
+      <Link
+        href={`/go/buy?event=${encodeURIComponent(entry.eventSlug)}`}
+        className="text-center text-[13px] font-semibold text-muted underline decoration-dotted underline-offset-4"
+      >
+        Or update via “I need a ticket”
+      </Link>
+    </div>
   );
 }
 

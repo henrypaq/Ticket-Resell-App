@@ -7,7 +7,8 @@ import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
 import { ArrowLeft } from "@/components/icons";
-import { BUTTON_CLASS } from "@/components/beta-waitlist/field-styles";
+import { Field } from "@/components/beta-waitlist/field";
+import { BUTTON_CLASS, FIELD_CLASS } from "@/components/beta-waitlist/field-styles";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 import { QuickShell } from "./shell";
 import {
@@ -38,61 +39,82 @@ export function QuickBuyFlow({
   events,
   savedContact,
   initialEventSlug,
+  backHref = "/go",
 }: {
   events: BetaEvent[];
   savedContact?: GoContactProfile | null;
   initialEventSlug?: string | null;
+  /** Where Back goes from the first step (e.g. /member when launched from the app). */
+  backHref?: string;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  // Deep link from an event card (?event=) locks the venue — skip the picker.
+  const eventLocked = Boolean(initialEventSlug?.trim());
+  const firstStep = eventLocked ? 1 : 0;
+  const totalSteps = LAST_STEP - firstStep + 1;
+  const [step, setStep] = useState(firstStep);
   const [tapGuard, setTapGuard] = useState(false);
-  const preset =
-    initialEventSlug && events.some((e) => e.slug === initialEventSlug)
-      ? initialEventSlug
-      : (events[0]?.slug ?? "");
+  const preset = eventLocked
+    ? initialEventSlug!.trim()
+    : (events[0]?.slug ?? "");
   const [eventSlug, setEventSlug] = useState(preset);
+  const lockedEvent = events.find((e) => e.slug === eventSlug) ?? null;
   const [quantity, setQuantity] = useState(1);
   const savedPhone = splitSavedPhone(savedContact?.contactPhone);
   const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);
   const [phoneNational, setPhoneNational] = useState(savedPhone.national);
   const [instagram, setInstagram] = useState(savedContact?.contactInstagram ?? "");
+  const [transferFirstName, setTransferFirstName] = useState("");
+  const [transferLastName, setTransferLastName] = useState("");
+  const [transferEmail, setTransferEmail] = useState("");
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
 
   useEffect(() => {
     if (state.ok) router.replace("/go/done?intent=buy");
   }, [state.ok, router]);
 
-  if (state.ok) {
-    return (
-      <QuickShell>
-        <p className="text-[17px] font-semibold text-[#ffe500]">mcgill.tickets</p>
-        <h1 className="headline mt-6 text-[30px] leading-tight">You&apos;re on the list</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">One moment…</p>
-      </QuickShell>
-    );
-  }
+  // While redirecting to /go/done, keep the form — no interim success page.
+  const redirecting = Boolean(state.ok);
 
+  const isCafeCampus = eventSlug === "cafe-campus";
   const phone = composeQuickPhone(phoneCountry, phoneNational);
   const phoneOk = phoneNational.replace(/\D/g, "").length >= 7;
   const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
   const canContact = phoneOk || igOk;
+  const transferOk =
+    !isCafeCampus ||
+    (transferFirstName.trim().length >= 1 &&
+      transferLastName.trim().length >= 1 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(transferEmail.trim()));
   const isLast = step === LAST_STEP;
+  const stepIndex = step - firstStep + 1;
+  const stepLabel = `Need a ticket · ${stepIndex} of ${totalSteps}`;
 
   const stepReady =
-    (step === 0 && Boolean(eventSlug)) || step === 1 || (step === 2 && canContact);
+    (step === 0 && Boolean(eventSlug)) ||
+    step === 1 ||
+    (step === 2 && canContact && transferOk);
 
   function goNext() {
-    if (!stepReady || tapGuard || pending || isLast) return;
+    if (!stepReady || tapGuard || pending || isLast || redirecting) return;
     setTapGuard(true);
     setTimeout(() => setTapGuard(false), 400);
     setStep((s) => s + 1);
+  }
+
+  function onBack() {
+    if (step <= firstStep) {
+      router.push(backHref);
+      return;
+    }
+    setStep((s) => s - 1);
   }
 
   return (
     <QuickShell>
       <button
         type="button"
-        onClick={() => (step === 0 ? router.push("/go") : setStep((s) => s - 1))}
+        onClick={onBack}
         className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -113,29 +135,86 @@ export function QuickBuyFlow({
         <input type="hidden" name="quantity" value={quantity} />
         <input type="hidden" name="contactPhone" value={phone} />
         <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
+        <input type="hidden" name="transferFirstName" value={transferFirstName.trim()} />
+        <input type="hidden" name="transferLastName" value={transferLastName.trim()} />
+        <input type="hidden" name="transferEmail" value={transferEmail.trim()} />
 
         <div key={step} className="flex flex-col gap-6">
           {step === 0 && (
             <>
-              <StepHeading eyebrow="Need a ticket · 1 of 3" title="Which event?" />
+              <StepHeading eyebrow={stepLabel} title="Which event?" />
               <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
             </>
           )}
 
           {step === 1 && (
             <>
-              <StepHeading eyebrow="Need a ticket · 2 of 3" title="How many tickets?" />
-              <QuantityStepper value={quantity} onChange={setQuantity} />
+              <StepHeading eyebrow={stepLabel} title="How many tickets?" />
+              {eventLocked && lockedEvent && (
+                <p className="text-[13.5px] text-muted">
+                  For <span className="font-semibold text-ink">{lockedEvent.name}</span>
+                </p>
+              )}
+              <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
             </>
           )}
 
           {step === 2 && (
             <>
               <StepHeading
-                eyebrow="Need a ticket · 3 of 3"
+                eyebrow={stepLabel}
                 title="How do we reach you?"
                 hint="We'll message you when a ticket is ready."
               />
+              {isCafeCampus && (
+                <div className="flex flex-col gap-4 rounded-[16px] border border-hairline bg-white/[0.04] p-4">
+                  <div>
+                    <p className="text-[14px] font-semibold text-ink">
+                      Café Campus ticket transfer
+                    </p>
+                    <p className="mt-1 text-[13px] leading-relaxed text-muted">
+                      We need your name and email exactly as they should appear on the ticket —
+                      Café Campus transfers into this account.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="First name" htmlFor="transferFirstName">
+                      <input
+                        id="transferFirstName"
+                        type="text"
+                        autoComplete="given-name"
+                        placeholder="Alex"
+                        value={transferFirstName}
+                        onChange={(e) => setTransferFirstName(e.target.value)}
+                        className={FIELD_CLASS}
+                      />
+                    </Field>
+                    <Field label="Last name" htmlFor="transferLastName">
+                      <input
+                        id="transferLastName"
+                        type="text"
+                        autoComplete="family-name"
+                        placeholder="Nguyen"
+                        value={transferLastName}
+                        onChange={(e) => setTransferLastName(e.target.value)}
+                        className={FIELD_CLASS}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Email" htmlFor="transferEmail">
+                    <input
+                      id="transferEmail"
+                      type="email"
+                      autoComplete="email"
+                      inputMode="email"
+                      placeholder="you@mail.mcgill.ca"
+                      value={transferEmail}
+                      onChange={(e) => setTransferEmail(e.target.value)}
+                      className={FIELD_CLASS}
+                    />
+                  </Field>
+                </div>
+              )}
               <ContactFields
                 phoneCountry={phoneCountry}
                 phoneNational={phoneNational}
@@ -156,13 +235,17 @@ export function QuickBuyFlow({
 
         <button
           type={isLast ? "submit" : "button"}
-          disabled={!stepReady || pending || tapGuard}
+          disabled={!stepReady || pending || tapGuard || redirecting}
           onClick={() => {
             if (!isLast) goNext();
           }}
           className={`${BUTTON_CLASS} relative z-10 mt-6 w-full shrink-0`}
         >
-          {isLast ? (pending ? "Joining…" : "Join waitlist") : "Continue"}
+          {isLast
+            ? pending || redirecting
+              ? "Joining…"
+              : "Join waitlist"
+            : "Continue"}
         </button>
       </form>
     </QuickShell>

@@ -84,6 +84,21 @@ export function LeadCard({
           value={lead.contactInstagram ? `@${lead.contactInstagram}` : null}
           href={lead.contactInstagram ? `https://instagram.com/${lead.contactInstagram}` : null}
         />
+        {lead.intent === "buy" && (
+          <>
+            <Row
+              label="Transfer name"
+              value={
+                [lead.transferFirstName, lead.transferLastName].filter(Boolean).join(" ") || null
+              }
+            />
+            <Row
+              label="Transfer email"
+              value={lead.transferEmail}
+              href={lead.transferEmail ? `mailto:${lead.transferEmail}` : null}
+            />
+          </>
+        )}
         {lead.intent === "sell" && (
           <>
             <Row

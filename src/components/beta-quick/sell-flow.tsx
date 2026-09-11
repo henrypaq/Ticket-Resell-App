@@ -51,20 +51,27 @@ export function QuickSellFlow({
   events,
   savedContact,
   initialEventSlug,
+  backHref = "/go",
 }: {
   events: BetaEvent[];
   savedContact?: GoContactProfile | null;
   initialEventSlug?: string | null;
+  /** Where Back goes from the first step (e.g. /member when launched from the app). */
+  backHref?: string;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  // Deep link from an event card (?event=) locks the venue — skip the picker.
+  const eventLocked = Boolean(initialEventSlug?.trim());
+  const firstStep = eventLocked ? 1 : 0;
+  const totalSteps = LAST_STEP - firstStep + 1;
+  const [step, setStep] = useState(firstStep);
   const [tapGuard, setTapGuard] = useState(false);
   const [ticketUrlError, setTicketUrlError] = useState<string | null>(null);
-  const preset =
-    initialEventSlug && events.some((e) => e.slug === initialEventSlug)
-      ? initialEventSlug
-      : (events[0]?.slug ?? "");
+  const preset = eventLocked
+    ? initialEventSlug!.trim()
+    : (events[0]?.slug ?? "");
   const [eventSlug, setEventSlug] = useState(preset);
+  const lockedEvent = events.find((e) => e.slug === eventSlug) ?? null;
   const [quantity, setQuantity] = useState(1);
   const [paidEach, setPaidEach] = useState("");
   const [askEach, setAskEach] = useState("");
@@ -116,15 +123,8 @@ export function QuickSellFlow({
     }
   }, [state.error]);
 
-  if (state.ok) {
-    return (
-      <QuickShell>
-        <p className="text-[17px] font-semibold text-[#ffe500]">mcgill.tickets</p>
-        <h1 className="headline mt-6 text-[30px] leading-tight">Got it — we&apos;ll post it</h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">One moment…</p>
-      </QuickShell>
-    );
-  }
+  // While redirecting to /go/done, keep the last submit state — no interim success page.
+  const redirecting = Boolean(state.ok);
 
   const phone = composeQuickPhone(phoneCountry, phoneNational);
   const phoneOk = phoneNational.replace(/\D/g, "").length >= 7;
@@ -152,7 +152,8 @@ export function QuickSellFlow({
   const payoutReady = etName.trim().length > 0 && (etPhoneOk || etEmailOk);
 
   const etDial = countryByIso2(etPhoneCountry).dial;
-  const stepLabel = `Sell · ${step + 1} of ${LAST_STEP + 1}`;
+  const stepIndex = step - firstStep + 1;
+  const stepLabel = `Sell · ${stepIndex} of ${totalSteps}`;
   const isLast = step === LAST_STEP;
 
   const stepReady =
@@ -169,7 +170,7 @@ export function QuickSellFlow({
   }
 
   function goNext() {
-    if (!stepReady || tapGuard || pending) return;
+    if (!stepReady || tapGuard || pending || redirecting) return;
     if (step === 4) {
       if (!ticketUrlOk) {
         setTicketUrlError(TICKET_URL_ERROR);
@@ -181,6 +182,14 @@ export function QuickSellFlow({
       armTapGuard();
       setStep((s) => s + 1);
     }
+  }
+
+  function onBack() {
+    if (step <= firstStep) {
+      router.push(backHref);
+      return;
+    }
+    setStep((s) => s - 1);
   }
 
   const showFormError =
@@ -195,7 +204,7 @@ export function QuickSellFlow({
     <QuickShell>
       <button
         type="button"
-        onClick={() => (step === 0 ? router.push("/go") : setStep((s) => s - 1))}
+        onClick={onBack}
         className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -237,7 +246,12 @@ export function QuickSellFlow({
           {step === 1 && (
             <>
               <StepHeading eyebrow={stepLabel} title="How many tickets?" />
-              <QuantityStepper value={quantity} onChange={setQuantity} />
+              {eventLocked && lockedEvent && (
+                <p className="text-[13.5px] text-muted">
+                  For <span className="font-semibold text-ink">{lockedEvent.name}</span>
+                </p>
+              )}
+              <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
             </>
           )}
 
@@ -308,6 +322,12 @@ export function QuickSellFlow({
               />
               <TicketUploadZone quantity={quantity} files={ticketFiles} onChange={setTicketFiles} />
               <Field label="Or paste a share link" htmlFor="ticketUrl">
+                {eventSlug === "cafe-campus" && (
+                  <p className="-mt-1 mb-2 text-[13px] leading-relaxed text-muted">
+                    View e-tickets from your confirmation email, then copy-paste that URL directly
+                    here.
+                  </p>
+                )}
                 <input
                   id="ticketUrl"
                   type="url"
@@ -433,13 +453,17 @@ export function QuickSellFlow({
 
         <button
           type={isLast ? "submit" : "button"}
-          disabled={!stepReady || pending || tapGuard}
+          disabled={!stepReady || pending || tapGuard || redirecting}
           onClick={() => {
             if (!isLast) goNext();
           }}
           className={`${BUTTON_CLASS} relative z-10 mt-6 w-full shrink-0`}
         >
-          {isLast ? (pending ? "Submitting…" : "Submit ticket") : "Continue"}
+          {isLast
+            ? pending || redirecting
+              ? "Submitting…"
+              : "Submit ticket"
+            : "Continue"}
         </button>
       </form>
     </QuickShell>
