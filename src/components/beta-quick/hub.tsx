@@ -44,24 +44,23 @@ export function QuickHub({
             {waitlist.map((entry) => (
               <li
                 key={entry.leadId}
-                className="rounded-[16px] bg-[#17171a] px-4 py-3.5 shadow-[0_7px_0_0_#c9b400,0_12px_28px_rgba(255,229,0,0.14)]"
+                className="flex items-center justify-between gap-3 rounded-[16px] bg-[#17171a] px-4 py-3.5 shadow-[0_7px_0_0_#c9b400,0_12px_28px_rgba(255,229,0,0.14)]"
               >
-                <div className="flex items-baseline justify-between gap-3">
-                  <p className="min-w-0 truncate text-[15px] font-semibold text-ink">
-                    {entry.eventName}
-                  </p>
-                  <p className="shrink-0 text-[15px] font-bold tabular-nums text-ink">
-                    #{entry.position}
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-semibold text-ink">{entry.eventName}</p>
+                  <p className="mt-0.5 text-[12.5px] text-muted">
+                    ×{entry.quantity}
+                    {entry.status === "matched"
+                      ? " · matched — we’ll message you"
+                      : entry.status === "done"
+                        ? " · completed"
+                        : " · we’ll message you when a ticket opens"}
                   </p>
                 </div>
-                <p className="mt-1 text-[12.5px] leading-snug text-muted">
-                  {entry.quantity > 1 ? `${entry.quantity} tickets · ` : ""}
-                  {entry.status === "matched"
-                    ? "Matched — we’ll message you"
-                    : entry.status === "done"
-                      ? "Completed"
-                      : "We’ll message you when a ticket opens"}
-                </p>
+                <div className="shrink-0 text-right">
+                  <p className="text-[20px] font-bold tabular-nums text-[#ffe500]">#{entry.position}</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">in line</p>
+                </div>
               </li>
             ))}
           </ul>
