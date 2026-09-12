@@ -155,6 +155,55 @@ export function isPastNightlife(isoTimestamp: string, now: Date = new Date()): b
   }
 }
 
+export type EventDaySchedule = {
+  day: BetaWeekday;
+  dateKey: string;
+  label: string;
+  isPast: boolean;
+  isTonight: boolean;
+};
+
+/**
+ * Resolves a weekday relative to the current nightlife weekend cycle.
+ * For example on Saturday: Thursday and Friday are past (-2, -1 days),
+ * Saturday is tonight (0), Sunday is upcoming (+1).
+ */
+export function eventDayDateKey(
+  day: BetaWeekday,
+  now: Date = new Date(),
+): EventDaySchedule {
+  const parts = montrealDateParts(now);
+  const currentKey = nightlifeDateKey(now);
+  const currentWeekday = currentNightlifeWeekday(now);
+
+  const currentIdx = CALENDAR_WEEKDAYS.indexOf(currentWeekday);
+  const targetIdx = CALENDAR_WEEKDAYS.indexOf(day);
+
+  let diff = targetIdx - currentIdx;
+  if (diff > 3) diff -= 7;
+  if (diff < -3) diff += 7;
+
+  const d = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  if (parts.hour < 6) {
+    d.setUTCDate(d.getUTCDate() - 1);
+  }
+  d.setUTCDate(d.getUTCDate() + diff);
+
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dt = String(d.getUTCDate()).padStart(2, "0");
+  const dateKey = `${y}-${m}-${dt}`;
+
+  const isPast = dateKey < currentKey;
+  const isTonight = dateKey === currentKey;
+
+  const weekdayName = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  const monthName = d.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  const label = `${weekdayName} - ${monthName} ${ordinal(d.getUTCDate())}`;
+
+  return { day, dateKey, label, isPast, isTonight };
+}
+
 
 /**
  * Nightlife "current night" in Montreal. Before 6:00am, still counts as the

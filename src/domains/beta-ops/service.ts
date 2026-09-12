@@ -15,6 +15,10 @@ import {
   type ClassicInterest,
   type QueuePaddingRow,
   type OpsWaitlistEntry,
+  type OpsWaitlistGroup,
+  partitionWaitlistEntries,
+  partitionSellerLeads,
+  groupOpsWaitlistByEventDate,
 } from "./shared";
 
 export {
@@ -25,6 +29,10 @@ export {
   type ClassicInterest,
   type QueuePaddingRow,
   type OpsWaitlistEntry,
+  type OpsWaitlistGroup,
+  partitionWaitlistEntries,
+  partitionSellerLeads,
+  groupOpsWaitlistByEventDate,
 } from "./shared";
 
 export type OpsStats = {
@@ -463,3 +471,35 @@ export async function deleteQuickLead(
   }
   return { ok: true };
 }
+
+export type PastSellerEntry = QuickLeadRow & {
+  eventDays: string[];
+  evidenceUrls: string[];
+};
+
+export async function getPastOpsData(): Promise<{
+  pastWaitlist: OpsWaitlistEntry[];
+  pastSellers: PastSellerEntry[];
+}> {
+  const [waitlistEntries, sellerLeads] = await Promise.all([
+    listOpsWaitlistEntries(),
+    listQuickLeads({ intent: "sell" }),
+  ]);
+  const evidenceUrlLists = await Promise.all(
+    sellerLeads.map((lead) => getTicketEvidenceSignedUrls(lead.ticketEvidencePath)),
+  );
+  const sellerEntries: PastSellerEntry[] = sellerLeads.map((lead, i) => ({
+    ...lead,
+    eventDays: betaEventBySlug(lead.eventSlug)?.days ?? [],
+    evidenceUrls: evidenceUrlLists[i] ?? [],
+  }));
+
+  const { past: pastWaitlist } = partitionWaitlistEntries(waitlistEntries);
+  const { past: pastSellers } = partitionSellerLeads(sellerEntries);
+
+  return {
+    pastWaitlist,
+    pastSellers,
+  };
+}
+

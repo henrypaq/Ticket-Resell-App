@@ -13,8 +13,9 @@ import {
   type LeadStatus,
   type QuickLeadRow,
 } from "@/domains/beta-ops/shared";
-import { BUTTON_CLASS_COMPACT, FIELD_CLASS } from "@/components/beta-waitlist/field-styles";
 import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
   new: "New",
@@ -63,21 +64,26 @@ export function LeadCard({
   }
 
   return (
-    <article className="rounded-[18px] border border-hairline bg-white/[0.04] p-4">
+    <article className="rounded-xl bg-zinc-950/60 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted">
-            {lead.intent === "buy" ? "Needs ticket" : "Has ticket"} · {STATUS_LABEL[lead.status]}
-          </p>
-          <h2 className="mt-1 text-[17px] font-semibold text-ink">{lead.eventName}</h2>
-          <p className="mt-0.5 text-[12.5px] text-muted">{formatWhen(lead.createdAt)}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              {lead.intent === "buy" ? "Needs ticket" : "Has ticket"}
+            </span>
+            <Badge variant="secondary" className="text-[10px] uppercase font-semibold">
+              {STATUS_LABEL[lead.status]}
+            </Badge>
+          </div>
+          <h3 className="mt-1 text-sm font-semibold text-zinc-100">{lead.eventName}</h3>
+          <p className="mt-0.5 text-xs text-zinc-400">{formatWhen(lead.createdAt)}</p>
         </div>
-        <p className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold tabular-nums text-ink">
+        <Badge variant="subtle" className="text-xs font-semibold tabular-nums">
           ×{lead.quantity}
-        </p>
+        </Badge>
       </div>
 
-      <dl className="mt-4 space-y-2 text-[13.5px]">
+      <dl className="mt-3 space-y-1.5 text-xs">
         <Row label="WhatsApp" value={lead.contactPhone} href={lead.contactPhone ? `https://wa.me/${lead.contactPhone.replace(/\D/g, "")}` : null} />
         <Row
           label="Instagram"
@@ -113,7 +119,7 @@ export function LeadCard({
             {proofUrls.map((url, i) => (
               <Row
                 key={url}
-                label={proofUrls.length > 1 ? `Screenshot ${i + 1}` : "Screenshot"}
+                label={proofUrls.length > 1 ? `Proof ${i + 1}` : "Proof"}
                 value="Open upload"
                 href={url}
               />
@@ -128,21 +134,19 @@ export function LeadCard({
         )}
       </dl>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-3.5 flex flex-wrap gap-1.5">
         {LEAD_STATUSES.map((s) => (
-          <button
+          <Button
             key={s}
             type="button"
+            variant={lead.status === s ? "default" : "secondary"}
+            size="sm"
             disabled={pending || lead.status === s}
             onClick={() => setStatus(s)}
-            className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-              lead.status === s
-                ? "bg-[#ffe500] text-black"
-                : "bg-white/8 text-muted hover:bg-white/12 hover:text-ink disabled:opacity-40"
-            }`}
+            className="h-6 rounded-md px-2 text-[11px] font-medium"
           >
             {STATUS_LABEL[s]}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -151,7 +155,7 @@ export function LeadCard({
           await notesAction(fd);
           router.refresh();
         }}
-        className="mt-4 flex flex-col gap-2"
+        className="mt-3.5 flex flex-col gap-2"
       >
         <input type="hidden" name="id" value={lead.id} />
         <textarea
@@ -159,23 +163,25 @@ export function LeadCard({
           defaultValue={lead.adminNotes ?? ""}
           placeholder="Notes for Gaspar / Henry…"
           rows={2}
-          className={`${FIELD_CLASS} min-h-[72px] resize-y text-[14px]`}
+          className="w-full rounded-md bg-zinc-800/80 px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
         />
-        <div className="flex items-center gap-3">
-          <button type="submit" disabled={notesPending} className={BUTTON_CLASS_COMPACT}>
+        <div className="flex items-center gap-2">
+          <Button type="submit" variant="secondary" size="sm" disabled={notesPending} className="h-7 rounded-md text-xs">
             {notesPending ? "Saving…" : "Save notes"}
-          </button>
+          </Button>
           {notesState.error && (
-            <span className="text-[12px] text-urgency">{notesState.error}</span>
+            <span className="text-xs text-amber-400">{notesState.error}</span>
           )}
-          {notesState.ok && <span className="text-[12px] text-muted">Saved</span>}
-          <OpsDeleteButton
-            label="Delete"
-            confirmMessage={`Delete this ${lead.intent === "buy" ? "waitlist" : "seller"} lead for ${lead.eventName}? This removes it from the database${lead.ticketEvidencePath ? " and deletes the ticket upload" : ""}.`}
-            onConfirm={() => deleteLeadAction(lead.id)}
-          />
         </div>
       </form>
+
+      <div className="mt-3 flex justify-end">
+        <OpsDeleteButton
+          label="Delete lead"
+          confirmMessage={`Delete lead for ${lead.contactInstagram ? `@${lead.contactInstagram}` : lead.contactPhone} (${lead.eventName})? This also deletes uploaded ticket proof.`}
+          onConfirm={() => deleteLeadAction(lead.id)}
+        />
+      </div>
     </article>
   );
 }
@@ -191,11 +197,16 @@ function Row({
 }) {
   if (!value) return null;
   return (
-    <div className="flex gap-3">
-      <dt className="w-28 shrink-0 text-muted">{label}</dt>
-      <dd className="min-w-0 break-all font-medium text-ink">
+    <div className="flex gap-2.5">
+      <dt className="w-24 shrink-0 text-zinc-400">{label}</dt>
+      <dd className="min-w-0 break-all font-medium text-zinc-200">
         {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2">
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-dotted underline-offset-2 hover:text-zinc-100"
+          >
             {value}
           </a>
         ) : (

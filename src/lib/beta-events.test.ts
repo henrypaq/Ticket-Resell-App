@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   betaEventBySlug,
+  eventDayDateKey,
   isPastNightlife,
   nightlifeDateKey,
 } from "./beta-events";
@@ -37,4 +38,28 @@ describe("beta-events and nightlife date calculations", () => {
     const nowSaturday = new Date("2026-09-12T15:48:00Z");
     expect(isPastNightlife(listingSaturday, nowSaturday)).toBe(false);
   });
+
+  it("calculates past vs active event day schedules relative to Saturday Sep 12", () => {
+    const nowSaturday = new Date("2026-09-12T15:48:00Z");
+    const thursday = eventDayDateKey("Thursday", nowSaturday);
+    expect(thursday.isPast).toBe(true);
+    expect(thursday.isTonight).toBe(false);
+    expect(thursday.dateKey).toBe("2026-09-10");
+
+    const friday = eventDayDateKey("Friday", nowSaturday);
+    expect(friday.isPast).toBe(true);
+    expect(friday.isTonight).toBe(false);
+    expect(friday.dateKey).toBe("2026-09-11");
+
+    const saturday = eventDayDateKey("Saturday", nowSaturday);
+    expect(saturday.isPast).toBe(false);
+    expect(saturday.isTonight).toBe(true);
+    expect(saturday.dateKey).toBe("2026-09-12");
+
+    const sunday = eventDayDateKey("Sunday", nowSaturday);
+    expect(sunday.isPast).toBe(false);
+    expect(sunday.isTonight).toBe(false);
+    expect(sunday.dateKey).toBe("2026-09-13");
+  });
 });
+

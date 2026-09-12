@@ -2,6 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { betaOpsLogoutAction } from "@/domains/beta-ops/actions";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
+import { getPastOpsData } from "@/domains/beta-ops/service";
+import { PastOpsModal } from "@/components/beta-ops/past-records-modal";
+import { Button } from "@/components/ui/button";
 
 const TABS = [
   { href: "/ops", label: "Overview" },
@@ -21,24 +24,35 @@ export async function OpsChrome({
   const session = await getBetaOpsSession();
   if (!session) redirect("/ops/login");
 
+  const { pastWaitlist, pastSellers } = await getPastOpsData();
+
   return (
-    <div className="mx-auto min-h-dvh w-full max-w-2xl px-4 pb-16 pt-[max(1rem,env(safe-area-inset-top))]">
-      <div className="flex items-center justify-between gap-3">
+    <div className="mx-auto min-h-dvh w-full max-w-2xl px-4 pb-16 pt-[max(1.25rem,env(safe-area-inset-top))]">
+      <header className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[17px] font-semibold tracking-tight text-[#ffe500]">mcgill.tickets</p>
-          <p className="mt-1 text-[12.5px] text-muted">{session.email}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold tracking-tight text-zinc-100">
+              mcgill.tickets
+            </span>
+            <span className="rounded-md bg-zinc-800/80 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">
+              ops
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-zinc-400">{session.email}</p>
         </div>
         <form action={betaOpsLogoutAction}>
-          <button
+          <Button
             type="submit"
-            className="rounded-full border border-white/15 px-3.5 py-2 text-[13px] font-semibold text-muted hover:text-ink"
+            variant="ghost"
+            size="sm"
+            className="rounded-md text-xs text-zinc-400 hover:text-zinc-100"
           >
             Sign out
-          </button>
+          </Button>
         </form>
-      </div>
+      </header>
 
-      <nav className="mt-6 flex gap-2 overflow-x-auto border-b border-hairline pb-3">
+      <nav className="mt-5 inline-flex items-center rounded-lg bg-zinc-900/80 p-1 text-zinc-400 gap-1">
         {TABS.map((tab) => {
           const key = tab.href === "/ops" ? "overview" : tab.href.split("/").pop()!;
           const isActive = active === key;
@@ -46,8 +60,10 @@ export async function OpsChrome({
             <Link
               key={tab.href}
               href={tab.href}
-              className={`shrink-0 rounded-full px-4 py-2 text-[14px] font-medium ${
-                isActive ? "bg-[#ffe500] text-black" : "bg-white/8 text-muted hover:text-ink"
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                isActive
+                  ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
               }`}
             >
               {tab.label}
@@ -56,7 +72,9 @@ export async function OpsChrome({
         })}
       </nav>
 
-      <div className="mt-6">{children}</div>
+      <main className="mt-6">{children}</main>
+
+      <PastOpsModal pastWaitlist={pastWaitlist} pastSellers={pastSellers} />
     </div>
   );
 }

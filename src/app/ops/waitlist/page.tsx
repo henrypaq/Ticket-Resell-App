@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
-import { FakeFrontControls } from "@/components/beta-ops/fake-front";
+import { FakeFrontButton } from "@/components/beta-ops/fake-front";
 import { WaitlistEventCards } from "@/components/beta-ops/waitlist-entry";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { listOpsWaitlistEntries, listQueuePadding } from "@/domains/beta-ops/service";
-import { groupOpsEntriesByEvent } from "@/domains/beta-ops/shared";
+import {
+  groupOpsWaitlistByEventDate,
+  partitionWaitlistEntries,
+} from "@/domains/beta-ops/shared";
 
 export const metadata: Metadata = {
   title: "Waitlist · Ops · mcgill.tickets",
@@ -21,27 +24,28 @@ export default async function OpsWaitlistPage() {
     listQueuePadding(),
   ]);
 
-  const groups = groupOpsEntriesByEvent(
-    entries,
-    (a, b) => a.displayedPosition - b.displayedPosition,
-  );
-  const classicCount = entries.filter((e) => e.source === "classic").length;
-  const goCount = entries.filter((e) => e.source === "go").length;
+  const { active: activeEntries } = partitionWaitlistEntries(entries);
+  const groups = groupOpsWaitlistByEventDate(activeEntries);
+
+  const classicCount = activeEntries.filter((e) => e.source === "classic").length;
+  const goCount = activeEntries.filter((e) => e.source === "go").length;
+  const totalTickets = activeEntries.reduce((n, e) => n + e.quantity, 0);
 
   return (
     <OpsChrome active="waitlist">
-      <h1 className="headline text-[28px] leading-tight">Waitlist</h1>
-      <p className="mt-2 text-[14px] text-muted">
-        Shared queue by event ({groups.length} events · {classicCount} classic · {goCount} /go ·{" "}
-        {entries.reduce((n, e) => n + e.quantity, 0)} tickets).
-      </p>
-
-      <div className="mt-6">
-        <FakeFrontControls rows={padding} />
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Waitlist</h1>
+          <p className="mt-1 text-xs sm:text-sm text-zinc-400">
+            Active queue by date ({groups.length} events · {classicCount} classic · {goCount} /go ·{" "}
+            {totalTickets} tickets).
+          </p>
+        </div>
+        <FakeFrontButton rows={padding} />
       </div>
 
       {groups.length === 0 ? (
-        <p className="mt-8 text-[14px] text-muted">No waitlist entries yet.</p>
+        <p className="mt-8 text-sm text-zinc-500">No active waitlist entries.</p>
       ) : (
         <div className="mt-6">
           <WaitlistEventCards groups={groups} />

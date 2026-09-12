@@ -8,9 +8,10 @@ import {
   ACQUISITION_CHANNELS,
   ACQUISITION_CHANNEL_LABELS,
 } from "@/lib/beta-acquisition";
-import { BUTTON_CLASS, FIELD_CLASS } from "@/components/beta-waitlist/field-styles";
-import { Field } from "@/components/beta-waitlist/field";
 import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 function formatWhen(iso: string) {
   try {
@@ -36,18 +37,18 @@ function sourceLabel(channel: string | null) {
 
 export function MemberCard({ member }: { member: ClassicMemberRow }) {
   return (
-    <article className="rounded-[18px] border border-hairline bg-white/[0.04] p-4">
+    <article className="rounded-xl bg-zinc-900/60 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[17px] font-semibold text-ink">{member.name}</h2>
-          <p className="mt-0.5 text-[12.5px] text-muted">{formatWhen(member.createdAt)}</p>
+          <h2 className="text-base font-semibold text-zinc-100">{member.name}</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">{formatWhen(member.createdAt)}</p>
         </div>
-        <span className="shrink-0 rounded-full bg-[#ffe500]/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#ffe500]">
+        <Badge variant="subtle" className="text-[10px] uppercase font-semibold">
           {sourceLabel(member.acquisitionChannel)}
-        </span>
+        </Badge>
       </div>
 
-      <div className="mt-3 flex justify-end">
+      <div className="mt-2.5 flex justify-end">
         <OpsDeleteButton
           label="Delete member"
           confirmMessage={`Delete ${member.name} (${member.email}) and all their waitlist/sell interests? This cannot be undone.`}
@@ -55,7 +56,7 @@ export function MemberCard({ member }: { member: ClassicMemberRow }) {
         />
       </div>
 
-      <dl className="mt-4 space-y-2 text-[13.5px]">
+      <dl className="mt-3 space-y-1.5 text-xs">
         <Row label="Email" value={member.email} href={`mailto:${member.email}`} />
         <Row label="Phone" value={member.phone || null} />
         <Row label="Intent" value={member.intent} />
@@ -72,10 +73,10 @@ export function MemberCard({ member }: { member: ClassicMemberRow }) {
       </dl>
 
       {member.interests.length > 0 && (
-        <ul className="mt-4 flex flex-col gap-2 border-t border-hairline pt-3">
+        <ul className="mt-3 flex flex-col gap-1.5 rounded-lg bg-zinc-950/40 p-2.5">
           {member.interests.map((i) => (
-            <li key={`${i.eventSlug}-${i.intent}`} className="text-[13px] text-muted">
-              <span className="font-semibold text-ink">
+            <li key={`${i.eventSlug}-${i.intent}`} className="text-xs text-zinc-400">
+              <span className="font-medium text-zinc-200">
                 {i.intent === "waitlist" ? "Waitlist" : "Sell"} · {i.eventName}
               </span>
               {i.contactPhone ? ` · ${i.contactPhone}` : ""}
@@ -100,10 +101,10 @@ function Row({
   if (!value) return null;
   return (
     <div className="flex gap-3">
-      <dt className="w-24 shrink-0 text-muted">{label}</dt>
-      <dd className="min-w-0 break-all font-medium text-ink">
+      <dt className="w-20 shrink-0 text-zinc-400">{label}</dt>
+      <dd className="min-w-0 break-all font-medium text-zinc-200">
         {href ? (
-          <a href={href} className="underline decoration-dotted underline-offset-2">
+          <a href={href} className="underline decoration-dotted underline-offset-2 hover:text-zinc-100">
             {value}
           </a>
         ) : (
@@ -132,51 +133,56 @@ export function AddMemberForm({ heading }: { heading?: React.ReactNode }) {
     <div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">{heading}</div>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => setOpen((v) => !v)}
-          className="mt-1 shrink-0 rounded-full border border-white/15 px-3.5 py-1.5 text-[13px] font-semibold text-muted hover:text-ink"
+          className="rounded-md text-xs"
         >
           {open ? "Close" : "Add member"}
-        </button>
+        </Button>
       </div>
 
       {open && (
         <form
           action={formAction}
-          className="mt-4 flex flex-col gap-3 rounded-[18px] border border-hairline bg-white/[0.04] p-4"
+          className="mt-4 flex flex-col gap-3 rounded-xl bg-zinc-900/60 p-4"
         >
-          <p className="text-[14px] font-semibold text-ink">New member</p>
-          <Field label="Name" htmlFor="add-name">
-            <input id="add-name" name="name" required className={FIELD_CLASS} placeholder="Jane Doe" />
-          </Field>
-          <Field label="Email" htmlFor="add-email">
-            <input
-              id="add-email"
-              name="email"
-              type="email"
-              required
-              className={FIELD_CLASS}
-              placeholder="jane@email.com"
-            />
-          </Field>
-          <Field label="Phone (optional)" htmlFor="add-phone">
-            <input id="add-phone" name="phone" type="tel" className={FIELD_CLASS} placeholder="+1514…" />
-          </Field>
+          <p className="text-sm font-semibold text-zinc-100">New member</p>
+          <div className="space-y-1">
+            <label htmlFor="add-name" className="text-xs font-medium text-zinc-300">Name</label>
+            <Input id="add-name" name="name" required placeholder="Jane Doe" />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="add-email" className="text-xs font-medium text-zinc-300">Email</label>
+            <Input id="add-email" name="email" type="email" required placeholder="jane@email.com" />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="add-phone" className="text-xs font-medium text-zinc-300">Phone (optional)</label>
+            <Input id="add-phone" name="phone" type="tel" placeholder="+1514…" />
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Intent" htmlFor="add-intent">
-              <select id="add-intent" name="intent" defaultValue="both" className={FIELD_CLASS}>
+            <div className="space-y-1">
+              <label htmlFor="add-intent" className="text-xs font-medium text-zinc-300">Intent</label>
+              <select
+                id="add-intent"
+                name="intent"
+                defaultValue="both"
+                className="flex h-8 w-full rounded-md bg-zinc-800/80 px-2.5 py-1 text-xs text-zinc-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
+              >
                 <option value="buy">Buy</option>
                 <option value="sell">Sell</option>
                 <option value="both">Both</option>
               </select>
-            </Field>
-            <Field label="Source" htmlFor="add-source">
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="add-source" className="text-xs font-medium text-zinc-300">Source</label>
               <select
                 id="add-source"
                 name="acquisitionChannel"
                 defaultValue="manual"
-                className={FIELD_CLASS}
+                className="flex h-8 w-full rounded-md bg-zinc-800/80 px-2.5 py-1 text-xs text-zinc-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400"
               >
                 {ACQUISITION_CHANNELS.map((c) => (
                   <option key={c} value={c}>
@@ -184,32 +190,24 @@ export function AddMemberForm({ heading }: { heading?: React.ReactNode }) {
                   </option>
                 ))}
               </select>
-            </Field>
+            </div>
           </div>
-          <Field label="Referral note (optional)" htmlFor="add-referral">
-            <input
-              id="add-referral"
-              name="referralSource"
-              className={FIELD_CLASS}
-              placeholder="e.g. Gaspar’s friend"
-            />
-          </Field>
-          <Field label="Internal notes (optional)" htmlFor="add-notes">
-            <input
-              id="add-notes"
-              name="notes"
-              className={FIELD_CLASS}
-              placeholder="Context for the team"
-            />
-          </Field>
+          <div className="space-y-1">
+            <label htmlFor="add-referral" className="text-xs font-medium text-zinc-300">Referral note (optional)</label>
+            <Input id="add-referral" name="referralSource" placeholder="e.g. Gaspar’s friend" />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="add-notes" className="text-xs font-medium text-zinc-300">Internal notes (optional)</label>
+            <Input id="add-notes" name="notes" placeholder="Context for the team" />
+          </div>
           {state.error && (
-            <p role="alert" className="text-[13px] text-urgency">
+            <p role="alert" className="text-xs text-amber-400">
               {state.error}
             </p>
           )}
-          <button type="submit" disabled={pending} className={BUTTON_CLASS}>
+          <Button type="submit" disabled={pending} className="mt-1 rounded-md text-xs font-medium">
             {pending ? "Adding…" : "Add to list"}
-          </button>
+          </Button>
         </form>
       )}
     </div>

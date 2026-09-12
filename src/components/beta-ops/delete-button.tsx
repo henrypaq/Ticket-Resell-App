@@ -2,6 +2,8 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function OpsDeleteButton({
   label = "Delete",
@@ -18,8 +20,10 @@ export function OpsDeleteButton({
   const [pending, start] = useTransition();
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="sm"
       disabled={pending}
       onClick={() => {
         if (!window.confirm(confirmMessage)) return;
@@ -32,12 +36,12 @@ export function OpsDeleteButton({
           router.refresh();
         });
       }}
-      className={
-        className ||
-        "rounded-full border border-urgency/40 px-2.5 py-1 text-[11px] font-semibold text-urgency hover:bg-urgency/10 disabled:opacity-50"
-      }
+      className={cn(
+        "h-7 rounded-md px-2 text-xs text-zinc-500 hover:bg-red-950/40 hover:text-red-300 disabled:opacity-40",
+        className,
+      )}
     >
       {pending ? "…" : label}
-    </button>
+    </Button>
   );
 }

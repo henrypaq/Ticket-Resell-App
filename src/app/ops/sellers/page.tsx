@@ -4,7 +4,7 @@ import { OpsChrome } from "@/components/beta-ops/chrome";
 import { SellersEventCards, type SellerEventEntry } from "@/components/beta-ops/sellers-board";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { getTicketEvidenceSignedUrls, listQuickLeads } from "@/domains/beta-ops/service";
-import { groupOpsEntriesByEvent } from "@/domains/beta-ops/shared";
+import { groupOpsEntriesByEvent, partitionSellerLeads } from "@/domains/beta-ops/shared";
 import { betaEventBySlug } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
@@ -28,19 +28,25 @@ export default async function OpsSellersPage() {
     evidenceUrls: evidenceUrlLists[i] ?? [],
   }));
 
-  const groups = groupOpsEntriesByEvent(entries, (a, b) =>
+  const { active: activeEntries } = partitionSellerLeads(entries);
+
+  const groups = groupOpsEntriesByEvent(activeEntries, (a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   );
 
+  const totalTickets = activeEntries.reduce((sum, e) => sum + e.quantity, 0);
+
   return (
     <OpsChrome active="sellers">
-      <h1 className="headline text-[28px] leading-tight">Sellers</h1>
-      <p className="mt-2 text-[14px] text-muted">
-        Tickets offered by event — open the file or share link to verify, then match the waitlist.
-      </p>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Sellers</h1>
+        <p className="mt-1 text-xs sm:text-sm text-zinc-400">
+          Active ticket offers for tonight ({activeEntries.length} sellers · {totalTickets} tickets) — verify proof, then match the waitlist.
+        </p>
+      </div>
 
       {groups.length === 0 ? (
-        <p className="mt-8 text-[14px] text-muted">No seller leads yet.</p>
+        <p className="mt-8 text-sm text-zinc-500">No active seller leads for tonight.</p>
       ) : (
         <div className="mt-6">
           <SellersEventCards groups={groups} />

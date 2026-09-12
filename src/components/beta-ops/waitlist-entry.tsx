@@ -2,28 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { deleteWaitlistEntryAction, updateLeadStatusAction } from "@/domains/beta-ops/actions";
 import {
   LEAD_STATUSES,
   type LeadStatus,
   type OpsWaitlistEntry,
-  type OpsEventGroup,
+  type OpsWaitlistGroup,
 } from "@/domains/beta-ops/shared";
-import { formatBetaEventWhen, type BetaWeekday } from "@/lib/beta-events";
 import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
-
-function daysLabel(days: string[]) {
-  if (!days.length) return "Interest only";
-  return days
-    .map((d) => {
-      try {
-        return formatBetaEventWhen(d as BetaWeekday);
-      } catch {
-        return d;
-      }
-    })
-    .join(" · ");
-}
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 function contactLabel(entry: OpsWaitlistEntry) {
   if (entry.name) return entry.name;
@@ -44,51 +33,63 @@ function contactHref(entry: OpsWaitlistEntry) {
   return null;
 }
 
-export type WaitlistEventGroup = OpsEventGroup<OpsWaitlistEntry>;
-
-export function WaitlistEventCards({ groups }: { groups: WaitlistEventGroup[] }) {
+export function WaitlistEventCards({ groups }: { groups: OpsWaitlistGroup[] }) {
   return (
     <div className="flex flex-col gap-3">
       {groups.map((group) => (
-        <WaitlistEventCard key={group.eventSlug} group={group} />
+        <WaitlistEventCard key={group.key} group={group} />
       ))}
     </div>
   );
 }
 
-function WaitlistEventCard({ group }: { group: WaitlistEventGroup }) {
-  const [open, setOpen] = useState(false);
-  const dateLine = daysLabel(group.eventDays);
+function WaitlistEventCard({ group }: { group: OpsWaitlistGroup }) {
+  const [open, setOpen] = useState(true);
 
   return (
-    <section className="overflow-hidden rounded-[16px] border border-hairline bg-white/[0.04]">
+    <section className="rounded-xl bg-zinc-900/60 p-4 transition-colors">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+        className="flex w-full items-center gap-3 text-left focus:outline-none"
         aria-expanded={open}
       >
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold text-ink">{group.eventName}</p>
-          <p className="mt-0.5 truncate text-[12px] text-muted">{dateLine}</p>
+          <div className="flex items-center gap-2">
+            <h2 className="truncate text-sm sm:text-base font-semibold text-zinc-100">
+              {group.eventName}
+            </h2>
+            {group.isTonight && (
+              <Badge variant="accent" className="text-[10px] px-1.5 py-0 font-medium">
+                Tonight
+              </Badge>
+            )}
+          </div>
+          <p className="mt-0.5 truncate text-xs text-zinc-400">{group.dateLabel}</p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-[13px] font-semibold tabular-nums text-ink">
+          <p className="text-xs sm:text-sm font-semibold tabular-nums text-zinc-200">
             {group.entries.length} in line
           </p>
-          <p className="text-[11px] text-muted">×{group.ticketDemand} tickets</p>
+          <p className="text-[11px] text-zinc-400">×{group.ticketDemand} tickets</p>
         </div>
-        <span className="shrink-0 text-[12px] font-semibold text-muted">
-          {open ? "−" : "+"}
+        <span className="shrink-0 text-zinc-500">
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </span>
       </button>
 
       {open && (
-        <ul className="border-t border-hairline">
-          {group.entries.map((entry) => (
-            <WaitlistMemberRow key={`${entry.source}-${entry.id}`} entry={entry} />
-          ))}
-        </ul>
+        <div className="mt-3 pt-2">
+          {group.entries.length === 0 ? (
+            <p className="py-2 text-xs text-zinc-500">No active waitlist joiners for this date.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {group.entries.map((entry) => (
+                <WaitlistMemberRow key={`${entry.source}-${entry.id}`} entry={entry} />
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </section>
   );
@@ -110,9 +111,9 @@ function WaitlistMemberRow({ entry }: { entry: OpsWaitlistEntry }) {
   }
 
   return (
-    <li className="border-b border-hairline/70 last:border-b-0">
-      <div className="flex items-center gap-2 px-3 py-2">
-        <span className="w-8 shrink-0 text-[12px] font-bold tabular-nums text-[#ffe500]">
+    <li className="rounded-lg bg-zinc-950/40 p-2.5 transition-colors hover:bg-zinc-950/70">
+      <div className="flex items-center gap-2.5">
+        <span className="w-7 shrink-0 text-xs font-semibold tabular-nums text-zinc-400">
           #{entry.displayedPosition}
         </span>
         <div className="min-w-0 flex-1">
@@ -121,33 +122,32 @@ function WaitlistMemberRow({ entry }: { entry: OpsWaitlistEntry }) {
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="block truncate text-[13px] font-medium text-ink underline decoration-dotted underline-offset-2"
+              className="block truncate text-xs font-medium text-zinc-200 hover:underline"
             >
               {label}
             </a>
           ) : (
-            <p className="truncate text-[13px] font-medium text-ink">{label}</p>
+            <p className="truncate text-xs font-medium text-zinc-200">{label}</p>
           )}
         </div>
-        <span className="shrink-0 text-[11px] tabular-nums text-muted">×{entry.quantity}</span>
-        <span
-          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-            entry.source === "go"
-              ? "bg-[#6ee1ff]/15 text-[#6ee1ff]"
-              : "bg-white/10 text-muted"
-          }`}
+        <span className="shrink-0 text-xs tabular-nums text-zinc-400">×{entry.quantity}</span>
+        <Badge
+          variant={entry.source === "go" ? "secondary" : "subtle"}
+          className="text-[10px] uppercase px-1.5 py-0"
         >
-          {entry.source === "go" ? "go" : "app"}
-        </span>
+          {entry.source}
+        </Badge>
         {entry.source === "go" && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setExpanded((v) => !v)}
-            className="shrink-0 text-[11px] font-semibold text-muted"
+            className="h-6 px-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 rounded-md"
             aria-expanded={expanded}
           >
-            {expanded ? "Less" : "More"}
-          </button>
+            {expanded ? "Less" : "Status"}
+          </Button>
         )}
         <OpsDeleteButton
           confirmMessage={`Remove #${entry.displayedPosition} (${contactLabel(entry)}) from ${entry.eventName}? This deletes them from the database.`}
@@ -156,21 +156,19 @@ function WaitlistMemberRow({ entry }: { entry: OpsWaitlistEntry }) {
       </div>
 
       {expanded && entry.goLead && (
-        <div className="flex flex-wrap gap-1.5 px-3 pb-2 pl-11">
+        <div className="mt-2 flex flex-wrap gap-1 pl-9 pt-1">
           {LEAD_STATUSES.map((s) => (
-            <button
+            <Button
               key={s}
               type="button"
+              variant={entry.status === s ? "default" : "secondary"}
+              size="sm"
               disabled={pending || entry.status === s}
               onClick={() => setStatus(s)}
-              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                entry.status === s
-                  ? "bg-[#ffe500] text-black"
-                  : "bg-white/8 text-muted disabled:opacity-40"
-              }`}
+              className="h-6 rounded-md px-2 text-[10px] font-medium"
             >
               {s}
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -191,24 +189,24 @@ export function CollapsiblePanel({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-[18px] border border-hairline bg-white/[0.04]">
+    <div className="rounded-xl bg-zinc-900/60 p-4">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+        className="flex w-full items-center justify-between gap-3 text-left focus:outline-none"
         aria-expanded={open}
       >
         <div className="min-w-0">
-          <p className="text-[14px] font-semibold text-ink">{title}</p>
+          <p className="text-sm font-semibold text-zinc-200">{title}</p>
           {summary && !open && (
-            <p className="mt-0.5 truncate text-[12.5px] text-muted">{summary}</p>
+            <p className="mt-0.5 truncate text-xs text-zinc-400">{summary}</p>
           )}
         </div>
-        <span className="shrink-0 text-[13px] font-semibold text-muted">
+        <span className="text-xs font-medium text-zinc-400">
           {open ? "Hide" : "Edit"}
         </span>
       </button>
-      {open && <div className="border-t border-hairline px-4 pb-4 pt-3">{children}</div>}
+      {open && <div className="mt-3 pt-2">{children}</div>}
     </div>
   );
 }
