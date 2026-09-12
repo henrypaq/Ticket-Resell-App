@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   formatBetaEventWhen,
+  isPastNightlife,
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
 import {
+  dismissPastSellLeadsAction,
   leaveWaitlistLeadAction,
   removeSellLeadAction,
   updateWaitlistLeadAction,
@@ -72,6 +74,12 @@ export function QuickHub({
   }
 
   const sellActivity = activity.filter((a) => a.intent === "sell");
+  const activeSells = sellActivity.filter(
+    (a) => a.status !== "done" && a.status !== "cancelled" && !isPastNightlife(a.createdAt),
+  );
+  const pastUnsoldSells = sellActivity.filter(
+    (a) => a.status !== "done" && a.status !== "cancelled" && isPastNightlife(a.createdAt),
+  );
   const doneSells = sellActivity.filter((a) => a.status === "done");
   const totalProceeds = doneSells.reduce((sum, a) => sum + (a.proceedsCad ?? 0), 0);
   const totalNet = doneSells.reduce((sum, a) => sum + (a.netVsPaidCad ?? 0), 0);
@@ -126,14 +134,25 @@ export function QuickHub({
         </section>
       )}
 
-      {sellActivity.length > 0 && (
+      {(activeSells.length > 0 || pastUnsoldSells.length > 0 || doneSells.length > 0) && (
         <section className="relative mt-8">
-          <p className="section-header text-[11px] text-muted">Your tickets for sale</p>
-          <ul className="mt-3 flex flex-col gap-2">
-            {sellActivity.map((entry) => (
-              <SellListingRow key={entry.leadId} entry={entry} />
-            ))}
-          </ul>
+          {activeSells.length > 0 && (
+            <>
+              <p className="section-header text-[11px] text-muted">Your tickets for sale</p>
+              <ul className="mt-3 flex flex-col gap-2">
+                {activeSells.map((entry) => (
+                  <SellListingRow key={entry.leadId} entry={entry} />
+                ))}
+              </ul>
+            </>
+          )}
+
+          {pastUnsoldSells.length > 0 && (
+            <div className={activeSells.length > 0 ? "mt-3" : ""}>
+              <PastUnsoldSellNotice pastUnsoldSells={pastUnsoldSells} />
+            </div>
+          )}
+
           {doneSells.length > 0 && (
             <p className="mt-3 text-[12.5px] text-muted">
               Sold so far: ${totalProceeds.toFixed(0)} received
@@ -283,6 +302,134 @@ function SellListingRow({ entry }: { entry: GoActivityEntry }) {
         </p>
       )}
     </li>
+  );
+}
+
+function PastUnsoldSellNotice({
+  pastUnsoldSells,
+}: {
+  pastUnsoldSells: GoActivityEntry[];
+}) {
+  const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [dismissPending, startDismiss] = useTransition();
+
+  if (dismissed || pastUnsoldSells.length === 0) return null;
+
+  const totalTickets = pastUnsoldSells.reduce((sum, s) => sum + s.quantity, 0);
+  const uniqueEvents = [...new Set(pastUnsoldSells.map((s) => s.eventName))];
+  const eventsLabel = uniqueEvents.join(", ");
+
+  function handleDismiss() {
+    setDismissed(true);
+    startDismiss(async () => {
+      const ids = pastUnsoldSells.map((s) => s.leadId);
+      await dismissPastSellLeadsAction(ids);
+      router.refresh();
+    });
+  }
+
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        aria-expanded={false}
+        aria-label="Notice: There weren't enough buyers for your tickets last night — tap to view"
+        className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#ffe500]/30 bg-[#ffe500]/[0.06] p-3.5 text-left shadow-[0_4px_16px_rgba(255,229,0,0.06)] transition-all hover:bg-[#ffe500]/[0.1] active:scale-[0.99]"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#ffe500]/25 text-[15px] font-black text-[#ffe500]"
+          >
+            !
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[14px] font-semibold text-ink">
+              Notice: Unsold tickets from last night
+            </p>
+            <p className="truncate text-[12px] text-muted">
+              {eventsLabel} ({totalTickets} {totalTickets === 1 ? "ticket" : "tickets"}) · Tap to view
+            </p>
+          </div>
+        </div>
+        <span className="shrink-0 text-[12.5px] font-semibold text-[#ffe500]">View →</span>
+      </button>
+    );
+  }
+
+  return (
+    <div
+      role="region"
+      aria-label="Unsold tickets notice"
+      className="rounded-[18px] border border-[#ffe500]/30 bg-[#ffe500]/[0.06] p-4 shadow-[0_4px_24px_rgba(255,229,0,0.08)] sm:p-5"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          <span
+            aria-hidden
+            className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#ffe500]/25 text-[14px] font-black text-[#ffe500]"
+          >
+            !
+          </span>
+          <h3 className="text-[15px] font-bold leading-snug text-ink sm:text-[16px]">
+            There weren&apos;t enough buyers for your tickets last night!
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="shrink-0 rounded-full p-1 text-[13px] text-muted transition-colors hover:text-ink"
+          aria-label="Collapse message"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="mt-3.5 space-y-1.5 rounded-[12px] bg-black/30 p-3 text-[13px]">
+        {pastUnsoldSells.map((entry) => (
+          <div key={entry.leadId} className="flex items-center justify-between gap-2">
+            <span className="font-medium text-ink">{entry.eventName}</span>
+            <span className="tabular-nums text-muted">
+              ×{entry.quantity}
+              {entry.askEach != null ? ` · $${entry.askEach.toFixed(0)} each` : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
+        We&apos;re sorry we couldn&apos;t find a buyer for your {eventsLabel} ticket
+        {totalTickets > 1 ? "s" : ""} before the night wrapped up. Demand moves fast in Montreal
+        nightlife, and last night the buyer queue ran out before your listing was reached.
+      </p>
+
+      <p className="mt-2 text-[13px] leading-relaxed text-muted">
+        We know it sucks when an extra ticket goes unused — we&apos;re constantly growing the buyer
+        network so more tickets find homes. Thanks for listing with us! Next time you have an extra,
+        post early and we&apos;ll do our best to match you.
+      </p>
+
+      <div className="mt-4 flex items-center justify-end gap-3 border-t border-white/8 pt-3">
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="text-[13px] font-semibold text-muted transition-colors hover:text-ink"
+        >
+          Close
+        </button>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          disabled={dismissPending}
+          className="rounded-[10px] bg-[#ffe500] px-4 py-2 text-[13px] font-bold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {dismissPending ? "Removing…" : "Got it — remove"}
+        </button>
+      </div>
+    </div>
   );
 }
 

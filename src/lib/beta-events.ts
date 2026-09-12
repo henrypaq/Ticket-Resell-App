@@ -48,7 +48,6 @@ export const BETA_EVENTS: BetaEvent[] = [
     flyerUrl: "/flyers/cafe-campus.jpg",
     days: ["Thursday", "Friday", "Saturday"],
     supported: true,
-    entryNote: "Guaranteed entry until 11:30 PM",
   },
   {
     slug: "montreal-frosh-muzique",
@@ -127,6 +126,35 @@ export function montrealDateParts(from: Date = new Date()): {
     weekday: get("weekday") as BetaWeekday,
   };
 }
+
+/**
+ * Montreal nightlife date string "YYYY-MM-DD" for an instant.
+ * Pre-6:00 AM counts as the previous calendar day's night (Thursday night
+ * goes until Friday 5:59 AM).
+ */
+export function nightlifeDateKey(from: Date = new Date()): string {
+  const { year, month, day, hour } = montrealDateParts(from);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (hour < 6) {
+    d.setUTCDate(d.getUTCDate() - 1);
+  }
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dt = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${dt}`;
+}
+
+/** Returns true if the timestamp was created during a prior Montreal nightlife date. */
+export function isPastNightlife(isoTimestamp: string, now: Date = new Date()): boolean {
+  try {
+    const created = new Date(isoTimestamp);
+    if (Number.isNaN(created.getTime())) return false;
+    return nightlifeDateKey(created) < nightlifeDateKey(now);
+  } catch {
+    return false;
+  }
+}
+
 
 /**
  * Nightlife "current night" in Montreal. Before 6:00am, still counts as the

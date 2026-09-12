@@ -178,6 +178,17 @@ export async function removeSellLeadAction(leadId: string): Promise<QuickActionS
   return { ok: true };
 }
 
+export async function dismissPastSellLeadsAction(leadIds: string[]): Promise<QuickActionState> {
+  const contactId = await readGoContactId();
+  const allowed = await readSellerLeadIds();
+  for (const id of leadIds) {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) continue;
+    await removeSellLead({ leadId: id, contactId, allowedLeadIds: allowed });
+    await removeSellerLeadId(id);
+  }
+  return { ok: true };
+}
+
 export async function submitQuickBuyAction(
   _prev: QuickActionState,
   formData: FormData,
