@@ -17,8 +17,8 @@ import {
   formatBetaEventWhen,
   groupEventsByUpcomingDays,
   supportedBetaEvents,
+  tonightEventOptions,
   upcomingBetaWeekdays,
-  upcomingEventOptions,
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
@@ -160,7 +160,7 @@ export function BetaEventsTab({ profile }: Props) {
 
 function QuickIntentActions() {
   const router = useRouter();
-  const options = upcomingEventOptions();
+  const options = tonightEventOptions();
   const [intent, setIntent] = useState<"buy" | "sell" | null>(null);
   const [choice, setChoice] = useState(options[0]?.key ?? "");
 
@@ -194,10 +194,12 @@ function QuickIntentActions() {
       {intent && (
         <div className="rounded-[16px] border border-hairline bg-white/[0.04] px-4 py-4">
           <p className="text-[13.5px] font-semibold text-ink">
-            {intent === "buy" ? "Which night do you need?" : "Which night are you selling?"}
+            {intent === "buy"
+              ? "Which event do you need for tonight?"
+              : "Which event are you selling for tonight?"}
           </p>
           {options.length === 0 ? (
-            <p className="mt-2 text-[13px] text-muted">No upcoming nights listed right now.</p>
+            <p className="mt-2 text-[13px] text-muted">No events running tonight.</p>
           ) : (
             <>
               <select
@@ -226,6 +228,7 @@ function QuickIntentActions() {
     </section>
   );
 }
+
 
 function MyWaitlistSection({
   events,

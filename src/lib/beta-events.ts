@@ -236,18 +236,52 @@ export function upcomingBetaWeekdays(from: Date = new Date()): BetaWeekday[] {
   return Array.from({ length: 7 }, (_, i) => CALENDAR_WEEKDAYS[(start + i) % 7]!);
 }
 
-/** Events offered on /go buy & sell — tonight first, then other nights this week. */
+/**
+ * Events offered on /go buy & sell for the given night — ONLY events available for that night.
+ * Avoids showing different nights or random extra events when selecting an event.
+ */
 export function goSelectableEvents(from: Date = new Date()): BetaEvent[] {
   const tonight = tonightBetaEvents(from);
-  const seen = new Set(tonight.map((e) => e.slug));
-  const rest: BetaEvent[] = [];
-  for (const opt of upcomingEventOptions(from)) {
-    if (seen.has(opt.slug)) continue;
-    seen.add(opt.slug);
-    rest.push(opt.event);
+  if (tonight.length > 0) {
+    return tonight;
   }
-  return tonight.length > 0 ? [...tonight, ...rest] : rest;
+  for (const day of upcomingBetaWeekdays(from)) {
+    const list = supportedBetaEvents().filter((e) => e.days.includes(day));
+    if (list.length > 0) return list;
+  }
+  return supportedBetaEvents();
 }
+
+/**
+ * Dropdown options for the given night — only events running on that night.
+ */
+export function tonightEventOptions(from: Date = new Date()): UpcomingEventOption[] {
+  const day = currentNightlifeWeekday(from);
+  const events = tonightBetaEvents(from);
+  if (events.length > 0) {
+    return events.map((event) => ({
+      key: `${event.slug}::${day}`,
+      slug: event.slug,
+      day,
+      event,
+      label: event.name,
+    }));
+  }
+  for (const upcomingDay of upcomingBetaWeekdays(from)) {
+    const list = supportedBetaEvents().filter((e) => e.days.includes(upcomingDay));
+    if (list.length > 0) {
+      return list.map((event) => ({
+        key: `${event.slug}::${upcomingDay}`,
+        slug: event.slug,
+        day: upcomingDay,
+        event,
+        label: `${event.name} · ${formatBetaEventWhen(upcomingDay, from)}`,
+      }));
+    }
+  }
+  return [];
+}
+
 
 /** Section label: "Today" for tonight, else e.g. "Saturday - September 13th". */
 export function betaDaySectionLabel(day: BetaWeekday, from: Date = new Date()): string {

@@ -609,3 +609,20 @@ export async function listBuyLeadIdsForContact(contactId: string): Promise<strin
     .limit(20);
   return (data ?? []).map((r) => r.id as string);
 }
+
+export async function submitQuickEventRequest(input: {
+  name: string;
+  details?: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const admin = createAdminClient();
+  const { error } = await admin.from("beta_member_event_requests").insert({
+    name: input.name,
+    details: input.details ?? null,
+  });
+  if (error) {
+    console.warn(JSON.stringify({ level: "warn", msg: "quick_event_request_failed", error }));
+    return { ok: false, error: "Couldn't send request. Please try again." };
+  }
+  return { ok: true };
+}
+

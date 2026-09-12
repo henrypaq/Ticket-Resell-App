@@ -18,6 +18,7 @@ import {
   quickSellSchema,
   removeSellLead,
   submitQuickBuy,
+  submitQuickEventRequest,
   submitQuickSell,
   updateWaitlistLead,
 } from "@/domains/beta-quick/service";
@@ -188,6 +189,35 @@ export async function dismissPastSellLeadsAction(leadIds: string[]): Promise<Qui
   }
   return { ok: true };
 }
+
+export async function submitQuickEventRequestAction(
+  _prev: QuickActionState,
+  formData: FormData,
+): Promise<QuickActionState> {
+  const name = String(formData.get("name") ?? "").trim();
+  const details = String(formData.get("details") ?? "").trim();
+  const contact = String(formData.get("contact") ?? "").trim();
+
+  if (!name) {
+    return { error: "Please enter the event or club name." };
+  }
+
+  const detailParts = [details, contact ? `Contact: ${contact}` : ""].filter(Boolean);
+  const result = await submitQuickEventRequest({
+    name,
+    details: detailParts.length ? detailParts.join(" · ") : null,
+  });
+
+  if (!result.ok) {
+    return { error: result.error };
+  }
+
+  return {
+    ok: true,
+    message: `We've got your request for "${name}"! We'll do our best to support it ASAP so you can trade tickets.`,
+  };
+}
+
 
 export async function submitQuickBuyAction(
   _prev: QuickActionState,

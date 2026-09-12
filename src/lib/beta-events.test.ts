@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   betaEventBySlug,
   eventDayDateKey,
+  goSelectableEvents,
   isPastNightlife,
   nightlifeDateKey,
+  tonightEventOptions,
 } from "./beta-events";
 
 describe("beta-events and nightlife date calculations", () => {
@@ -61,5 +63,30 @@ describe("beta-events and nightlife date calculations", () => {
     expect(sunday.isTonight).toBe(false);
     expect(sunday.dateKey).toBe("2026-09-13");
   });
+
+  it("limits goSelectableEvents to ONLY the events available for the given night", () => {
+    // Saturday Sep 12: only Café Campus and Niska @ Bell Center run tonight
+    const nowSaturday = new Date("2026-09-12T15:48:00Z");
+    const selectable = goSelectableEvents(nowSaturday);
+    const slugs = selectable.map((e) => e.slug);
+
+    expect(slugs).toContain("cafe-campus");
+    expect(slugs).toContain("niska-bell-center");
+    // Piknik is Sunday only, Muzique is Thursday only -> must NOT show on Saturday
+    expect(slugs).not.toContain("piknik-electronik");
+    expect(slugs).not.toContain("montreal-frosh-muzique");
+    expect(selectable.length).toBe(2);
+  });
+
+  it("limits tonightEventOptions to ONLY the events available for the given night", () => {
+    const nowSaturday = new Date("2026-09-12T15:48:00Z");
+    const options = tonightEventOptions(nowSaturday);
+    const slugs = options.map((o) => o.slug);
+
+    expect(slugs).toEqual(["cafe-campus", "niska-bell-center"]);
+    expect(slugs).not.toContain("piknik-electronik");
+    expect(slugs).not.toContain("montreal-frosh-muzique");
+  });
 });
+
 
