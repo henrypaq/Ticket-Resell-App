@@ -23,6 +23,56 @@ Payments are wired end to end but **inert without Stripe keys** — see
 § Stripe below. The auto-release timeout is similarly **inert without
 `CRON_SECRET`** — see § Tiered verification.
 
+## One app
+
+`/member` (full beta onboarding) and `/go` (the low-friction Instagram funnel)
+were two apps with overlapping features. They are now one:
+
+| path | what |
+|---|---|
+| `/` | join flow until you're a member, then home — **tonight only** |
+| `/upcoming` | the whole board, one section per night ("See all" from home) |
+| `/buy` · `/sell` | the step flows, unchanged |
+| `/done` | terminal screen for both flows |
+| `/settings` | personal info · communication settings · contact us |
+
+- **Joining as a beta member is the gate.** Membership is a cookie holding
+  `beta_members.id`; only one that still resolves to a live row counts. Each page
+  calls `requireMember()` itself — never a layout, for the reason documented in
+  `src/domains/beta-signup/gate.ts`.
+- **No bottom nav.** The account button in the sticky header is the only chrome
+  besides the wordmark; everything the Notis and Contact tabs held is on
+  `/settings`.
+- **One waitlist mechanism.** Joining is the buy flow. The old member-side
+  "join waitlist (alerts)" toggle wrote `beta_member_interests`, which is a seat
+  in the same queue as a `/go` buy lead (`listUnifiedQueueSeats`) — two ways to
+  take one seat, so only the flow survives. Existing interest rows still count in
+  the queue and still show in `/ops`.
+- **Old links still work.** `/member`, `/go`, `/go/buy`, `/go/sell`, `/go/done`,
+  and the retired `/home`, `/profile`, `/notifications` redirect
+  (`next.config.ts`). Printed QR codes and flyers keep their attribution: the
+  proxy stamps `?src=` before the redirect runs.
+
+### Staying signed in to your own activity
+
+Three cookies describe one person — `passe_beta_signup` (member),
+`passe_go_contact` (the contact buy/sell leads hang off), and
+`passe_quick_buyer`/`passe_quick_seller` (lead ids). A member on a new device,
+or one who cleared cookies, has only the first. So:
+
+- home loads waitlist spots and listings by **contact id or member id**
+  (`getGoActivity`, `listBuyLeadIds`), and ownership checks accept either
+  (`ownsLead`), or the home page would show someone a listing it then refuses
+  to let them remove;
+- buy/sell submissions stamp `member_id` from the signup cookie explicitly
+  rather than inferring it from a phone/email match;
+- a device carrying both cookies where the contact has no member gets linked on
+  the spot (`adoptGoContactForMember`) — that's the person who used the quick
+  flow before joining;
+- editing your phone or resuming by email re-runs `linkMemberToGoHistory`;
+- buy/sell prefill falls back to the member profile when the device has no
+  contact yet.
+
 ## Getting started
 
 ```bash
@@ -335,15 +385,24 @@ one lives:
 ```
 src/
   app/            route + page layer (parses, calls a service, renders)
-    (app)/        authenticated shell — For You, Upcoming, Tickets, Search, event detail, sell, profile, u/[handle]
+                  the beta app — / (join gate + home) · /upcoming · /buy · /sell
+                  · /done · /settings. Every one of these gates on beta
+                  membership itself (domains/beta-signup/gate.ts), never in a layout.
     auth/         confirm (email magic link) · callback (OAuth code exchange, now next-aware)
     admin/        event approval, listing moderation, payment approval — all behind requireAdmin()
     api/v1/       versioned surface over the same services, for the Phase 5 mobile client
                   GET /events · GET|POST /listings · GET /health
                   POST /webhooks/stripe (signature-verified, verify-then-enqueue)
                   GET /cron/release-escrow (CRON_SECRET-guarded, Vercel Cron)
+  components/
+    app/          the beta app's screens — shell, sticky header, home, upcoming,
+                  settings, join/buy/sell/done flows
+    forms/        field primitives shared across every flow
   domains/        business logic, organised by domain
     events/ listings/ waitlist/ notifications/ users/ payments/ admin/ social/
+    beta-signup/  membership (cookie → beta_members.id) + the entry gate
+    beta-quick/   buy/sell leads · beta-go/ the contact rows those leads hang off
+  _legacy/        retired Supabase (app) routes, out of the route tree — see its README
   lib/
     compliance/   price cap, fees, disclosure — pure and unit tested
     verification/ Tier A provider interface (fail-closed) + Tier B barcode hashing/file validation

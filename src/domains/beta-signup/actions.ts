@@ -8,19 +8,15 @@ import {
   type AcquisitionChannel,
 } from "@/lib/beta-acquisition";
 import { GO_CONTACT_COOKIE } from "@/domains/beta-go/shared";
-import { QUICK_BUYER_COOKIE } from "@/domains/beta-quick/shared";
+import { linkMemberToGoHistory } from "@/domains/beta-go/contacts";
+import { QUICK_BUYER_COOKIE, QUICK_SELLER_COOKIE } from "@/domains/beta-quick/shared";
 import { demoLoginEnabled } from "@/lib/env";
 import {
   betaSignupSchema,
   contactUpdateSchema,
-  eventInterestSchema,
-  eventRequestSchema,
   findBetaSignupIdByEmail,
   getBetaSignupProfile,
-  getWaitlistPosition,
   notificationPrefsSchema,
-  setBetaEventInterest,
-  submitBetaEventRequest,
   submitBetaSignup,
   submitBetaSupportMessage,
   supportMessageSchema,
@@ -65,11 +61,11 @@ async function readAcquisitionChannel(): Promise<AcquisitionChannel> {
 }
 
 /**
- * There's no account behind this flow, so "once you've signed up" is tracked
- * with a cookie holding the `beta_members.id`. Not a session — just enough to
- * load/update prefs without re-collecting PII on every visit. Legacy value
- * `"1"` (from the flag-only cookie) still counts as completed for the gate,
- * but preference actions need a real uuid.
+ * There's no account behind this flow, so membership is a cookie holding the
+ * `beta_members.id`. Not a session — just enough to load/update prefs without
+ * re-collecting PII on every visit. Only a real uuid that still resolves to a
+ * live member counts (see `requireMember` in ./gate.ts); a stale or deleted id
+ * sends someone back through the join flow.
  */
 export async function submitBetaSignupAction(
   _prev: BetaSignupState,
@@ -119,8 +115,11 @@ export async function resumeBetaSignupByEmailAction(email: string): Promise<Beta
   if (!found.id) return { ok: true, resumed: false };
 
   await setSignupCookie(found.id);
+  // Their /go leads may predate the member row on this device — attach them now
+  // so the home page shows the waitlists and listings they already have.
+  await linkMemberToGoHistory({ memberId: found.id, email: parsed.data });
   revalidatePath("/");
-  revalidatePath("/member");
+  revalidatePath("/settings");
   return { ok: true, resumed: true };
 }
 
@@ -165,10 +164,10 @@ export async function clearBetaBrowserStateAction(): Promise<BetaActionState> {
   cookieStore.delete(BETA_SIGNUP_COOKIE);
   cookieStore.delete(GO_CONTACT_COOKIE);
   cookieStore.delete(QUICK_BUYER_COOKIE);
+  cookieStore.delete(QUICK_SELLER_COOKIE);
   cookieStore.delete(BETA_ACQUISITION_COOKIE);
   revalidatePath("/");
-  revalidatePath("/member");
-  revalidatePath("/go");
+  revalidatePath("/settings");
   return { ok: true, message: "Cleared. You’re a new visitor on this device." };
 }
 
@@ -183,19 +182,6 @@ export async function resetBetaSignupAction(): Promise<BetaActionState> {
     return { error: "Preview reset is disabled outside development." };
   }
   return clearBetaBrowserStateAction();
-}
-
-/**
- * There's no account behind this flow, so "once you've signed up" is tracked
- * with a cookie holding the `beta_members.id`. Not a session — just enough to
- * load/update prefs without re-collecting PII on every visit.
- *
- * Only a real uuid that still resolves to a member counts as completed. A
- * legacy `"1"` flag or a stale/deleted id must NOT open the empty shell.
- */
-export async function hasCompletedBetaSignup(): Promise<boolean> {
-  const profile = await loadBetaProfile();
-  return profile !== null;
 }
 
 export async function getBetaSignupId(): Promise<string | null> {
@@ -216,9 +202,10 @@ export async function updateBetaContactAction(
   formData: FormData,
 ): Promise<BetaActionState> {
   const id = await getBetaSignupId();
-  if (!id) return { error: "We couldn't find your signup. Rejoin the waitlist from the home page." };
+  if (!id) return { error: "We couldn't find your signup. Rejoin from the home page." };
 
   const parsed = contactUpdateSchema.safeParse({
+    name: formData.get("name"),
     email: formData.get("email"),
     phone: formData.get("phone") || "",
   });
@@ -229,7 +216,8 @@ export async function updateBetaContactAction(
   const result = await updateBetaContact(id, parsed.data);
   if (!result.ok) return { error: result.error };
   revalidatePath("/");
-  return { ok: true, message: "Contact info saved." };
+  revalidatePath("/settings");
+  return { ok: true, message: "Your info is saved." };
 }
 
 export async function updateBetaNotificationPrefsAction(
@@ -237,7 +225,7 @@ export async function updateBetaNotificationPrefsAction(
   formData: FormData,
 ): Promise<BetaActionState> {
   const id = await getBetaSignupId();
-  if (!id) return { error: "We couldn't find your signup. Rejoin the waitlist from the home page." };
+  if (!id) return { error: "We couldn't find your signup. Rejoin from the home page." };
 
   const parsed = notificationPrefsSchema.safeParse({
     notifyQueueEmail: formData.get("notifyQueueEmail") === "on",
@@ -251,75 +239,8 @@ export async function updateBetaNotificationPrefsAction(
 
   const result = await updateBetaNotificationPrefs(id, parsed.data);
   if (!result.ok) return { error: result.error };
-  revalidatePath("/");
+  revalidatePath("/settings");
   return { ok: true, message: "Saved." };
-}
-
-export async function setBetaEventInterestAction(
-  _prev: BetaActionState,
-  formData: FormData,
-): Promise<BetaActionState> {
-  const id = await getBetaSignupId();
-  if (!id) return { error: "We couldn't find your signup. Rejoin the waitlist from the home page." };
-
-  const parsed = eventInterestSchema.safeParse({
-    eventSlug: formData.get("eventSlug"),
-    intent: formData.get("intent"),
-    active: formData.get("active") === "1",
-    contactPhone: formData.get("contactPhone") || "",
-    contactInstagram: formData.get("contactInstagram") || "",
-    sellerTermsAccepted: formData.get("sellerTermsAccepted") === "1",
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid request." };
-  }
-
-  const result = await setBetaEventInterest(id, parsed.data);
-  if (!result.ok) return { error: result.error };
-  return {
-    ok: true,
-    message:
-      parsed.data.intent === "waitlist"
-        ? parsed.data.active
-          ? result.waitlistPosition
-            ? `You're #${result.waitlistPosition} on the waitlist — we'll notify you when a ticket is ready.`
-            : "You're on the waitlist — we'll notify you when a ticket is ready."
-          : "Removed from the waitlist."
-        : parsed.data.active
-          ? "Got it — we'll reach out on WhatsApp or Instagram to post your ticket."
-          : "Cancelled sell interest.",
-    waitlistPosition: result.waitlistPosition,
-  };
-}
-
-export async function getWaitlistPositionAction(
-  eventSlug: string,
-): Promise<{ position: number | null }> {
-  const id = await getBetaSignupId();
-  if (!id) return { position: null };
-  const position = await getWaitlistPosition(id, eventSlug);
-  return { position };
-}
-
-export async function submitBetaEventRequestAction(
-  _prev: BetaActionState,
-  formData: FormData,
-): Promise<BetaActionState> {
-  const id = await getBetaSignupId();
-  const parsed = eventRequestSchema.safeParse({
-    name: formData.get("name"),
-    details: formData.get("details") || undefined,
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid request." };
-  }
-
-  const result = await submitBetaEventRequest(id, parsed.data);
-  if (!result.ok) return { error: result.error };
-  return {
-    ok: true,
-    message: "Request received — once we get enough requests we can support your event!",
-  };
 }
 
 export async function submitBetaSupportAction(

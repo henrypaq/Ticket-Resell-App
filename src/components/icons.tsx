@@ -236,6 +236,15 @@ export function SnapchatIcon({ className }: IconProps) {
   );
 }
 
+export function UserIcon({ className, filled }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} {...base} fill={filled ? "currentColor" : "none"}>
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M4.8 20c0-3.6 3.2-5.8 7.2-5.8s7.2 2.2 7.2 5.8" />
+    </svg>
+  );
+}
+
 export function HelpIcon({ className, filled }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} {...base} fill={filled ? "currentColor" : "none"}>

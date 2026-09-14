@@ -71,21 +71,27 @@ export const BETA_ACQUISITION_COOKIE = "passe_beta_acq";
 
 const SITE = "https://mcgilltickets.party";
 
+/**
+ * Every landing now points at the apex — `/member` and `/go` were merged into
+ * one app. Codes already printed on flyers keep working: those paths redirect
+ * (next.config.ts) and the proxy stamps `?src=` before the redirect, so their
+ * attribution is unchanged. Only newly generated QR images use these URLs.
+ */
 export const ACQUISITION_LANDING = {
-  /** Branded /qr share screen — QR encodes this (member onboarding). */
-  qr_share: `${SITE}/member?src=qr_share`,
-  /** Plain printable QR (member onboarding). */
-  qr_print: `${SITE}/member?src=qr_print`,
-  /** Branded /qr/go share screen — QR encodes this (buy/sell hub). */
-  go_qr_share: `${SITE}/go?src=qr_share`,
-  /** Plain printable /go QR. */
-  go_qr_print: `${SITE}/go?src=qr_print`,
-  /** Instagram bio — clean apex URL; `/` redirects to `/go`. */
+  /** Branded /qr share screen — QR encodes this. */
+  qr_share: `${SITE}/?src=qr_share`,
+  /** Plain printable QR. */
+  qr_print: `${SITE}/?src=qr_print`,
+  /** Branded /qr/go share screen. */
+  go_qr_share: `${SITE}/?src=qr_share`,
+  /** Plain printable QR, /qr/go variant. */
+  go_qr_print: `${SITE}/?src=qr_print`,
+  /** Instagram bio — clean apex URL, no query string. */
   ig_bio: SITE,
-  cafe_soldout: `${SITE}/go?src=cafe_soldout`,
-  cafe_extra: `${SITE}/go?src=cafe_extra`,
-  cafe_hungover: `${SITE}/go?src=cafe_hungover`,
-  cafe_funnybuyer: `${SITE}/go?src=cafe_funnybuyer`,
+  cafe_soldout: `${SITE}/?src=cafe_soldout`,
+  cafe_extra: `${SITE}/?src=cafe_extra`,
+  cafe_hungover: `${SITE}/?src=cafe_hungover`,
+  cafe_funnybuyer: `${SITE}/?src=cafe_funnybuyer`,
 } as const;
 
 export function flyerLandingUrl(channel: FlyerAcquisitionChannel): string {

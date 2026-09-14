@@ -1,7 +1,14 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { GO_CONTACT_COOKIE, getGoContactById, type GoContactProfile } from "@/domains/beta-go/contacts";
+import {
+  GO_CONTACT_COOKIE,
+  adoptGoContactForMember,
+  getGoContactById,
+  getGoContactForMember,
+  type GoContactProfile,
+} from "@/domains/beta-go/contacts";
+import { getBetaSignupId } from "@/domains/beta-signup/actions";
 import {
   QUICK_BUYER_COOKIE,
   QUICK_SELLER_COOKIE,
@@ -10,10 +17,10 @@ import {
   type GoActivityEntry,
 } from "@/domains/beta-quick/shared";
 import {
-  getGoContactActivity,
+  getGoActivity,
   getQuickWaitlistEntries,
   leaveWaitlistLead,
-  listBuyLeadIdsForContact,
+  listBuyLeadIds,
   quickBuySchema,
   quickSellSchema,
   removeSellLead,
@@ -95,25 +102,49 @@ async function removeBuyerLeadId(leadId: string): Promise<void> {
   }
 }
 
+/**
+ * Who is asking — the device's /go contact cookie *and* the beta member cookie.
+ * Both are consulted everywhere, because either one alone loses history: the
+ * contact cookie is per-device and expires, and the member id only covers leads
+ * created (or adopted) after they joined.
+ *
+ * Pairing them here also repairs the link: a device carrying both where the
+ * contact isn't attached to any member yet gets adopted on the spot, so the
+ * quick buy/sell someone did before joining follows them from then on.
+ */
+async function currentIdentity(): Promise<{ contactId: string | null; memberId: string | null }> {
+  const [contactId, memberId] = await Promise.all([readGoContactId(), getBetaSignupId()]);
+  if (contactId && memberId) {
+    await adoptGoContactForMember({ contactId, memberId });
+  }
+  return { contactId, memberId };
+}
+
 export async function loadQuickWaitlistForHub(): Promise<QuickWaitlistEntry[]> {
-  const fromCookie = await readBuyerLeadIds();
-  const contactId = await readGoContactId();
-  const fromContact = contactId ? await listBuyLeadIdsForContact(contactId) : [];
-  const ids = [...new Set([...fromCookie, ...fromContact])].slice(0, 20);
+  const [fromCookie, identity] = await Promise.all([readBuyerLeadIds(), currentIdentity()]);
+  const fromLookup = await listBuyLeadIds(identity);
+  const ids = [...new Set([...fromCookie, ...fromLookup])].slice(0, 20);
   return getQuickWaitlistEntries(ids);
 }
 
-/** Buy + sell history for this device’s /go contact (no beta signup needed). */
+/** Buy + sell history for this visitor — device contact cookie or member id. */
 export async function loadGoActivityForHub(): Promise<GoActivityEntry[]> {
-  const contactId = await readGoContactId();
-  if (!contactId) return [];
-  return getGoContactActivity(contactId);
+  return getGoActivity(await currentIdentity());
 }
 
+/**
+ * Contact details to prefill buy/sell with. Falls back to the beta member
+ * profile when this device has no /go contact yet, so a member who joined on
+ * their laptop doesn't retype their phone on their phone.
+ */
 export async function loadSavedGoContact(): Promise<GoContactProfile | null> {
-  const id = await readGoContactId();
-  if (!id) return null;
-  return getGoContactById(id);
+  const { contactId, memberId } = await currentIdentity();
+  if (contactId) {
+    const contact = await getGoContactById(contactId);
+    if (contact) return contact;
+  }
+  if (!memberId) return null;
+  return getGoContactForMember(memberId);
 }
 
 export async function updateWaitlistLeadAction(
@@ -122,9 +153,11 @@ export async function updateWaitlistLeadAction(
 ): Promise<QuickActionState> {
   const leadId = String(formData.get("leadId") ?? "");
   const quantity = Number(formData.get("quantity") ?? 1);
+  const { contactId, memberId } = await currentIdentity();
   const result = await updateWaitlistLead({
     leadId,
-    contactId: await readGoContactId(),
+    contactId,
+    memberId,
     allowedLeadIds: await readBuyerLeadIds(),
     quantity: Number.isFinite(quantity) ? quantity : 1,
     contactPhone: String(formData.get("contactPhone") ?? ""),
@@ -158,9 +191,11 @@ async function removeSellerLeadId(leadId: string): Promise<void> {
 export async function leaveWaitlistLeadAction(
   leadId: string,
 ): Promise<QuickActionState> {
+  const { contactId, memberId } = await currentIdentity();
   const result = await leaveWaitlistLead({
     leadId,
-    contactId: await readGoContactId(),
+    contactId,
+    memberId,
     allowedLeadIds: await readBuyerLeadIds(),
   });
   if (!result.ok) return { error: result.error };
@@ -169,9 +204,11 @@ export async function leaveWaitlistLeadAction(
 }
 
 export async function removeSellLeadAction(leadId: string): Promise<QuickActionState> {
+  const { contactId, memberId } = await currentIdentity();
   const result = await removeSellLead({
     leadId,
-    contactId: await readGoContactId(),
+    contactId,
+    memberId,
     allowedLeadIds: await readSellerLeadIds(),
   });
   if (!result.ok) return { error: result.error };
@@ -180,11 +217,11 @@ export async function removeSellLeadAction(leadId: string): Promise<QuickActionS
 }
 
 export async function dismissPastSellLeadsAction(leadIds: string[]): Promise<QuickActionState> {
-  const contactId = await readGoContactId();
+  const { contactId, memberId } = await currentIdentity();
   const allowed = await readSellerLeadIds();
   for (const id of leadIds) {
     if (!/^[0-9a-f-]{36}$/i.test(id)) continue;
-    await removeSellLead({ leadId: id, contactId, allowedLeadIds: allowed });
+    await removeSellLead({ leadId: id, contactId, memberId, allowedLeadIds: allowed });
     await removeSellerLeadId(id);
   }
   return { ok: true };
@@ -242,6 +279,7 @@ export async function submitQuickBuyAction(
   const result = await submitQuickBuy({
     ...parsed.data,
     existingContactId: await readGoContactId(),
+    memberId: await getBetaSignupId(),
   });
   if (!result.ok) return { error: result.error };
   await appendQuickBuyerCookie(result.id);
@@ -283,7 +321,11 @@ export async function submitQuickSellAction(
     }
 
     const result = await submitQuickSell(
-      { ...parsed.data, existingContactId: await readGoContactId() },
+      {
+        ...parsed.data,
+        existingContactId: await readGoContactId(),
+        memberId: await getBetaSignupId(),
+      },
       uploads,
     );
     if (!result.ok) return { error: result.error };

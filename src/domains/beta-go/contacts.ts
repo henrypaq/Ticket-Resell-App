@@ -39,6 +39,44 @@ export async function getGoContactById(id: string): Promise<GoContactProfile | n
   return data ? mapContact(data as Record<string, unknown>) : null;
 }
 
+/**
+ * The /go contact a member last used, for prefilling buy/sell on a device that
+ * has no contact cookie. Falls back to a contact synthesized from their member
+ * profile so a brand-new member still gets their phone filled in.
+ */
+export async function getGoContactForMember(memberId: string): Promise<GoContactProfile | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(memberId)) return null;
+  const admin = createAdminClient();
+
+  const { data } = await admin
+    .from("beta_go_contacts")
+    .select("*")
+    .eq("member_id", memberId)
+    .order("last_seen_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  if (data) return mapContact(data as Record<string, unknown>);
+
+  const { data: member } = await admin
+    .from("beta_members")
+    .select("id, name, email, phone")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (!member) return null;
+
+  // Not a real `beta_go_contacts` row — `id` is the member id, which no lead
+  // references. Prefill only; never pass it back as `existingContactId`.
+  return {
+    id: member.id as string,
+    contactPhone: normalizePhone(member.phone as string | null),
+    contactInstagram: null,
+    etransferName: (member.name as string | null) || null,
+    etransferEmail: (member.email as string | null) || null,
+    etransferPhone: normalizePhone(member.phone as string | null),
+    memberId,
+  };
+}
+
 /** Find a beta member id by phone (normalized digits) or email. */
 export async function findMemberIdByContact(input: {
   phone?: string | null;
@@ -67,6 +105,12 @@ export async function findMemberIdByContact(input: {
 /**
  * Upsert a thin /go contact from buy/sell details. Returns the contact id.
  * Also attaches member_id when a matching beta member already exists.
+ *
+ * `memberId` is the signed-in member doing this — pass it whenever it's known.
+ * It wins over `findMemberIdByContact`, which can only match on phone/email:
+ * a member who joined with their McGill address and then lists a ticket with a
+ * different WhatsApp number would otherwise create an unlinked contact, and
+ * their listing would vanish from the home page on their next visit.
  */
 export async function upsertGoContact(input: {
   contactPhone?: string | null;
@@ -75,6 +119,7 @@ export async function upsertGoContact(input: {
   etransferEmail?: string | null;
   etransferPhone?: string | null;
   existingContactId?: string | null;
+  memberId?: string | null;
 }): Promise<{ ok: true; contact: GoContactProfile } | { ok: false; error: string }> {
   const phone = normalizePhone(input.contactPhone);
   const ig = normalizeIg(input.contactInstagram);
@@ -113,6 +158,7 @@ export async function upsertGoContact(input: {
   }
 
   const memberId =
+    input.memberId ??
     (existing?.member_id as string | null) ??
     (await findMemberIdByContact({ phone, email: input.etransferEmail, instagram: ig }));
 
@@ -231,6 +277,41 @@ async function linkGoLeadsToContact(contactId: string, memberId: string | null) 
       .is("contact_id", null)
       .ilike("contact_instagram", contact.contact_instagram);
   }
+}
+
+/**
+ * Attach one specific /go contact (and its leads) to a member. Called on every
+ * app load when the device carries both cookies: someone who used the quick
+ * buy/sell flow before joining, or who joined on this device after listing a
+ * ticket, has an orphaned contact row that only this pairing can resolve.
+ *
+ * No-ops when the contact already belongs to a member, so a shared device can't
+ * silently reassign someone else's listings.
+ */
+export async function adoptGoContactForMember(input: {
+  contactId: string;
+  memberId: string;
+}): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(input.contactId)) return;
+  const admin = createAdminClient();
+  const { data: contact } = await admin
+    .from("beta_go_contacts")
+    .select("id, member_id")
+    .eq("id", input.contactId)
+    .maybeSingle();
+  if (!contact || contact.member_id) return;
+
+  await admin
+    .from("beta_go_contacts")
+    .update({ member_id: input.memberId })
+    .eq("id", input.contactId)
+    .is("member_id", null);
+
+  await admin
+    .from("beta_go_leads")
+    .update({ member_id: input.memberId })
+    .eq("contact_id", input.contactId)
+    .is("member_id", null);
 }
 
 /** When someone becomes a beta member, attach prior /go contacts + leads. */

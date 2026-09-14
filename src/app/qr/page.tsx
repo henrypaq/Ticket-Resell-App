@@ -8,9 +8,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * Branded QR share screen for mobile / Stories. The QR encodes
- * `?src=qr_share` so scans attribute correctly; the visible label stays the
+ * Branded QR share screen for mobile / Stories. The visible label stays the
  * clean domain. Plain printable QR: `/qr/beta-signup-qr-print.png`.
+ *
+ * The PNG still encodes the pre-merge `/member?src=qr_share`, which redirects
+ * to `/` with attribution intact (the proxy stamps `?src=` before the
+ * redirect). Regenerate it from `ACQUISITION_LANDING.qr_share` for the apex.
  */
 export default function QrDisplayPage() {
   return (
