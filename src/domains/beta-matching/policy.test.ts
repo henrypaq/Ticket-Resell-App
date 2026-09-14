@@ -303,9 +303,12 @@ describe("nextAllocationAction", () => {
 });
 
 describe("rankOfSeat", () => {
-  it("uses 1-based real-seat rank only", () => {
+  it("uses 1-based real-seat rank only — fake-front padding never enters the seat list", () => {
+    // Display `#N` may add ops fake-front; allocator input is real seats only.
     const seats = [{ key: "go:a" }, { key: "classic:b" }, { key: "go:c" }];
+    expect(rankOfSeat(seats, "go:a")).toBe(1);
     expect(rankOfSeat(seats, "classic:b")).toBe(2);
+    expect(rankOfSeat(seats, "go:c")).toBe(3);
     expect(rankOfSeat(seats, "missing")).toBeNull();
   });
 });

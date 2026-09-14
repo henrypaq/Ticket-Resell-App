@@ -8,6 +8,10 @@ export type QuickWaitlistEntry = {
   createdAt: string;
   contactPhone: string | null;
   contactInstagram: string | null;
+  /** Seat paused after strikes — buyer can reactivate. */
+  dormant: boolean;
+  /** Live exclusive offer for this seat, if any. */
+  activeOfferId: string | null;
 };
 
 /** Max tickets per /go buy waitlist or sell listing. */

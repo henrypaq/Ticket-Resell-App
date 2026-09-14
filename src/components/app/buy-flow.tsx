@@ -65,6 +65,7 @@ export function QuickBuyFlow({
   const [transferFirstName, setTransferFirstName] = useState("");
   const [transferLastName, setTransferLastName] = useState("");
   const [transferEmail, setTransferEmail] = useState("");
+  const [maxPriceEach, setMaxPriceEach] = useState("");
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
 
   useEffect(() => {
@@ -151,6 +152,9 @@ export function QuickBuyFlow({
         <input type="hidden" name="transferFirstName" value={transferFirstName.trim()} />
         <input type="hidden" name="transferLastName" value={transferLastName.trim()} />
         <input type="hidden" name="transferEmail" value={transferEmail.trim()} />
+        {maxPriceEach.trim() !== "" && (
+          <input type="hidden" name="maxPriceEach" value={maxPriceEach.trim()} />
+        )}
 
         <div key={step} className="flex flex-col gap-6">
           {step === 0 && (
@@ -169,6 +173,22 @@ export function QuickBuyFlow({
                 </p>
               )}
               <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
+              <Field label="Max you'll pay each (optional)" htmlFor="maxPriceEach">
+                <input
+                  id="maxPriceEach"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  placeholder="e.g. 40"
+                  value={maxPriceEach}
+                  onChange={(e) => setMaxPriceEach(e.target.value)}
+                  className={FIELD_CLASS}
+                />
+              </Field>
+              <p className="text-[12.5px] text-muted">
+                We&apos;ll only hold tickets at or under this price. Leave blank for no limit.
+              </p>
             </>
           )}
 

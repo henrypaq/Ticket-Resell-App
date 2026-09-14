@@ -367,6 +367,7 @@ export async function submitQuickBuyAction(
     transferFirstName: formData.get("transferFirstName") || "",
     transferLastName: formData.get("transferLastName") || "",
     transferEmail: formData.get("transferEmail") || "",
+    maxPriceEach: formData.get("maxPriceEach") || undefined,
     acquisitionChannel: await readAcquisitionChannel(),
     landingSrc: await readLastSrc(),
   });

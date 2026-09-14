@@ -3,6 +3,8 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listUnifiedQueueSeats } from "@/domains/beta-queue/unified";
 import { logEvent } from "@/lib/analytics/log";
+import { doorsAtForEvent } from "@/domains/matching/doors";
+import { notifyOfferSeat } from "@/domains/beta-matching/notify";
 import {
   type DeclineReason,
   type OfferStatus,
@@ -79,10 +81,13 @@ export async function createUnitsFromSellLead(sellLeadId: string): Promise<Match
   if (lead.status === "cancelled") return { ok: false, error: "Sell lead is cancelled." };
 
   const qty = Math.max(1, Number(lead.quantity) || 1);
-  const price = Number(lead.ask_each);
-  if (!Number.isFinite(price) || price < 0) {
+  const ask = Number(lead.ask_each);
+  const paid = lead.paid_each == null ? null : Number(lead.paid_each);
+  if (!Number.isFinite(ask) || ask < 0) {
     return { ok: false, error: "Sell lead is missing a valid ask price." };
   }
+  // Never exceed attested face value — same rule as the unit trigger.
+  const price = paid != null && Number.isFinite(paid) ? Math.min(ask, paid) : ask;
 
   const { data: existing } = await admin
     .from("beta_ticket_units")
@@ -269,7 +274,8 @@ export async function allocateNextForUnit(args: {
     return { ok: false, error: `Unit is ${unit.status}.` };
   }
 
-  const mode = matchingModeAt(now, args.doorsAt ?? null);
+  const doorsAt = args.doorsAt !== undefined ? args.doorsAt : doorsAtForEvent(unit.event_slug, now);
+  const mode = matchingModeAt(now, doorsAt);
   if (mode === "open") {
     return {
       ok: true,
@@ -358,6 +364,23 @@ export async function allocateNextForUnit(args: {
       },
     });
 
+    void notifyOfferSeat({
+      kind: "offered",
+      seatKey: seat.key,
+      priceEach: Number(unit.price_each),
+      offerId: offerId as string,
+      eventSlug: unit.event_slug,
+      deadlineIso: expiresAt.toISOString(),
+    });
+
+    // Warm the next eligible seat (notification only — no offer row).
+    void warmNextSeat({
+      eventSlug: unit.event_slug,
+      afterSeatKey: seat.key,
+      priceEach: Number(unit.price_each),
+      seller,
+    });
+
     // Mirror lead status for ops familiarity — offer row is the source of truth.
     if (buyLeadId) {
       await admin
@@ -372,6 +395,46 @@ export async function allocateNextForUnit(args: {
   }
 
   return { ok: true, skipped: "no_eligible_seat", mode };
+}
+
+async function warmNextSeat(args: {
+  eventSlug: string;
+  afterSeatKey: string;
+  priceEach: number;
+  seller: { contactId: string | null; memberId: string | null };
+}): Promise<void> {
+  const seats = await listUnifiedQueueSeats(args.eventSlug);
+  const admin = createAdminClient();
+  let passed = false;
+  for (const seat of seats) {
+    if (!passed) {
+      if (seat.key === args.afterSeatKey) passed = true;
+      continue;
+    }
+    const meta = await loadSeatMeta(admin, seat.key, args.eventSlug);
+    if (!meta) continue;
+    const isSeller =
+      (args.seller.contactId != null && args.seller.contactId === meta.contactId) ||
+      (args.seller.memberId != null && args.seller.memberId === meta.memberId);
+    const eligibility = seatEligibleForOffer({
+      seatKey: seat.key,
+      quantity: meta.quantity,
+      maxPriceEach: meta.maxPriceEach,
+      unitPriceEach: args.priceEach,
+      liveOfferCount: meta.liveOfferCount,
+      dormant: meta.dormant,
+      isSeller,
+      declinedAtOrAbove: meta.declinedAtOrAbove,
+    });
+    if (!eligibility.ok) continue;
+    await notifyOfferSeat({
+      kind: "next_up",
+      seatKey: seat.key,
+      priceEach: args.priceEach,
+      eventSlug: args.eventSlug,
+    });
+    return;
+  }
 }
 
 async function applyDormancyIfNeeded(args: {
@@ -405,7 +468,6 @@ async function applyDormancyIfNeeded(args: {
 export async function acceptOffer(offerId: string, doorsAt?: Date | null): Promise<MatchingResult> {
   const now = new Date();
   const admin = createAdminClient();
-  const mode = matchingModeAt(now, doorsAt ?? null);
 
   const { data: offer, error } = await admin
     .from("beta_offers")
@@ -413,6 +475,10 @@ export async function acceptOffer(offerId: string, doorsAt?: Date | null): Promi
     .eq("id", offerId)
     .maybeSingle();
   if (error || !offer) return { ok: false, error: "Offer not found." };
+
+  const resolvedDoors =
+    doorsAt !== undefined ? doorsAt : doorsAtForEvent(offer.event_slug, now);
+  const mode = matchingModeAt(now, resolvedDoors);
 
   const lazy = lazyExpiryStatus(
     {
@@ -527,7 +593,10 @@ export async function declineOffer(
   return next.ok ? { ok: true, id: offerId, ids: next.id ? [next.id] : [] } : next;
 }
 
-export async function markOfferPaid(offerId: string): Promise<MatchingResult> {
+export async function markOfferPaid(
+  offerId: string,
+  payment?: { amount?: number; reference?: string; recordedBy?: string },
+): Promise<MatchingResult> {
   const now = new Date();
   const admin = createAdminClient();
 
@@ -547,6 +616,10 @@ export async function markOfferPaid(offerId: string): Promise<MatchingResult> {
     .update({
       status: "paid",
       responded_at: offer.responded_at ?? now.toISOString(),
+      payment_amount: payment?.amount ?? Number(offer.price_each),
+      payment_reference: payment?.reference ?? null,
+      payment_recorded_at: now.toISOString(),
+      payment_recorded_by: payment?.recordedBy ?? "ops",
     })
     .eq("id", offerId);
 
@@ -562,6 +635,14 @@ export async function markOfferPaid(offerId: string): Promise<MatchingResult> {
   void logEvent({
     type: "waitlist_offer_paid",
     metadata: { offer_id: offerId, unit_id: offer.unit_id, seat_key: offer.seat_key },
+  });
+
+  void notifyOfferSeat({
+    kind: "paid",
+    seatKey: offer.seat_key,
+    priceEach: Number(offer.price_each),
+    offerId,
+    eventSlug: offer.event_slug,
   });
 
   return { ok: true, id: offerId };
@@ -592,13 +673,15 @@ export async function markOfferPaymentFailed(offerId: string): Promise<MatchingR
   if (error) return { ok: false, error: error.message };
 
   const spend = await exclusivitySpendForUnit(admin, offer.unit_id, now);
+  const doorsAt = doorsAtForEvent(offer.event_slug, now);
+  const mode = matchingModeAt(now, doorsAt);
   const action = nextAllocationAction({
     terminalStatus: "payment_failed",
     spendAfter: spend,
-    mode: "exclusive",
+    mode,
   });
   if (action === "next_rank") {
-    await allocateNextForUnit({ unitId: offer.unit_id });
+    await allocateNextForUnit({ unitId: offer.unit_id, now, doorsAt });
   }
   return { ok: true, id: offerId, skipped: action === "open" ? "open_after_fail" : undefined };
 }
@@ -646,6 +729,14 @@ export async function reconcileExpiredOffers(now = new Date()): Promise<{
       },
     });
 
+    void notifyOfferSeat({
+      kind: "expired",
+      seatKey: row.seat_key,
+      priceEach: 0,
+      offerId: row.offer_id,
+      eventSlug: row.event_slug,
+    });
+
     if (row.new_status === "expired_no_response" || row.new_status === "expired_unpaid") {
       const meta = await loadSeatMeta(admin, row.seat_key, row.event_slug);
       if (meta) {
@@ -661,10 +752,12 @@ export async function reconcileExpiredOffers(now = new Date()): Promise<{
     }
 
     const spend = await exclusivitySpendForUnit(admin, row.unit_id, now);
+    const doorsAt = doorsAtForEvent(row.event_slug, now);
+    const mode = matchingModeAt(now, doorsAt);
     const action = nextAllocationAction({
       terminalStatus: row.new_status,
       spendAfter: spend,
-      mode: "exclusive",
+      mode,
     });
     if (action === "next_rank") unitsToAdvance.add(row.unit_id);
   }
@@ -713,4 +806,101 @@ export async function listAvailableUnits(eventSlug?: string): Promise<UnitRow[]>
   if (eventSlug) q = q.eq("event_slug", eventSlug);
   const { data } = await q;
   return (data ?? []) as UnitRow[];
+}
+
+/** Mark a unit as open-market: expire any live exclusive hold without re-offering. */
+export async function releaseUnitToOpen(unitId: string): Promise<MatchingResult> {
+  const now = new Date();
+  const admin = createAdminClient();
+  const { data: live } = await admin
+    .from("beta_offers")
+    .select("id, status")
+    .eq("unit_id", unitId)
+    .in("status", ["offered", "accepted"]);
+
+  for (const row of live ?? []) {
+    const status = row.status === "accepted" ? "expired_unpaid" : "expired_no_response";
+    await admin
+      .from("beta_offers")
+      .update({ status, responded_at: now.toISOString() })
+      .eq("id", row.id);
+  }
+
+  return { ok: true, id: unitId, mode: "open", skipped: "released_to_open" };
+}
+
+/** Clear dormancy so the seat can receive exclusive holds again. */
+export async function reactivateSeat(seatKey: string): Promise<MatchingResult> {
+  const admin = createAdminClient();
+  const eventSlug = seatKey.includes(":")
+    ? (
+        await (async () => {
+          if (seatKey.startsWith("go:")) {
+            const { data } = await admin
+              .from("beta_go_leads")
+              .select("event_slug")
+              .eq("id", seatKey.slice(3))
+              .maybeSingle();
+            return data?.event_slug as string | undefined;
+          }
+          const { data } = await admin
+            .from("beta_member_interests")
+            .select("event_slug")
+            .eq("id", seatKey.slice(8))
+            .maybeSingle();
+          return data?.event_slug as string | undefined;
+        })()
+      )
+    : undefined;
+
+  if (!eventSlug) return { ok: false, error: "Seat not found." };
+
+  const now = new Date().toISOString();
+  const { error } = await admin.from("beta_queue_seat_state").upsert(
+    {
+      seat_key: seatKey,
+      event_slug: eventSlug,
+      dormant_at: null,
+      reactivated_at: now,
+      updated_at: now,
+    },
+    { onConflict: "seat_key" },
+  );
+  if (error) return { ok: false, error: error.message };
+
+  void notifyOfferSeat({
+    kind: "reactivate",
+    seatKey,
+    priceEach: 0,
+    eventSlug,
+  });
+
+  return { ok: true };
+}
+
+/** Create missing units for every open sell lead (idempotent backfill). */
+export async function backfillAllSellUnits(): Promise<{ created: number; errors: string[] }> {
+  const admin = createAdminClient();
+  const { data: sells } = await admin
+    .from("beta_go_leads")
+    .select("id")
+    .eq("intent", "sell")
+    .neq("status", "cancelled");
+
+  let created = 0;
+  const errors: string[] = [];
+  for (const row of sells ?? []) {
+    const result = await createUnitsFromSellLead(row.id);
+    if (!result.ok) errors.push(`${row.id}: ${result.error}`);
+    else created += result.ids?.length ?? 0;
+  }
+  return { created, errors };
+}
+
+export async function getOfferForBuyer(
+  offerId: string,
+): Promise<(OfferRow & { event_slug: string }) | null> {
+  const admin = createAdminClient();
+  const { data } = await admin.from("beta_offers").select("*").eq("id", offerId).maybeSingle();
+  return (data as OfferRow | null) ?? null;
 }

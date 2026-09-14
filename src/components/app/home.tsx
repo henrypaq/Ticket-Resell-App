@@ -16,6 +16,7 @@ import {
   removeSellLeadAction,
   updateWaitlistLeadAction,
 } from "@/domains/beta-quick/actions";
+import { buyerReactivateSeatAction } from "@/domains/beta-matching/buyer-actions";
 import type { GoActivityEntry, QuickActionState, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
@@ -100,7 +101,7 @@ export function AppHome({
           <p className="section-header text-[11px] text-muted">Your waitlist</p>
           <ul className="mt-4 flex flex-col gap-4">
             {waitlist.map((entry) => (
-              <li key={entry.leadId}>
+              <li key={entry.leadId} className="flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={() => setEditing(entry)}
@@ -110,11 +111,15 @@ export function AppHome({
                     <p className="truncate text-[15px] font-semibold text-ink">{entry.eventName}</p>
                     <p className="mt-0.5 text-[12.5px] text-muted">
                       ×{entry.quantity}
-                      {entry.status === "matched"
-                        ? " · matched — we’ll message you"
-                        : entry.status === "done"
-                          ? " · completed"
-                          : " · tap to edit · we’ll message you when a ticket opens"}
+                      {entry.dormant
+                        ? " · paused — reactivate to get holds again"
+                        : entry.activeOfferId
+                          ? " · ticket held for you — claim it"
+                          : entry.status === "matched"
+                            ? " · matched — we’ll message you"
+                            : entry.status === "done"
+                              ? " · completed"
+                              : " · tap to edit · we’ll message you when a ticket opens"}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -126,6 +131,17 @@ export function AppHome({
                     </p>
                   </div>
                 </button>
+                {entry.activeOfferId && (
+                  <Link
+                    href={`/offer/${entry.activeOfferId}`}
+                    className={`${BUTTON_CLASS} min-h-[44px] text-[14px]`}
+                  >
+                    Claim your ticket
+                  </Link>
+                )}
+                {entry.dormant && !entry.activeOfferId && (
+                  <ReactivateSeatButton seatKey={`go:${entry.leadId}`} />
+                )}
               </li>
             ))}
           </ul>
@@ -233,6 +249,36 @@ export function AppHome({
         </a>
       </footer>
     </>
+  );
+}
+
+function ReactivateSeatButton({ seatKey }: { seatKey: string }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        disabled={pending}
+        className={`${SECONDARY_BUTTON_CLASS} min-h-[44px] text-[14px]`}
+        onClick={() => {
+          setError(null);
+          start(async () => {
+            const r = await buyerReactivateSeatAction(seatKey);
+            if (r.error) setError(r.error);
+            else router.refresh();
+          });
+        }}
+      >
+        {pending ? "…" : "Reactivate waitlist seat"}
+      </button>
+      {error && (
+        <p role="alert" className="text-[12.5px] text-urgency">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -5,11 +5,14 @@ import { useTransition } from "react";
 import {
   acceptOfferAction,
   allocateUnitAction,
+  backfillSellUnitsAction,
   createUnitsForSellLeadAction,
   declineOfferAction,
   markOfferNeedsReviewAction,
   markOfferPaidAction,
   markOfferPaymentFailedAction,
+  reactivateSeatAction,
+  releaseUnitToOpenAction,
 } from "@/domains/beta-ops/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,10 +48,26 @@ export function OffersBoard({
 }) {
   return (
     <div className="flex flex-col gap-8">
+      <section className="flex flex-wrap items-center gap-2">
+        <ActionButton
+          label="Backfill all sell units"
+          onClick={async () => {
+            const r = await backfillSellUnitsAction();
+            if (r.error) return r;
+            return { ok: true as const };
+          }}
+        />
+        <p className="text-[11px] text-zinc-500">
+          Creates missing ticket units for open sell leads (idempotent).
+        </p>
+      </section>
+
       <section>
         <h2 className="text-sm font-semibold text-zinc-100">Available units</h2>
         <p className="mt-1 text-xs text-zinc-400">
-          One row per sellable ticket. Offer next walks the real waitlist (no fake-front).
+          One row per sellable ticket. Offer next walks the real waitlist (no fake-front). Release
+          to open drops exclusive holds when the budget is spent or you want a free-for-all near
+          doors.
         </p>
         {units.length === 0 ? (
           <p className="mt-3 text-xs text-zinc-500">No available units.</p>
@@ -64,9 +83,16 @@ export function OffersBoard({
                   #{u.unit_index} · ${Number(u.price_each).toFixed(2)}
                 </span>
                 <span className="font-mono text-[10px] text-zinc-500">{u.id.slice(0, 8)}</span>
-                <div className="ml-auto flex gap-1">
-                  <ActionButton label="Ensure units" onClick={() => createUnitsForSellLeadAction(u.sell_lead_id)} />
+                <div className="ml-auto flex flex-wrap gap-1">
+                  <ActionButton
+                    label="Ensure units"
+                    onClick={() => createUnitsForSellLeadAction(u.sell_lead_id)}
+                  />
                   <ActionButton label="Offer next" onClick={() => allocateUnitAction(u.id)} />
+                  <ActionButton
+                    label="Release to open"
+                    onClick={() => releaseUnitToOpenAction(u.id)}
+                  />
                 </div>
               </li>
             ))}
@@ -78,6 +104,7 @@ export function OffersBoard({
         <h2 className="text-sm font-semibold text-zinc-100">Offers</h2>
         <p className="mt-1 text-xs text-zinc-400">
           Response + payment clocks. Decline requeues immediately; unpaid expiry is a hard strike.
+          Mark paid records the Interac amount/reference on the offer.
         </p>
         {offers.length === 0 ? (
           <p className="mt-3 text-xs text-zinc-500">No offers yet.</p>
@@ -117,8 +144,13 @@ export function OffersBoard({
                       />
                     </>
                   )}
-                  {(o.status === "accepted" || o.status === "offered" || o.status === "needs_review") && (
-                    <ActionButton label="Mark paid" onClick={() => markOfferPaidAction(o.id)} />
+                  {(o.status === "accepted" ||
+                    o.status === "offered" ||
+                    o.status === "needs_review") && (
+                    <MarkPaidButton
+                      offerId={o.id}
+                      defaultAmount={Number(o.price_each)}
+                    />
                   )}
                   {o.status === "accepted" && (
                     <>
@@ -132,6 +164,10 @@ export function OffersBoard({
                       />
                     </>
                   )}
+                  <ActionButton
+                    label="Reactivate seat"
+                    onClick={() => reactivateSeatAction(o.seat_key)}
+                  />
                 </div>
               </li>
             ))}
@@ -139,6 +175,46 @@ export function OffersBoard({
         )}
       </section>
     </div>
+  );
+}
+
+function MarkPaidButton({
+  offerId,
+  defaultAmount,
+}: {
+  offerId: string;
+  defaultAmount: number;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={pending}
+      className="h-7 px-2 text-[11px]"
+      onClick={() => {
+        const amountRaw = window.prompt("E-transfer amount (CAD)", String(defaultAmount));
+        if (amountRaw === null) return;
+        const amount = Number(amountRaw);
+        if (!Number.isFinite(amount) || amount < 0) {
+          window.alert("Enter a valid amount.");
+          return;
+        }
+        const reference = window.prompt("Payment reference (optional)") ?? undefined;
+        start(async () => {
+          const result = await markOfferPaidAction(offerId, {
+            amount,
+            reference: reference?.trim() || undefined,
+          });
+          if (result.error) window.alert(result.error);
+          router.refresh();
+        });
+      }}
+    >
+      {pending ? "…" : "Mark paid"}
+    </Button>
   );
 }
 

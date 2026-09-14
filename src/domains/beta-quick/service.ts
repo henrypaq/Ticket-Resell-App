@@ -57,7 +57,11 @@ export const quickBuySchema = z
       .default("")
       .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid email."),
     /** Optional buy-side ceiling — allocator skips units above this. */
-    maxPriceEach: z.coerce.number().min(0).max(5000).optional(),
+    maxPriceEach: z.preprocess((v) => {
+      if (v === "" || v === null || v === undefined) return undefined;
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    }, z.number().min(0).max(5000).optional()),
     acquisitionChannel: z.enum(ACQUISITION_CHANNELS).optional(),
     /**
      * Last-touch tag from the link that produced this lead (story, campaign).
@@ -600,6 +604,26 @@ export async function getQuickWaitlistEntries(
 
   const seatsByEvent = new Map<string, Awaited<ReturnType<typeof listUnifiedQueueSeats>>>();
   const entries: QuickWaitlistEntry[] = [];
+  const seatKeys = mine.map((row) => `go:${row.id}`);
+
+  const [{ data: seatStates }, { data: liveOffers }] = await Promise.all([
+    admin
+      .from("beta_queue_seat_state")
+      .select("seat_key, dormant_at")
+      .in("seat_key", seatKeys),
+    admin
+      .from("beta_offers")
+      .select("id, buy_lead_id, status")
+      .in("buy_lead_id", ids)
+      .in("status", ["offered", "accepted"]),
+  ]);
+
+  const dormantBySeat = new Map(
+    (seatStates ?? []).map((s) => [s.seat_key as string, Boolean(s.dormant_at)]),
+  );
+  const offerByLead = new Map(
+    (liveOffers ?? []).map((o) => [o.buy_lead_id as string, o.id as string]),
+  );
 
   for (const row of mine) {
     if (row.status === "cancelled") continue;
@@ -611,6 +635,7 @@ export async function getQuickWaitlistEntries(
     const fakeFront = fakeFronts.get(row.event_slug) ?? 0;
     const pos = positionInSeats(seats, (s) => s.source === "go" && s.id === row.id, fakeFront);
     const event = betaEventBySlug(row.event_slug);
+    const seatKey = `go:${row.id}`;
     entries.push({
       leadId: row.id,
       eventSlug: row.event_slug,
@@ -621,6 +646,8 @@ export async function getQuickWaitlistEntries(
       createdAt: row.created_at,
       contactPhone: (row.contact_phone as string | null) ?? null,
       contactInstagram: (row.contact_instagram as string | null) ?? null,
+      dormant: dormantBySeat.get(seatKey) ?? false,
+      activeOfferId: offerByLead.get(row.id) ?? null,
     });
   }
 

@@ -23,7 +23,17 @@ export type BetaEvent = {
   supported: boolean;
   /** Optional door / entry policy shown on posters (e.g. Café Campus cutoff). */
   entryNote?: string;
+  /**
+   * Montreal local hour doors open, 0-23. Drives how aggressively waitlist
+   * matching shortens its clocks as the event approaches (see
+   * `domains/matching/doors.ts`). Defaults to `DEFAULT_DOORS_HOUR` — set it
+   * only for events that aren't late-night, like a Sunday afternoon Piknik.
+   */
+  doorsHour?: number;
 };
+
+/** Club night default. Overridden per event via `BetaEvent.doorsHour`. */
+export const DEFAULT_DOORS_HOUR = 22;
 
 export const BETA_WEEKDAYS = [
   "Thursday",
@@ -78,6 +88,8 @@ export const BETA_EVENTS: BetaEvent[] = [
     flyerUrl: "/flyers/piknik-electronik.jpg",
     days: ["Sunday"],
     supported: true,
+    // Daytime outdoor event, not a club night.
+    doorsHour: 14,
   },
 ];
 

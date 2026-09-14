@@ -7,6 +7,10 @@
     {
       "path": "/api/v1/cron/reconcile-offers",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/v1/cron/release-stale-reservations",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

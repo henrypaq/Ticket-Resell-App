@@ -14,11 +14,14 @@ import {
 import {
   acceptOffer,
   allocateNextForUnit,
+  backfillAllSellUnits,
   createUnitsFromSellLead,
   declineOffer,
   markOfferNeedsReview,
   markOfferPaid,
   markOfferPaymentFailed,
+  reactivateSeat,
+  releaseUnitToOpen,
 } from "@/domains/beta-matching/service";
 
 export type OpsLoginState = { error?: string };
@@ -208,13 +211,55 @@ export async function declineOfferAction(
   return { ok: true };
 }
 
-export async function markOfferPaidAction(offerId: string): Promise<OpsActionState> {
+export async function markOfferPaidAction(
+  offerId: string,
+  payment?: { amount?: number; reference?: string },
+): Promise<OpsActionState> {
   try {
     await requireBetaOpsSession();
   } catch {
     return { error: "Session expired. Sign in again." };
   }
-  const result = await markOfferPaid(offerId);
+  const result = await markOfferPaid(offerId, {
+    amount: payment?.amount,
+    reference: payment?.reference,
+    recordedBy: "ops",
+  });
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function releaseUnitToOpenAction(unitId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await releaseUnitToOpen(unitId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function backfillSellUnitsAction(): Promise<OpsActionState & { created?: number }> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await backfillAllSellUnits();
+  if (result.errors.length > 0 && result.created === 0) {
+    return { error: result.errors[0] };
+  }
+  return { ok: true, created: result.created };
+}
+
+export async function reactivateSeatAction(seatKey: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await reactivateSeat(seatKey);
   if (!result.ok) return { error: result.error };
   return { ok: true };
 }

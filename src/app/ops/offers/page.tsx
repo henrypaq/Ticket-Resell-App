@@ -22,8 +22,8 @@ export default async function OpsOffersPage() {
       <div className="mb-4">
         <h1 className="text-lg font-semibold text-zinc-100">Ticket offers</h1>
         <p className="mt-1 text-xs text-zinc-400">
-          Exclusive unit matching — one live claim per ticket. Apply migration{" "}
-          <code className="text-zinc-300">0021_ticket_units_and_offers.sql</code> before using.
+          Exclusive unit matching — one live claim per ticket. Near doors, release to open. Mark
+          paid records the Interac amount on the offer.
         </p>
       </div>
       <OffersBoard units={units} offers={offers} />

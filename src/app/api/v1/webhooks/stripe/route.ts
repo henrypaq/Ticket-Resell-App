@@ -68,6 +68,34 @@ async function processEvent(
         .update({ verification_status: "payment_failed" })
         .eq("stripe_payment_intent_id", intent.id)
         .eq("escrow_status", "held");
+
+      // Un-reserve the listing — a failed charge must not strand inventory.
+      const listingId = intent.metadata?.listing_id;
+      if (listingId) {
+        await admin
+          .from("listings")
+          .update({ status: "active", reserved_by: null, reserved_at: null })
+          .eq("id", listingId)
+          .eq("status", "reserved");
+      }
+      break;
+    }
+    case "payment_intent.canceled": {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      await admin
+        .from("transactions")
+        .update({ verification_status: "canceled", escrow_status: "refunded" })
+        .eq("stripe_payment_intent_id", intent.id)
+        .eq("escrow_status", "held");
+
+      const listingId = intent.metadata?.listing_id;
+      if (listingId) {
+        await admin
+          .from("listings")
+          .update({ status: "active", reserved_by: null, reserved_at: null })
+          .eq("id", listingId)
+          .eq("status", "reserved");
+      }
       break;
     }
     case "charge.dispute.created": {

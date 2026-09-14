@@ -28,6 +28,10 @@ it's time to revisit: confirm the new trigger points still match the ones in
 this table (they may not, post-merge), then follow § Implementation notes at
 the bottom.
 
+*(Exception, 2026-09-14: waitlist **offer** SMS/email in
+`domains/beta-matching/notify.ts` is a separate lifecycle — claim holds,
+expiry, paid — and is wired. It does not use the four templates below.)*
+
 No code changes have been made toward sending any of these — every part of
 this file so far is design (HTML previews) and copy (this doc), not
 application code.
