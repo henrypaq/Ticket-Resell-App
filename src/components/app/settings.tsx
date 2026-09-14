@@ -11,6 +11,8 @@ import {
   type BetaActionState,
 } from "@/domains/beta-signup/actions";
 import { SUPPORT_CATEGORIES, type BetaSignupProfile } from "@/domains/beta-signup/shared";
+import type { ProfilePrefillData } from "@/domains/beta-quick/shared";
+import { SaveProfileCard } from "./save-profile";
 import { BETA_SOCIALS } from "@/lib/beta-events";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
@@ -32,15 +34,19 @@ type Prefs = Record<PrefKey, boolean>;
  * how to reach us. This is the old `/member` Notis and Contact tabs plus name
  * editing — the bottom nav that used to hold them is gone.
  *
- * `profile` is non-null by construction: `/settings` is gated on a resolvable
- * member, so there's no "restore my preferences" state to handle here anymore
- * (a stale cookie sends you back to the join flow at `/` instead).
+ * Reachable without a profile. There's no sign-up wall on the app, so plenty
+ * of people arrive here having only ever run a buy or sell flow: they get the
+ * save-profile card where the editable fields would be, and "contact us"
+ * works either way (support messages accept a null member).
  */
 export function AppSettings({
   profile,
+  prefill,
   showDevReset = false,
 }: {
-  profile: BetaSignupProfile;
+  profile: BetaSignupProfile | null;
+  /** Prefill for the save-profile card, when they have no profile yet. */
+  prefill?: ProfilePrefillData | null;
   showDevReset?: boolean;
 }) {
   return (
@@ -48,23 +54,44 @@ export function AppSettings({
       <header>
         <h1 className="headline text-[30px] leading-[1.12] tracking-tight">Your account</h1>
         <p className="mt-2 text-[14px] leading-relaxed text-muted">
-          Beta member since you joined — edit your details, choose what we message you about, or
-          get in touch.
+          {profile
+            ? "Edit your details, choose what we message you about, or get in touch."
+            : "You don't need an account to buy or sell. Save a profile to carry your tickets across devices."}
         </p>
       </header>
 
-      <section>
-        <p className="section-header mb-4 text-[12px] text-muted">Personal info</p>
-        <PersonalInfoForm profile={profile} />
-      </section>
+      {profile ? (
+        <>
+          <section>
+            <p className="section-header mb-4 text-[12px] text-muted">Personal info</p>
+            <PersonalInfoForm profile={profile} />
+          </section>
 
-      <section>
-        <p className="section-header mb-1 text-[12px] text-muted">Communication settings</p>
-        <p className="mb-4 text-[12.5px] leading-relaxed text-muted">
-          Pick a channel per alert. Changes save as you tap.
-        </p>
-        <PrefsForm profile={profile} />
-      </section>
+          <section>
+            <p className="section-header mb-1 text-[12px] text-muted">Communication settings</p>
+            <p className="mb-4 text-[12.5px] leading-relaxed text-muted">
+              Pick a channel per alert. Changes save as you tap.
+            </p>
+            <PrefsForm profile={profile} />
+          </section>
+        </>
+      ) : (
+        <section>
+          <p className="section-header mb-4 text-[12px] text-muted">Personal info</p>
+          <SaveProfileCard
+            prefill={{
+              name: prefill?.name,
+              email: prefill?.email,
+              phone: prefill?.phone,
+              intent: prefill?.intent,
+              eventName: prefill?.eventName,
+              referralSource: prefill?.referralSource,
+            }}
+            heading="Save your profile"
+            blurb="Your details live in this browser right now. Saving them lets us reach you about matches and keeps your tickets if you switch devices."
+          />
+        </section>
+      )}
 
       <section>
         <p className="section-header mb-4 text-[12px] text-muted">Contact us</p>
@@ -331,9 +358,9 @@ function ChannelCheckbox({
   );
 }
 
-function SupportForm({ profile }: { profile: BetaSignupProfile }) {
+function SupportForm({ profile }: { profile: BetaSignupProfile | null }) {
   const [state, action, pending] = useActionState(submitBetaSupportAction, {} as BetaActionState);
-  const [email, setEmail] = useState(profile.email);
+  const [email, setEmail] = useState(profile?.email ?? "");
   const [category, setCategory] = useState("");
   const [message, setMessage] = useState("");
 

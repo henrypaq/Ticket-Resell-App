@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import {
   BETA_ACQUISITION_COOKIE,
+  BETA_LAST_SRC_COOKIE,
   isAcquisitionChannel,
   parseAcquisitionSrc,
+  parseLastSrc,
 } from "@/lib/beta-acquisition";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/env";
 
@@ -35,7 +37,8 @@ export default async function proxy(request: NextRequest) {
 
   await supabase.auth.getUser();
 
-  // First-touch only. A bare entry path → ig_bio; `?src=qr_*` / flyer → that.
+  // Two attributions, written here because cookies cannot be set from a Server
+  // Component render (that 500'd the landing page).
   //
   // `/member`, `/go`, `/go/buy` and `/go/sell` are the pre-merge paths, still
   // printed on flyers and QR codes. They now redirect (next.config.ts), but the
@@ -47,6 +50,8 @@ export default async function proxy(request: NextRequest) {
     "/",
     "/buy",
     "/sell",
+    "/upcoming",
+    "/done",
     "/member",
     "/go",
     "/go/buy",
@@ -54,19 +59,34 @@ export default async function proxy(request: NextRequest) {
   ]);
   const path = request.nextUrl.pathname;
   if (ENTRY_PATHS.has(path)) {
+    const srcParam = request.nextUrl.searchParams.get("src");
+    const cookieBase = {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    };
+
+    // First-touch: enum, first write wins. How this person originally found us.
     const existing = request.cookies.get(BETA_ACQUISITION_COOKIE)?.value;
     if (!isAcquisitionChannel(existing)) {
-      response.cookies.set(
-        BETA_ACQUISITION_COOKIE,
-        parseAcquisitionSrc(request.nextUrl.searchParams.get("src")),
-        {
-          maxAge: 60 * 60 * 24 * 365,
-          httpOnly: true,
-          sameSite: "lax",
-          secure: process.env.NODE_ENV === "production",
-          path: "/",
-        },
-      );
+      response.cookies.set(BETA_ACQUISITION_COOKIE, parseAcquisitionSrc(srcParam), {
+        ...cookieBase,
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+
+    // Last-touch: free-form tag, every tagged visit overwrites. Which link
+    // produced the lead they're about to submit — the story posted tonight,
+    // not the bio link they clicked in August. Only set when the visit
+    // actually carries a usable tag, so an untagged visit leaves the previous
+    // one alone rather than blanking it mid-flow.
+    const lastSrc = parseLastSrc(srcParam);
+    if (lastSrc) {
+      response.cookies.set(BETA_LAST_SRC_COOKIE, lastSrc, {
+        ...cookieBase,
+        maxAge: 60 * 60 * 24 * 30,
+      });
     }
   }
 

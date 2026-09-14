@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 /**
- * Public, screenshot-friendly copy of the beta signup SMS consent step.
- * Used as Twilio toll-free verification opt-in proof — not part of the
- * live signup flow (that remains the last step of the join flow on `/`).
+ * Public, screenshot-friendly copy of the SMS consent step. Used as Twilio
+ * toll-free verification opt-in proof — not part of the live flow, which is
+ * the save-profile card shown after a buy or sell (`SaveProfileCard`).
+ *
+ * The checkbox label and the fine print below must stay identical to that
+ * card's, or this page stops being evidence of what we actually show.
  */
 export const metadata: Metadata = {
   title: "SMS updates · mcgill.tickets",
@@ -19,9 +22,11 @@ export default function SmsOptInPage() {
       <p className="text-[17px] font-semibold tracking-tight text-[#ffe500]">mcgill.tickets</p>
 
       <p className="mt-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
-        Step 7 of 7
+        After you request or list a ticket
       </p>
-      <h1 className="headline mt-2 text-[28px] leading-tight tracking-tight">Almost there.</h1>
+      <h1 className="headline mt-2 text-[28px] leading-tight tracking-tight">
+        Save your profile?
+      </h1>
       <p className="mt-3 text-[14px] leading-relaxed text-muted">
         We&apos;ll email you when your spot opens up. Want text updates too, for things like ticket
         availability and checkout windows?
@@ -49,7 +54,7 @@ export default function SmsOptInPage() {
         href="/"
         className="mt-10 inline-block text-[13.5px] font-semibold text-muted underline decoration-dotted underline-offset-4 hover:text-ink"
       >
-        Join the waitlist
+        Go to mcgill.tickets
       </Link>
     </main>
   );

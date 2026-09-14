@@ -27,6 +27,7 @@ export type AcquisitionChannel = (typeof ACQUISITION_CHANNELS)[number];
 export const URL_ACQUISITION_CHANNELS = [
   "qr_share",
   "qr_print",
+  "ig_bio",
   "cafe_soldout",
   "cafe_extra",
   "cafe_hungover",
@@ -68,6 +69,33 @@ export const FLYER_ACQUISITION_LABELS: Record<FlyerAcquisitionChannel, string> =
 };
 
 export const BETA_ACQUISITION_COOKIE = "passe_beta_acq";
+
+/**
+ * Last-touch: the `?src=` tag on the visit that produced a specific lead.
+ *
+ * Separate from `BETA_ACQUISITION_COOKIE` (first-touch, enum, first write
+ * wins) because they answer different questions. First-touch says how someone
+ * found us months ago; this says which link they clicked just now. For
+ * per-story attribution — the same event posted twice in a week — only
+ * last-touch can tell the two apart, and a returning visitor's first-touch
+ * cookie would otherwise swallow every story tag.
+ */
+export const BETA_LAST_SRC_COOKIE = "passe_last_src";
+
+/**
+ * Story/campaign tags are free-form on purpose: a new story link shouldn't
+ * need a code change or a migration. Validate the shape, store verbatim.
+ *
+ * Deliberately NOT routed through `parseAcquisitionSrc` — that maps anything
+ * outside its enum to `ig_bio`, which would quietly turn every custom tag into
+ * "Instagram bio" with no error anywhere.
+ */
+const LAST_SRC_RE = /^[a-z0-9][a-z0-9_-]{0,39}$/i;
+
+export function parseLastSrc(src: string | null | undefined): string | null {
+  const value = (src ?? "").trim();
+  return LAST_SRC_RE.test(value) ? value.toLowerCase() : null;
+}
 
 const SITE = "https://mcgilltickets.party";
 

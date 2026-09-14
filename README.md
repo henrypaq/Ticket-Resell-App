@@ -30,16 +30,21 @@ were two apps with overlapping features. They are now one:
 
 | path | what |
 |---|---|
-| `/` | join flow until you're a member, then home — **tonight only** |
+| `/` | home — **tonight only**. No sign-up wall |
 | `/upcoming` | the whole board, one section per night ("See all" from home) |
 | `/buy` · `/sell` | the step flows, unchanged |
 | `/done` | terminal screen for both flows |
 | `/settings` | personal info · communication settings · contact us |
 
-- **Joining as a beta member is the gate.** Membership is a cookie holding
-  `beta_members.id`; only one that still resolves to a live row counts. Each page
-  calls `requireMember()` itself — never a layout, for the reason documented in
-  `src/domains/beta-signup/gate.ts`.
+- **Nothing is gated.** The Instagram link lands on the app and you can start a
+  buy or sell flow immediately. Saving a profile is offered at the *end* of a
+  flow (`SaveProfileCard` on `/done`), prefilled with what you already typed,
+  and from `/settings` any time. A profile buys portability across devices and
+  email alerts — not access.
+- **The browser remembers you either way.** Submitting writes a
+  `beta_go_contacts` row and its cookie; stepping through a flow you abandon
+  writes `passe_draft`. Both feed the next visit's prefill, so walking away
+  mid-flow costs nothing.
 - **No bottom nav.** The account button in the sticky header is the only chrome
   besides the wordmark; everything the Notis and Contact tabs held is on
   `/settings`.
@@ -52,6 +57,35 @@ were two apps with overlapping features. They are now one:
   and the retired `/home`, `/profile`, `/notifications` redirect
   (`next.config.ts`). Printed QR codes and flyers keep their attribution: the
   proxy stamps `?src=` before the redirect runs.
+
+### Attribution: first-touch vs last-touch
+
+Two cookies, two questions:
+
+- `passe_beta_acq` — **first-touch**, enum, first write wins, stored on
+  `beta_members.acquisition_channel` (constrained by migration 0020). How this
+  person originally found us.
+- `passe_last_src` — **last-touch**, free-form tag, every tagged visit
+  overwrites, stored on `beta_go_leads.acquisition_channel` (plain text, no
+  constraint) and shown in `/ops` as "Came from". Which *link* produced this
+  lead.
+
+Last-touch exists because first-touch can't answer the story-link question: a
+returning visitor's first-touch cookie was frozen months ago and would swallow
+every campaign tag. Tags are validated by shape (`parseLastSrc`, slug-like, ≤40
+chars) and stored verbatim — deliberately *not* routed through
+`parseAcquisitionSrc`, which maps anything outside its enum to `ig_bio` and
+would silently turn every new tag into "Instagram bio".
+
+So a new story link needs no code change and no migration:
+
+```
+https://mcgilltickets.party/buy?event=cafe-campus&src=ig_story_cafe_0914
+https://mcgilltickets.party/sell?event=piknik-electronik&src=ig_story_piknik_0921
+```
+
+Only paths in `ENTRY_PATHS` (`src/proxy.ts`) are stamped — add a path there or
+its traffic loses its tag.
 
 ### Staying signed in to your own activity
 
@@ -385,9 +419,8 @@ one lives:
 ```
 src/
   app/            route + page layer (parses, calls a service, renders)
-                  the beta app — / (join gate + home) · /upcoming · /buy · /sell
-                  · /done · /settings. Every one of these gates on beta
-                  membership itself (domains/beta-signup/gate.ts), never in a layout.
+                  the beta app — / (home) · /upcoming · /buy · /sell · /done
+                  · /settings. None of them require an account.
     auth/         confirm (email magic link) · callback (OAuth code exchange, now next-aware)
     admin/        event approval, listing moderation, payment approval — all behind requireAdmin()
     api/v1/       versioned surface over the same services, for the Phase 5 mobile client
@@ -400,7 +433,7 @@ src/
     forms/        field primitives shared across every flow
   domains/        business logic, organised by domain
     events/ listings/ waitlist/ notifications/ users/ payments/ admin/ social/
-    beta-signup/  membership (cookie → beta_members.id) + the entry gate
+    beta-signup/  saved profiles (cookie → beta_members.id)
     beta-quick/   buy/sell leads · beta-go/ the contact rows those leads hang off
   _legacy/        retired Supabase (app) routes, out of the route tree — see its README
   lib/

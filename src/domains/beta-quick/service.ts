@@ -56,6 +56,16 @@ export const quickBuySchema = z
       .default("")
       .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid email."),
     acquisitionChannel: z.enum(ACQUISITION_CHANNELS).optional(),
+    /**
+     * Last-touch tag from the link that produced this lead (story, campaign).
+     * Free-form by design — a new story link shouldn't need a code change —
+     * so it's shape-validated here rather than enum-checked.
+     */
+    landingSrc: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9_-]{0,39}$/i)
+      .optional(),
   })
   .superRefine(contactRefine)
   .superRefine((value, ctx) => {
@@ -124,6 +134,16 @@ export const quickSellSchema = z
       message: "Confirm the seller terms before submitting.",
     }),
     acquisitionChannel: z.enum(ACQUISITION_CHANNELS).optional(),
+    /**
+     * Last-touch tag from the link that produced this lead (story, campaign).
+     * Free-form by design — a new story link shouldn't need a code change —
+     * so it's shape-validated here rather than enum-checked.
+     */
+    landingSrc: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9_-]{0,39}$/i)
+      .optional(),
   })
   .superRefine(contactRefine)
   .superRefine((value, ctx) => {
@@ -140,6 +160,22 @@ export const quickSellSchema = z
       });
     }
   });
+
+/**
+ * What `/ops` shows as a lead's Source. Last-touch wins: the point of the
+ * event-specific story links is telling two links for the same event apart,
+ * and a returning visitor's first-touch cookie is frozen from months ago.
+ * Falls back to first-touch when the visit carried no tag, so an untagged
+ * lead still says something.
+ *
+ * `beta_go_leads.acquisition_channel` is plain text with no check constraint
+ * (0013), which is what lets a free-form campaign tag land here without a
+ * migration. `beta_members.acquisition_channel` is constrained to the enum
+ * (0020) and stays strictly first-touch — don't feed this to it.
+ */
+function leadSource(input: { landingSrc?: string; acquisitionChannel?: string }): string | null {
+  return input.landingSrc ?? input.acquisitionChannel ?? null;
+}
 
 export type QuickBuyInput = z.infer<typeof quickBuySchema>;
 export type QuickSellInput = z.infer<typeof quickSellSchema>;
@@ -243,7 +279,7 @@ export async function submitQuickBuy(
       transfer_first_name: transferFirstName || null,
       transfer_last_name: transferLastName || null,
       transfer_email: transferEmail || null,
-      acquisition_channel: input.acquisitionChannel ?? null,
+      acquisition_channel: leadSource(input),
       contact_id: contactId,
       member_id: memberId,
     })
@@ -488,7 +524,7 @@ export async function submitQuickSell(
       etransfer_email: input.etransferEmail || null,
       etransfer_phone: input.etransferPhone || null,
       seller_terms_accepted_at: new Date().toISOString(),
-      acquisition_channel: input.acquisitionChannel ?? null,
+      acquisition_channel: leadSource(input),
       contact_id: contactId,
       member_id: memberId,
     })
@@ -637,6 +673,66 @@ export async function getGoActivity(input: {
 
 function isUuid(value: string | null | undefined): boolean {
   return Boolean(value && /^[0-9a-f-]{36}$/i.test(value));
+}
+
+export type LeadIdentityHints = {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  eventName: string | null;
+  intent: "buy" | "sell" | null;
+};
+
+/**
+ * Whatever the most recent lead can tell us about who this person is, for
+ * prefilling the save-profile card.
+ *
+ * Only some of it exists for any given lead: the transfer name/email are
+ * collected on the Café Campus buy step (one of four events), and the Interac
+ * fields only on a sell. A Piknik buyer reaches the success screen having
+ * given nothing but a phone number, so the card still has to ask.
+ */
+export async function getLeadIdentityHints(input: {
+  contactId?: string | null;
+  memberId?: string | null;
+}): Promise<LeadIdentityHints | null> {
+  const contactId = isUuid(input.contactId) ? input.contactId! : null;
+  const memberId = isUuid(input.memberId) ? input.memberId! : null;
+  if (!contactId && !memberId) return null;
+
+  const admin = createAdminClient();
+  let query = admin
+    .from("beta_go_leads")
+    .select(
+      "intent, event_slug, contact_phone, transfer_first_name, transfer_last_name, transfer_email, etransfer_name, etransfer_email, created_at",
+    );
+  query =
+    contactId && memberId
+      ? query.or(`contact_id.eq.${contactId},member_id.eq.${memberId}`)
+      : contactId
+        ? query.eq("contact_id", contactId)
+        : query.eq("member_id", memberId!);
+
+  const { data } = await query
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+
+  const transferName = [data.transfer_first_name, data.transfer_last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return {
+    name: transferName || (data.etransfer_name as string | null) || null,
+    email:
+      (data.transfer_email as string | null) || (data.etransfer_email as string | null) || null,
+    phone: (data.contact_phone as string | null) ?? null,
+    eventName: betaEventBySlug(data.event_slug)?.name ?? data.event_slug ?? null,
+    intent: (data.intent as "buy" | "sell" | null) ?? null,
+  };
 }
 
 /**

@@ -11,13 +11,17 @@ import {
 import { getBetaSignupId } from "@/domains/beta-signup/actions";
 import {
   QUICK_BUYER_COOKIE,
+  QUICK_DRAFT_COOKIE,
   QUICK_SELLER_COOKIE,
+  type ProfilePrefillData,
+  type QuickContactDraft,
   type QuickActionState,
   type QuickWaitlistEntry,
   type GoActivityEntry,
 } from "@/domains/beta-quick/shared";
 import {
   getGoActivity,
+  getLeadIdentityHints,
   getQuickWaitlistEntries,
   leaveWaitlistLead,
   listBuyLeadIds,
@@ -32,7 +36,9 @@ import {
 import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
 import {
   BETA_ACQUISITION_COOKIE,
+  BETA_LAST_SRC_COOKIE,
   isAcquisitionChannel,
+  parseLastSrc,
   type AcquisitionChannel,
 } from "@/lib/beta-acquisition";
 
@@ -48,6 +54,12 @@ async function readAcquisitionChannel(): Promise<AcquisitionChannel | undefined>
   const jar = await cookies();
   const value = jar.get(BETA_ACQUISITION_COOKIE)?.value;
   return isAcquisitionChannel(value) ? value : undefined;
+}
+
+/** Last-touch campaign tag for the link that started this flow, if any. */
+async function readLastSrc(): Promise<string | undefined> {
+  const jar = await cookies();
+  return parseLastSrc(jar.get(BETA_LAST_SRC_COOKIE)?.value) ?? undefined;
 }
 
 async function readGoContactId(): Promise<string | null> {
@@ -143,8 +155,95 @@ export async function loadSavedGoContact(): Promise<GoContactProfile | null> {
     const contact = await getGoContactById(contactId);
     if (contact) return contact;
   }
-  if (!memberId) return null;
-  return getGoContactForMember(memberId);
+  if (memberId) {
+    const fromMember = await getGoContactForMember(memberId);
+    if (fromMember) return fromMember;
+  }
+
+  // Nothing submitted from this device yet — fall back to whatever they typed
+  // into a flow they walked away from. Prefill only: `id` is a sentinel, not a
+  // `beta_go_contacts` row, and is never sent back as `existingContactId`.
+  const jar = await cookies();
+  const draft = readDraft(jar.get(QUICK_DRAFT_COOKIE)?.value);
+  if (!draft) return null;
+  return {
+    id: "",
+    contactPhone: draft.phone ?? null,
+    contactInstagram: draft.instagram ?? null,
+    etransferName: draft.name ?? null,
+    etransferEmail: draft.email ?? null,
+    etransferPhone: null,
+    memberId: null,
+  };
+}
+
+/**
+ * Remember what someone typed into a flow they may not finish. Called as they
+ * step forward, so closing the tab on the last screen still leaves their
+ * details on this device for next time — the same "the browser remembers you"
+ * behaviour the contact cookie gives after a submit, just earlier.
+ *
+ * Best-effort by design: never surfaces an error, never blocks the step.
+ */
+export async function saveContactDraftAction(draft: QuickContactDraft): Promise<void> {
+  const clean: QuickContactDraft = {
+    phone: typeof draft.phone === "string" ? draft.phone.trim().slice(0, 30) : null,
+    instagram:
+      typeof draft.instagram === "string"
+        ? draft.instagram.replace(/^@+/, "").trim().slice(0, 40)
+        : null,
+    name: typeof draft.name === "string" ? draft.name.trim().slice(0, 120) : null,
+    email: typeof draft.email === "string" ? draft.email.trim().slice(0, 320) : null,
+  };
+  if (!clean.phone && !clean.instagram && !clean.name && !clean.email) return;
+
+  const jar = await cookies();
+  // Merge rather than replace: the buy flow collects contact on one step and
+  // transfer details on another, and the second write shouldn't blank the first.
+  const existing = readDraft(jar.get(QUICK_DRAFT_COOKIE)?.value);
+  const merged: QuickContactDraft = {
+    phone: clean.phone || existing?.phone || null,
+    instagram: clean.instagram || existing?.instagram || null,
+    name: clean.name || existing?.name || null,
+    email: clean.email || existing?.email || null,
+  };
+  jar.set(QUICK_DRAFT_COOKIE, JSON.stringify(merged), COOKIE_BASE);
+}
+
+function readDraft(raw: string | undefined): QuickContactDraft | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as QuickContactDraft;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Everything the save-profile card can prefill, or null when this device has
+ * no flow behind it — a bare `/done` hit shows the terminal copy alone rather
+ * than an empty form asking a stranger to sign up.
+ */
+export async function loadProfilePrefill(): Promise<ProfilePrefillData | null> {
+  const identity = await currentIdentity();
+
+  const [contact, hints, referralSource] = await Promise.all([
+    loadSavedGoContact(),
+    getLeadIdentityHints(identity),
+    readLastSrc(),
+  ]);
+  if (!contact && !hints) return null;
+
+  return {
+    name: hints?.name ?? contact?.etransferName ?? null,
+    email: hints?.email ?? contact?.etransferEmail ?? null,
+    phone: contact?.contactPhone ?? hints?.phone ?? null,
+    intent: hints?.intent ?? null,
+    eventName: hints?.eventName ?? null,
+    referralSource: referralSource ?? null,
+  };
 }
 
 export async function updateWaitlistLeadAction(
@@ -269,6 +368,7 @@ export async function submitQuickBuyAction(
     transferLastName: formData.get("transferLastName") || "",
     transferEmail: formData.get("transferEmail") || "",
     acquisitionChannel: await readAcquisitionChannel(),
+    landingSrc: await readLastSrc(),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Check your answers and try again." };
@@ -307,6 +407,7 @@ export async function submitQuickSellAction(
       etransferPhone: formData.get("etransferPhone") || "",
       sellerTermsAccepted: termsOn ? true : false,
       acquisitionChannel: await readAcquisitionChannel(),
+      landingSrc: await readLastSrc(),
     });
     if (!parsed.success) {
       return { error: parsed.error.issues[0]?.message ?? "Check your answers and try again." };
