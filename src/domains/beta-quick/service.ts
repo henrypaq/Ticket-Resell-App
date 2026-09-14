@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 import { notifyAdminsOfQuickLead } from "@/domains/admin-alerts/service";
 import { upsertGoContact } from "@/domains/beta-go/contacts";
+import { createUnitsFromSellLead } from "@/domains/beta-matching/service";
 import {
   getFakeFrontMap,
   listUnifiedQueueSeats,
@@ -55,6 +56,8 @@ export const quickBuySchema = z
       .optional()
       .default("")
       .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), "Enter a valid email."),
+    /** Optional buy-side ceiling — allocator skips units above this. */
+    maxPriceEach: z.coerce.number().min(0).max(5000).optional(),
     acquisitionChannel: z.enum(ACQUISITION_CHANNELS).optional(),
     /**
      * Last-touch tag from the link that produced this lead (story, campaign).
@@ -255,6 +258,7 @@ export async function submitQuickBuy(
         transfer_first_name: transferFirstName || null,
         transfer_last_name: transferLastName || null,
         transfer_email: transferEmail || null,
+        max_price_each: input.maxPriceEach ?? null,
         member_id: memberId,
         updated_at: new Date().toISOString(),
       })
@@ -279,6 +283,7 @@ export async function submitQuickBuy(
       transfer_first_name: transferFirstName || null,
       transfer_last_name: transferLastName || null,
       transfer_email: transferEmail || null,
+      max_price_each: input.maxPriceEach ?? null,
       acquisition_channel: leadSource(input),
       contact_id: contactId,
       member_id: memberId,
@@ -538,6 +543,20 @@ export async function submitQuickSell(
         ? "Check contact, Interac, and ticket proof fields."
         : "Couldn't submit. Try again in a moment.";
     return { ok: false, error: hint };
+  }
+
+  // Split the sell lead into exclusive ticket units (0021). Failure here must
+  // not roll back the lead — ops can recreate units — but log loudly.
+  const units = await createUnitsFromSellLead(data.id);
+  if (!units.ok) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "sell_units_create_failed",
+        lead_id: data.id,
+        error: units.error,
+      }),
+    );
   }
 
   void notifyAdminsOfQuickLead({

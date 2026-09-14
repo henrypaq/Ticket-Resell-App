@@ -11,6 +11,7 @@ const TABS = [
   { href: "/ops/members", label: "Members" },
   { href: "/ops/waitlist", label: "Waitlist" },
   { href: "/ops/sellers", label: "Sellers" },
+  { href: "/ops/offers", label: "Offers" },
 ] as const;
 
 /** Shared chrome for authenticated ops pages. */
@@ -19,7 +20,7 @@ export async function OpsChrome({
   active,
 }: {
   children: React.ReactNode;
-  active: "overview" | "members" | "waitlist" | "sellers";
+  active: "overview" | "members" | "waitlist" | "sellers" | "offers";
 }) {
   const session = await getBetaOpsSession();
   if (!session) redirect("/ops/login");

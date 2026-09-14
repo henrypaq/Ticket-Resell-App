@@ -11,6 +11,15 @@ import {
   setQueueFakeFront,
   updateQuickLead,
 } from "@/domains/beta-ops/service";
+import {
+  acceptOffer,
+  allocateNextForUnit,
+  createUnitsFromSellLead,
+  declineOffer,
+  markOfferNeedsReview,
+  markOfferPaid,
+  markOfferPaymentFailed,
+} from "@/domains/beta-matching/service";
 
 export type OpsLoginState = { error?: string };
 
@@ -148,6 +157,86 @@ export async function deleteLeadAction(leadId: string): Promise<OpsActionState> 
     return { error: "Session expired. Sign in again." };
   }
   const result = await deleteQuickLead(leadId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function createUnitsForSellLeadAction(sellLeadId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await createUnitsFromSellLead(sellLeadId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function allocateUnitAction(unitId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await allocateNextForUnit({ unitId });
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function acceptOfferAction(offerId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await acceptOffer(offerId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function declineOfferAction(
+  offerId: string,
+  reason: "price" | "not_going" | "other",
+): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await declineOffer(offerId, reason);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function markOfferPaidAction(offerId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await markOfferPaid(offerId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function markOfferNeedsReviewAction(offerId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await markOfferNeedsReview(offerId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function markOfferPaymentFailedAction(offerId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await markOfferPaymentFailed(offerId);
   if (!result.ok) return { error: result.error };
   return { ok: true };
 }

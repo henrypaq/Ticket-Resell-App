@@ -47,6 +47,7 @@ Grouped by what question it eventually answers. Every event type below should be
 **Demand signal (the core B2B value later — how much unmet demand exists per event):**
 - `event_page_view` — someone looked at an event's page. metadata: referrer source.
 - `waitlist_joined` / `waitlist_left`
+- `waitlist_offer_sent` / `waitlist_offer_accepted` / `waitlist_offer_declined` / `waitlist_offer_expired` / `waitlist_offer_paid` — exclusive ticket-unit offers on the live beta queue (metadata: offer_id, unit_id, seat_key, rank, price). Decline-with-ceiling feeds unmet-demand estimates.
 - `listing_viewed`
 - `search_no_results` — a search or browse that found nothing; this is one of the highest-value signals for a promoter ("X people wanted a ticket to something like this and couldn't find one").
 - `listing_created` — supply-side signal, metadata: price (face value or authorized), time-to-fill later derived from this + `purchase_completed`.

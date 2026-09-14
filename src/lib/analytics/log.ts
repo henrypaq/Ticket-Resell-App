@@ -36,7 +36,13 @@ export type AnalyticsEventType =
   | "attendance_confirmed"
   // Account
   | "signup_completed"
-  | "login";
+  | "login"
+  // Beta exclusive waitlist offers (ticket units)
+  | "waitlist_offer_sent"
+  | "waitlist_offer_accepted"
+  | "waitlist_offer_declined"
+  | "waitlist_offer_expired"
+  | "waitlist_offer_paid";
 
 type LogInput = {
   type: AnalyticsEventType;
