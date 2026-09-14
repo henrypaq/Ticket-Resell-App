@@ -25,6 +25,11 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
+      // Clean, unambiguous bio link for when sniffing isn't good enough:
+      // `mcgilltickets.party/ig` reads fine in a profile and can't be
+      // misattributed. The bare apex works too — see `looksLikeInstagram`.
+      { source: "/ig", destination: "/?src=ig_bio", permanent: false },
+
       { source: "/member", destination: "/", permanent: false },
       { source: "/go", destination: "/", permanent: false },
       { source: "/go/buy", destination: "/buy", permanent: false },

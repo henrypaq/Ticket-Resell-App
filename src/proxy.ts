@@ -3,8 +3,9 @@ import { createServerClient } from "@supabase/ssr";
 import {
   BETA_ACQUISITION_COOKIE,
   BETA_LAST_SRC_COOKIE,
+  explicitAcquisitionSrc,
   isAcquisitionChannel,
-  parseAcquisitionSrc,
+  looksLikeInstagram,
   parseLastSrc,
 } from "@/lib/beta-acquisition";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/env";
@@ -68,9 +69,22 @@ export default async function proxy(request: NextRequest) {
     };
 
     // First-touch: enum, first write wins. How this person originally found us.
+    //
+    // An explicit `?src=` always wins. Without one — the clean apex URL in the
+    // Instagram bio — fall back to sniffing the request: Instagram's in-app
+    // browser identifies itself, so a bio tap still attributes correctly with
+    // nothing appended to the link. Anything we can't place reads as `other`
+    // rather than being counted as a bio click it may not be.
     const existing = request.cookies.get(BETA_ACQUISITION_COOKIE)?.value;
     if (!isAcquisitionChannel(existing)) {
-      response.cookies.set(BETA_ACQUISITION_COOKIE, parseAcquisitionSrc(srcParam), {
+      const explicit = explicitAcquisitionSrc(srcParam);
+      const detected = looksLikeInstagram(
+        request.headers.get("user-agent"),
+        request.headers.get("referer"),
+      )
+        ? "ig_bio"
+        : "other";
+      response.cookies.set(BETA_ACQUISITION_COOKIE, explicit ?? detected, {
         ...cookieBase,
         maxAge: 60 * 60 * 24 * 365,
       });
