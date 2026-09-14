@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { submitQuickSellAction } from "@/domains/beta-quick/actions";
+import { saveContactDraftAction, submitQuickSellAction } from "@/domains/beta-quick/actions";
 import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
@@ -179,6 +179,13 @@ export function QuickSellFlow({
       setTicketUrlError(null);
     }
     if (step < LAST_STEP) {
+      // Stash what they've typed so far — see the same call in the buy flow.
+      void saveContactDraftAction({
+        phone,
+        instagram,
+        name: etName,
+        email: etEmail,
+      });
       armTapGuard();
       setStep((s) => s + 1);
     }

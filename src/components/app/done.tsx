@@ -1,13 +1,25 @@
 import Link from "next/link";
+import type { ProfilePrefillData } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
+import { SaveProfileCard } from "./save-profile";
 import { AppFlowShell } from "./shell";
 
 /**
- * Terminal screen for both flows. The old `/go/done` used its last section to
- * sell beta membership — everyone reaching this screen is already a member
- * now, so it points back at the things they can actually do next instead.
+ * Terminal screen for both flows, and the only place the app asks anyone to
+ * create a profile. Nothing is gated on having one: the contact cookie
+ * already carries this device, so the pitch is portability and alerts, not
+ * access.
  */
-export function DoneScreen({ intent }: { intent: "buy" | "sell" }) {
+export function DoneScreen({
+  intent,
+  prefill,
+  hasProfile,
+}: {
+  intent: "buy" | "sell";
+  /** Null when they already have a profile, or when there's nothing to build on. */
+  prefill: ProfilePrefillData | null;
+  hasProfile: boolean;
+}) {
   const headline = intent === "buy" ? "You're on the waitlist" : "Ticket listing received";
   const sub =
     intent === "buy"
@@ -21,30 +33,43 @@ export function DoneScreen({ intent }: { intent: "buy" | "sell" }) {
         <h1 className="headline mt-6 text-[30px] leading-tight">{headline}</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">{sub}</p>
 
-        <Link href="/" className={`${BUTTON_CLASS} mt-10 w-full`}>
-          Back to home
-        </Link>
-
-        <p className="mt-4 text-[13.5px] leading-relaxed text-muted">
+        <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
           {intent === "buy"
             ? "Your spot in line is on your home page — tap it any time to change how many tickets you need or how we reach you."
             : "Your listing is on your home page — you can remove it from there until it sells."}
         </p>
 
-        <section className="mt-auto flex flex-col gap-4 rounded-[20px] border border-white/12 bg-white/[0.04] px-5 py-5">
-          <h2 className="headline text-[20px] uppercase leading-[1.15] tracking-tight text-ink">
-            Make sure we can reach you
-          </h2>
-          <p className="text-[14px] leading-relaxed text-muted">
-            Alerts go out fast when a match comes up. Check which ones reach you by email or text.
+        {prefill && (
+          <div className="mt-8">
+            <SaveProfileCard
+              prefill={{
+                name: prefill.name,
+                email: prefill.email,
+                phone: prefill.phone,
+                intent: prefill.intent ?? intent,
+                eventName: prefill.eventName,
+                referralSource: prefill.referralSource,
+              }}
+            />
+          </div>
+        )}
+
+        <Link href="/" className={`${BUTTON_CLASS} mt-8 w-full`}>
+          Back to home
+        </Link>
+
+        {hasProfile && (
+          <p className="mt-4 text-center text-[13px] text-muted">
+            Alerts go out fast when a match comes up —{" "}
+            <Link
+              href="/settings"
+              className="font-semibold text-ink underline decoration-dotted underline-offset-4"
+            >
+              check how we reach you
+            </Link>
+            .
           </p>
-          <Link
-            href="/settings"
-            className="flex min-h-[48px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[15px] font-semibold text-ink transition-colors hover:bg-white/[0.1]"
-          >
-            Communication settings
-          </Link>
-        </section>
+        )}
       </div>
     </AppFlowShell>
   );

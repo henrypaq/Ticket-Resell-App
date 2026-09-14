@@ -291,6 +291,13 @@ async function linkGoLeadsToContact(contactId: string, memberId: string | null) 
 export async function adoptGoContactForMember(input: {
   contactId: string;
   memberId: string;
+  /**
+   * Reassign even when the contact already points at another member. Only for
+   * the save-profile path: holding this device's contact cookie *is* the proof
+   * of ownership, and `findMemberIdByContact` can have stamped a stale member
+   * from a phone-digit match against someone else's row.
+   */
+  force?: boolean;
 }): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(input.contactId)) return;
   const admin = createAdminClient();
@@ -299,19 +306,21 @@ export async function adoptGoContactForMember(input: {
     .select("id, member_id")
     .eq("id", input.contactId)
     .maybeSingle();
-  if (!contact || contact.member_id) return;
+  if (!contact) return;
+  if (contact.member_id && !input.force) return;
+  if (contact.member_id === input.memberId) return;
 
-  await admin
+  const contactQuery = admin
     .from("beta_go_contacts")
     .update({ member_id: input.memberId })
-    .eq("id", input.contactId)
-    .is("member_id", null);
+    .eq("id", input.contactId);
+  await (input.force ? contactQuery : contactQuery.is("member_id", null));
 
-  await admin
+  const leadQuery = admin
     .from("beta_go_leads")
     .update({ member_id: input.memberId })
-    .eq("contact_id", input.contactId)
-    .is("member_id", null);
+    .eq("contact_id", input.contactId);
+  await (input.force ? leadQuery : leadQuery.is("member_id", null));
 }
 
 /** When someone becomes a beta member, attach prior /go contacts + leads. */

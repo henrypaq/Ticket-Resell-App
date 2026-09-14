@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { submitQuickBuyAction } from "@/domains/beta-quick/actions";
+import { saveContactDraftAction, submitQuickBuyAction } from "@/domains/beta-quick/actions";
 import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
@@ -102,6 +102,14 @@ export function QuickBuyFlow({
 
   function goNext() {
     if (!stepReady || tapGuard || pending || isLast || redirecting) return;
+    // Stash what they've typed so far. Someone who gets this far and then
+    // closes the tab should not be asked for it all again next visit.
+    void saveContactDraftAction({
+      phone,
+      instagram,
+      name: [transferFirstName, transferLastName].filter(Boolean).join(" "),
+      email: transferEmail,
+    });
     setTapGuard(true);
     setTimeout(() => setTapGuard(false), 400);
     setStep((s) => s + 1);

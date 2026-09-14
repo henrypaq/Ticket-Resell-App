@@ -4,12 +4,17 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import {
   BETA_ACQUISITION_COOKIE,
+  BETA_LAST_SRC_COOKIE,
   isAcquisitionChannel,
   type AcquisitionChannel,
 } from "@/lib/beta-acquisition";
 import { GO_CONTACT_COOKIE } from "@/domains/beta-go/shared";
-import { linkMemberToGoHistory } from "@/domains/beta-go/contacts";
-import { QUICK_BUYER_COOKIE, QUICK_SELLER_COOKIE } from "@/domains/beta-quick/shared";
+import { adoptGoContactForMember, linkMemberToGoHistory } from "@/domains/beta-go/contacts";
+import {
+  QUICK_BUYER_COOKIE,
+  QUICK_DRAFT_COOKIE,
+  QUICK_SELLER_COOKIE,
+} from "@/domains/beta-quick/shared";
 import { demoLoginEnabled } from "@/lib/env";
 import {
   betaSignupSchema,
@@ -64,8 +69,8 @@ async function readAcquisitionChannel(): Promise<AcquisitionChannel> {
  * There's no account behind this flow, so membership is a cookie holding the
  * `beta_members.id`. Not a session — just enough to load/update prefs without
  * re-collecting PII on every visit. Only a real uuid that still resolves to a
- * live member counts (see `requireMember` in ./gate.ts); a stale or deleted id
- * sends someone back through the join flow.
+ * live member counts — a stale or deleted id simply reads as "no profile
+ * saved", which is a perfectly normal state now that nothing is gated.
  */
 export async function submitBetaSignupAction(
   _prev: BetaSignupState,
@@ -99,6 +104,72 @@ export async function submitBetaSignupAction(
   return { ok: true };
 }
 
+/**
+ * Save-your-profile, offered at the end of a buy/sell flow instead of gating
+ * the front door. Everything the questionnaire used to ask that we can infer,
+ * we infer: `intent` from the flow they just finished, `referralSource` from
+ * the link they arrived on. What's left is name and email.
+ *
+ * Note what is NOT passed through: `interestedEvents`. `submitBetaSignup`
+ * seeds those into `beta_member_interests`, which is a seat in the same queue
+ * as the buy lead they just created (`listUnifiedQueueSeats`) — passing the
+ * event here would put one person in line twice. The event goes into
+ * `interestedOther` as context instead, which holds no seat.
+ */
+export async function saveProfileAction(
+  _prev: BetaActionState,
+  formData: FormData,
+): Promise<BetaActionState> {
+  const intentRaw = String(formData.get("intent") ?? "");
+  const parsed = betaSignupSchema.safeParse({
+    name: formData.get("name"),
+    email: formData.get("email"),
+    phone: formData.get("phone") || "",
+    intent: intentRaw === "buy" || intentRaw === "sell" ? intentRaw : "both",
+    interestedEvents: [],
+    interestedOther: formData.get("eventName") || undefined,
+    priority: "both",
+    school: undefined,
+    referralSource: formData.get("referralSource") || undefined,
+    notifyOptIn: formData.get("notifyOptIn") === "on",
+    acquisitionChannel: await readAcquisitionChannel(),
+  });
+
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { error: issue?.message ?? "Check your details and try again." };
+  }
+
+  // Knowing whether the email is already ours only changes the message —
+  // `submitBetaSignup` resolves the duplicate either way rather than failing.
+  const existing = await findBetaSignupIdByEmail(parsed.data.email);
+  const returning = existing.ok && Boolean(existing.id);
+
+  const result = await submitBetaSignup(parsed.data);
+  if (!result.ok) return { error: result.error };
+
+  await setSignupCookie(result.id);
+
+  // `submitBetaSignup` links prior /go history by phone and email. That misses
+  // an Instagram-only lead, which has neither — so attach this device's
+  // contact directly. Without it, the listing they posted sixty seconds ago
+  // disappears from home the moment they save a profile.
+  const cookieStore = await cookies();
+  const contactId = cookieStore.get(GO_CONTACT_COOKIE)?.value;
+  if (contactId && UUID_RE.test(contactId)) {
+    await adoptGoContactForMember({ contactId, memberId: result.id, force: true });
+  }
+
+  revalidatePath("/");
+  revalidatePath("/settings");
+  return {
+    ok: true,
+    message: returning
+      ? "Welcome back — this device is linked to your profile again."
+      : "Saved. Your tickets and waitlist spots will follow you from now on.",
+  };
+}
+
 const zEmail = betaSignupSchema.shape.email;
 
 /**
@@ -124,37 +195,6 @@ export async function resumeBetaSignupByEmailAction(email: string): Promise<Beta
 }
 
 /**
- * Dev-only shortcut: skip the questionnaire and land straight on the beta
- * shell with a throwaway placeholder signup. Gated by the same
- * `ENABLE_DEMO_LOGIN` flag as the demo sign-in button (README § known gaps) —
- * checked here, server-side, not just in whether the button is rendered, so
- * hiding the button is never what enforces it.
- */
-export async function skipBetaSignupAction(): Promise<BetaSignupState> {
-  if (!demoLoginEnabled()) {
-    return { error: "Preview skip is disabled outside development." };
-  }
-
-  const result = await submitBetaSignup({
-    name: "Preview",
-    email: `preview+${Date.now()}@passe.local`,
-    phone: "5145550100",
-    intent: "both",
-    interestedEvents: ["cafe-campus"],
-    interestedOther: undefined,
-    priority: "both",
-    school: undefined,
-    referralSource: "dev skip button",
-    notifyOptIn: true,
-    acquisitionChannel: await readAcquisitionChannel(),
-  });
-  if (!result.ok) return { error: result.error };
-
-  await setSignupCookie(result.id);
-  return { ok: true };
-}
-
-/**
  * Clears beta browser state (signup cookie + /go contact + waitlist cookie)
  * so this device can run the questionnaire / /go flows as a new visitor.
  * Safe to expose — equivalent to clearing site cookies manually.
@@ -165,7 +205,9 @@ export async function clearBetaBrowserStateAction(): Promise<BetaActionState> {
   cookieStore.delete(GO_CONTACT_COOKIE);
   cookieStore.delete(QUICK_BUYER_COOKIE);
   cookieStore.delete(QUICK_SELLER_COOKIE);
+  cookieStore.delete(QUICK_DRAFT_COOKIE);
   cookieStore.delete(BETA_ACQUISITION_COOKIE);
+  cookieStore.delete(BETA_LAST_SRC_COOKIE);
   revalidatePath("/");
   revalidatePath("/settings");
   return { ok: true, message: "Cleared. You’re a new visitor on this device." };

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { QuickBuyFlow } from "@/components/app/buy-flow";
 import { loadSavedGoContact } from "@/domains/beta-quick/actions";
-import { requireMember } from "@/domains/beta-signup/gate";
 import { betaEventBySlug, goSelectableEvents, type BetaEvent } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
@@ -24,8 +23,6 @@ export default async function BuyPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireMember();
-
   const params = await searchParams;
   const raw = params.event;
   const initialEventSlug = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : null;
