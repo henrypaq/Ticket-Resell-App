@@ -148,13 +148,36 @@ export type QuickLeadResult =
   | { ok: true; id: string; contactId?: string }
   | { ok: false; error: string };
 
+/**
+ * Can this visitor act on this lead? Three independent proofs, any one of
+ * which is enough:
+ *
+ * - the lead hangs off the /go contact in their cookie;
+ * - the lead id itself is in their buyer/seller cookie;
+ * - the lead is stamped with their beta member id.
+ *
+ * The third one is what lets a member manage a listing from a second device or
+ * after clearing cookies — without it, the home page would show them a listing
+ * they're then told isn't theirs.
+ */
+function ownsLead(
+  row: { id: string; contact_id: string | null; member_id: string | null },
+  input: { contactId: string | null; allowedLeadIds: string[]; memberId?: string | null },
+): boolean {
+  if (input.contactId && row.contact_id === input.contactId) return true;
+  if (input.allowedLeadIds.includes(row.id)) return true;
+  if (input.memberId && row.member_id === input.memberId) return true;
+  return false;
+}
+
 export async function submitQuickBuy(
-  input: QuickBuyInput & { existingContactId?: string | null },
+  input: QuickBuyInput & { existingContactId?: string | null; memberId?: string | null },
 ): Promise<QuickLeadResult> {
   const contactResult = await upsertGoContact({
     contactPhone: input.contactPhone,
     contactInstagram: input.contactInstagram,
     existingContactId: input.existingContactId,
+    memberId: input.memberId,
   });
   if (!contactResult.ok) {
     return { ok: false, error: contactResult.error };
@@ -254,6 +277,7 @@ export async function updateWaitlistLead(input: {
   quantity: number;
   contactPhone?: string;
   contactInstagram?: string;
+  memberId?: string | null;
 }): Promise<QuickLeadResult> {
   if (!/^[0-9a-f-]{36}$/i.test(input.leadId)) {
     return { ok: false, error: "Invalid waitlist entry." };
@@ -262,7 +286,7 @@ export async function updateWaitlistLead(input: {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("beta_go_leads")
-    .select("id, intent, status, contact_id")
+    .select("id, intent, status, contact_id, member_id")
     .eq("id", input.leadId)
     .maybeSingle();
 
@@ -273,9 +297,7 @@ export async function updateWaitlistLead(input: {
     return { ok: false, error: "That waitlist entry can’t be edited anymore." };
   }
 
-  const ownsByContact = Boolean(input.contactId && row.contact_id === input.contactId);
-  const ownsByCookie = input.allowedLeadIds.includes(row.id);
-  if (!ownsByContact && !ownsByCookie) {
+  if (!ownsLead(row, input)) {
     return { ok: false, error: "You can only edit your own waitlist." };
   }
 
@@ -283,6 +305,7 @@ export async function updateWaitlistLead(input: {
     contactPhone: input.contactPhone,
     contactInstagram: input.contactInstagram,
     existingContactId: input.contactId ?? (row.contact_id as string | null),
+    memberId: input.memberId,
   });
   if (!contactResult.ok) return { ok: false, error: contactResult.error };
 
@@ -314,6 +337,7 @@ export async function leaveWaitlistLead(input: {
   leadId: string;
   contactId: string | null;
   allowedLeadIds: string[];
+  memberId?: string | null;
 }): Promise<QuickLeadResult> {
   if (!/^[0-9a-f-]{36}$/i.test(input.leadId)) {
     return { ok: false, error: "Invalid waitlist entry." };
@@ -321,16 +345,14 @@ export async function leaveWaitlistLead(input: {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("beta_go_leads")
-    .select("id, intent, status, contact_id")
+    .select("id, intent, status, contact_id, member_id")
     .eq("id", input.leadId)
     .maybeSingle();
 
   if (!row || row.intent !== "buy") {
     return { ok: false, error: "Waitlist entry not found." };
   }
-  const ownsByContact = Boolean(input.contactId && row.contact_id === input.contactId);
-  const ownsByCookie = input.allowedLeadIds.includes(row.id);
-  if (!ownsByContact && !ownsByCookie) {
+  if (!ownsLead(row, input)) {
     return { ok: false, error: "You can only leave your own waitlist." };
   }
 
@@ -351,6 +373,7 @@ export async function removeSellLead(input: {
   leadId: string;
   contactId: string | null;
   allowedLeadIds: string[];
+  memberId?: string | null;
 }): Promise<QuickLeadResult> {
   if (!/^[0-9a-f-]{36}$/i.test(input.leadId)) {
     return { ok: false, error: "Invalid listing." };
@@ -358,7 +381,7 @@ export async function removeSellLead(input: {
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("beta_go_leads")
-    .select("id, intent, status, contact_id")
+    .select("id, intent, status, contact_id, member_id")
     .eq("id", input.leadId)
     .maybeSingle();
 
@@ -369,9 +392,7 @@ export async function removeSellLead(input: {
     return { ok: true, id: input.leadId, contactId: input.contactId ?? undefined };
   }
 
-  const ownsByContact = Boolean(input.contactId && row.contact_id === input.contactId);
-  const ownsByCookie = input.allowedLeadIds.includes(row.id);
-  if (!ownsByContact && !ownsByCookie) {
+  if (!ownsLead(row, input)) {
     return { ok: false, error: "You can only remove your own listing." };
   }
 
@@ -388,7 +409,7 @@ export async function removeSellLead(input: {
 }
 
 export async function submitQuickSell(
-  input: QuickSellInput & { existingContactId?: string | null },
+  input: QuickSellInput & { existingContactId?: string | null; memberId?: string | null },
   files?: { bytes: Uint8Array; name: string }[] | null,
 ): Promise<QuickLeadResult> {
   const hasUrl = Boolean(input.ticketShareUrl);
@@ -436,6 +457,7 @@ export async function submitQuickSell(
     etransferEmail: input.etransferEmail,
     etransferPhone: input.etransferPhone,
     existingContactId: input.existingContactId,
+    memberId: input.memberId,
   });
   if (!contactResult.ok) {
     return { ok: false, error: contactResult.error };
@@ -551,18 +573,36 @@ export async function getQuickWaitlistEntries(
 }
 
 /**
- * All non-cancelled /go leads for a contact — buy + sell history with pricing.
- * Powered by the `passe_go_contact` cookie; no beta member signup required.
+ * All non-cancelled /go leads for this person — buy + sell history with
+ * pricing. Matched on the device's contact cookie *or* their beta member id,
+ * so a member who clears cookies or opens the app on a second device still
+ * sees the tickets they listed and the waitlists they joined.
  */
-export async function getGoContactActivity(contactId: string): Promise<GoActivityEntry[]> {
-  if (!/^[0-9a-f-]{36}$/i.test(contactId)) return [];
+export async function getGoActivity(input: {
+  contactId?: string | null;
+  memberId?: string | null;
+}): Promise<GoActivityEntry[]> {
+  const contactId = isUuid(input.contactId) ? input.contactId! : null;
+  const memberId = isUuid(input.memberId) ? input.memberId! : null;
+  if (!contactId && !memberId) return [];
+
   const admin = createAdminClient();
-  const { data, error } = await admin
+  let query = admin
     .from("beta_go_leads")
     .select(
       "id, intent, event_slug, quantity, status, paid_each, ask_each, created_at",
-    )
-    .eq("contact_id", contactId)
+    );
+
+  // `.or()` takes PostgREST filter syntax, not a chained builder — each term is
+  // `column.op.value`, comma-separated.
+  query =
+    contactId && memberId
+      ? query.or(`contact_id.eq.${contactId},member_id.eq.${memberId}`)
+      : contactId
+        ? query.eq("contact_id", contactId)
+        : query.eq("member_id", memberId!);
+
+  const { data, error } = await query
     .neq("status", "cancelled")
     .order("created_at", { ascending: false })
     .limit(40);
@@ -595,14 +635,33 @@ export async function getGoContactActivity(contactId: string): Promise<GoActivit
   });
 }
 
-/** Buy lead ids for a contact — used to hydrate waitlist when the device cookie is thin. */
-export async function listBuyLeadIdsForContact(contactId: string): Promise<string[]> {
-  if (!/^[0-9a-f-]{36}$/i.test(contactId)) return [];
+function isUuid(value: string | null | undefined): boolean {
+  return Boolean(value && /^[0-9a-f-]{36}$/i.test(value));
+}
+
+/**
+ * Buy lead ids for this person — used to hydrate the waitlist cards when the
+ * device cookie is thin or missing. Same contact-or-member matching as
+ * `getGoActivity`, for the same reason.
+ */
+export async function listBuyLeadIds(input: {
+  contactId?: string | null;
+  memberId?: string | null;
+}): Promise<string[]> {
+  const contactId = isUuid(input.contactId) ? input.contactId! : null;
+  const memberId = isUuid(input.memberId) ? input.memberId! : null;
+  if (!contactId && !memberId) return [];
+
   const admin = createAdminClient();
-  const { data } = await admin
-    .from("beta_go_leads")
-    .select("id")
-    .eq("contact_id", contactId)
+  let query = admin.from("beta_go_leads").select("id");
+  query =
+    contactId && memberId
+      ? query.or(`contact_id.eq.${contactId},member_id.eq.${memberId}`)
+      : contactId
+        ? query.eq("contact_id", contactId)
+        : query.eq("member_id", memberId!);
+
+  const { data } = await query
     .eq("intent", "buy")
     .neq("status", "cancelled")
     .order("created_at", { ascending: false })

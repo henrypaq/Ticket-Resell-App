@@ -7,10 +7,10 @@ import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
 import { ArrowLeft } from "@/components/icons";
-import { Field } from "@/components/beta-waitlist/field";
-import { BUTTON_CLASS, FIELD_CLASS } from "@/components/beta-waitlist/field-styles";
+import { Field } from "@/components/forms/field";
+import { BUTTON_CLASS, FIELD_CLASS } from "@/components/forms/field-styles";
 import { COUNTRY_CODES } from "@/lib/country-codes";
-import { QuickShell } from "./shell";
+import { AppFlowShell } from "./shell";
 import {
   ContactFields,
   DEFAULT_COUNTRY_ISO2,
@@ -18,7 +18,7 @@ import {
   QuantityStepper,
   StepHeading,
   composeQuickPhone,
-} from "./shared";
+} from "./flow-fields";
 
 const initial: QuickActionState = {};
 
@@ -38,12 +38,12 @@ export function QuickBuyFlow({
   events,
   savedContact,
   initialEventSlug,
-  backHref = "/go",
+  backHref = "/",
 }: {
   events: BetaEvent[];
   savedContact?: GoContactProfile | null;
   initialEventSlug?: string | null;
-  /** Where Back goes from the first step (e.g. /member when launched from the app). */
+  /** Where Back goes from the first step. */
   backHref?: string;
 }) {
   const router = useRouter();
@@ -68,10 +68,10 @@ export function QuickBuyFlow({
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
 
   useEffect(() => {
-    if (state.ok) router.replace("/go/done?intent=buy");
+    if (state.ok) router.replace("/done?intent=buy");
   }, [state.ok, router]);
 
-  // While redirecting to /go/done, keep the form — no interim success page.
+  // While redirecting to /done, keep the form — no interim success page.
   const redirecting = Boolean(state.ok);
 
   const isCafeCampus = eventSlug === "cafe-campus";
@@ -116,7 +116,7 @@ export function QuickBuyFlow({
   }
 
   return (
-    <QuickShell>
+    <AppFlowShell>
       <button
         type="button"
         onClick={onBack}
@@ -250,6 +250,6 @@ export function QuickBuyFlow({
             : "Continue"}
         </button>
       </form>
-    </QuickShell>
+    </AppFlowShell>
   );
 }

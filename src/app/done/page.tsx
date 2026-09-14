@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { GoDoneScreen } from "@/components/beta-quick/done";
+import { DoneScreen } from "@/components/app/done";
+import { requireMember } from "@/domains/beta-signup/gate";
 
 export const metadata: Metadata = {
   title: "You're in · mcgill.tickets",
@@ -8,12 +9,13 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function GoDonePage({
+export default async function DonePage({
   searchParams,
 }: {
   searchParams: Promise<{ intent?: string }>;
 }) {
+  await requireMember();
   const params = await searchParams;
   const intent = params.intent === "sell" ? "sell" : "buy";
-  return <GoDoneScreen intent={intent} />;
+  return <DoneScreen intent={intent} />;
 }

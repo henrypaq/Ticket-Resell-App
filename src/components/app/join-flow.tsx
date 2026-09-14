@@ -12,10 +12,10 @@ import { INTEREST_OPTIONS } from "@/lib/beta-events";
 import { DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
 import { ArrowLeft, CheckIcon } from "@/components/icons";
-import { CountryCodeSelect } from "./country-code-select";
-import { Field } from "./field";
-import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "./field-styles";
-import { Starfield } from "./starfield";
+import { CountryCodeSelect } from "@/components/forms/country-code-select";
+import { Field } from "@/components/forms/field";
+import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "@/components/forms/field-styles";
+import { Starfield } from "@/components/forms/starfield";
 
 type Answers = {
   name: string;
@@ -81,12 +81,15 @@ function isValidEmail(value: string) {
 const initialActionState: BetaSignupState = {};
 
 /**
+ * Joining as a beta member is the way into the app — the gate at `/` renders
+ * this until the signup cookie resolves to a member.
+ *
  * One question per screen, dark/high-tech. Client-only step navigation —
  * every field lives in `answers` state so it survives moving back and forth,
  * and gets serialized into hidden inputs on the single <form> that actually
  * submits (only mounted, and only submittable, on the last step).
  */
-export function WaitlistFlow({ showDevSkip = false }: { showDevSkip?: boolean }) {
+export function JoinFlow({ showDevSkip = false }: { showDevSkip?: boolean }) {
   const [answers, setAnswers] = useState<Answers>(EMPTY);
   const [step, setStep] = useState(0);
   const [state, formAction, pending] = useActionState(submitBetaSignupAction, initialActionState);
@@ -648,7 +651,7 @@ function Glow() {
   );
 }
 
-/** Cookie is set server-side on submit — refresh so `/` swaps to the beta shell. */
+/** Cookie is set server-side on submit — refresh so `/` swaps to the app. */
 function SignupCompleteRefresh() {
   const router = useRouter();
   useEffect(() => {
@@ -659,7 +662,7 @@ function SignupCompleteRefresh() {
     <div className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-col items-center justify-center px-5">
       <Starfield />
       <Glow />
-      <p className="text-[14px] text-muted">You&apos;re in — loading your member hub…</p>
+      <p className="text-[14px] text-muted">You&apos;re in — loading the app…</p>
     </div>
   );
 }

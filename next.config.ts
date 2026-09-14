@@ -12,6 +12,39 @@ const nextConfig: NextConfig = {
     },
   },
 
+  /**
+   * `/member` (full beta onboarding) and `/go` (the low-friction IG funnel)
+   * were merged into one app. Both are printed on flyers and linked from QR
+   * codes and the Instagram bio, so they redirect rather than 404. Query
+   * strings — including the `?src=` acquisition tag the proxy reads — are
+   * carried over by Next automatically.
+   *
+   * Temporary (307/308-style `permanent: false`) on purpose: a permanent
+   * redirect gets cached by browsers indefinitely, and these paths may be
+   * wanted again.
+   */
+  async redirects() {
+    return [
+      { source: "/member", destination: "/", permanent: false },
+      { source: "/go", destination: "/", permanent: false },
+      { source: "/go/buy", destination: "/buy", permanent: false },
+      { source: "/go/sell", destination: "/sell", permanent: false },
+      { source: "/go/done", destination: "/done", permanent: false },
+      // Retired `(app)` routes — see src/_legacy/README.md. All of them, not
+      // just the obvious ones: Phase 3 shipped shareable listing links
+      // (`share_link_created`), so `/events/<id>` URLs are sitting in chat
+      // histories nobody controls and must not dead-end on a 404.
+      { source: "/home", destination: "/", permanent: false },
+      { source: "/profile", destination: "/settings", permanent: false },
+      { source: "/notifications", destination: "/settings", permanent: false },
+      { source: "/tickets", destination: "/", permanent: false },
+      { source: "/search", destination: "/", permanent: false },
+      { source: "/events/:id", destination: "/", permanent: false },
+      { source: "/u/:handle", destination: "/", permanent: false },
+      { source: "/sell/request-event", destination: "/sell", permanent: false },
+    ];
+  },
+
   async headers() {
     // Baseline security headers (SECURITY.md § API & infrastructure hardening).
     // CSP is intentionally omitted here until the Phase 2 payment embed (Stripe)

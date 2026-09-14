@@ -26,7 +26,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /**
  * Screenshot page: inverted (white-on-black) QR for yellow flyer backgrounds.
- * Encodes `/go?src=<channel>` so first-touch acquisition is stamped on scan.
+ * Encodes `/?src=<channel>` so first-touch acquisition is stamped on scan.
+ * Generated at request time from `flyerLandingUrl`, so it followed the
+ * `/go` → `/` merge on its own; flyers already in the wild still resolve
+ * through the redirect with attribution intact.
  */
 export default async function FlyerQrPage({ params }: Props) {
   const { channel: raw } = await params;

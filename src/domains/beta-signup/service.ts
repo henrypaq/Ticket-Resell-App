@@ -61,6 +61,7 @@ export type BetaSignupInput = z.infer<typeof betaSignupSchema>;
 export type BetaSignupResult = { ok: true; id: string } | { ok: false; error: string };
 
 export const contactUpdateSchema = z.object({
+  name: z.string().trim().min(1, "Enter your name.").max(120),
   email: z
     .string()
     .trim()
@@ -292,7 +293,7 @@ export async function updateBetaContact(
   const admin = createAdminClient();
   const { error } = await admin
     .from("beta_members")
-    .update({ email: input.email, phone: input.phone })
+    .update({ name: input.name, email: input.email, phone: input.phone })
     .eq("id", signupId);
 
   if (error) {
@@ -301,6 +302,13 @@ export async function updateBetaContact(
     }
     return { ok: false, error: "Couldn't update your contact info. Try again." };
   }
+
+  // A member who corrects their phone here may have /go leads under the old
+  // one — and may now match leads placed before they joined. Re-run the link
+  // so their home page keeps showing the right waitlists and listings.
+  const { linkMemberToGoHistory } = await import("@/domains/beta-go/contacts");
+  await linkMemberToGoHistory({ memberId: signupId, phone: input.phone, email: input.email });
+
   return { ok: true };
 }
 

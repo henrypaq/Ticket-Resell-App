@@ -3,9 +3,9 @@
 import type { BetaEvent } from "@/lib/beta-events";
 import { DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
-import { CountryCodeSelect } from "@/components/beta-waitlist/country-code-select";
-import { Field } from "@/components/beta-waitlist/field";
-import { FIELD_CLASS, FIELD_GROUP_CLASS } from "@/components/beta-waitlist/field-styles";
+import { CountryCodeSelect } from "@/components/forms/country-code-select";
+import { Field } from "@/components/forms/field";
+import { FIELD_CLASS, FIELD_GROUP_CLASS } from "@/components/forms/field-styles";
 
 export function StepHeading({
   eyebrow,

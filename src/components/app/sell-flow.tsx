@@ -9,12 +9,12 @@ import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
 import { SELLER_TERMS_PATH } from "@/lib/compliance/seller-terms";
 import { ArrowLeft } from "@/components/icons";
-import { Field } from "@/components/beta-waitlist/field";
-import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "@/components/beta-waitlist/field-styles";
-import { CountryCodeSelect } from "@/components/beta-waitlist/country-code-select";
+import { Field } from "@/components/forms/field";
+import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "@/components/forms/field-styles";
+import { CountryCodeSelect } from "@/components/forms/country-code-select";
 import { countryByIso2, COUNTRY_CODES } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
-import { QuickShell } from "./shell";
+import { AppFlowShell } from "./shell";
 import {
   ContactFields,
   DEFAULT_COUNTRY_ISO2,
@@ -22,7 +22,7 @@ import {
   QuantityStepper,
   StepHeading,
   composeQuickPhone,
-} from "./shared";
+} from "./flow-fields";
 import { TicketUploadZone, type TicketFile } from "./ticket-upload";
 
 const initial: QuickActionState = {};
@@ -51,7 +51,7 @@ export function QuickSellFlow({
   events,
   savedContact,
   initialEventSlug,
-  backHref = "/go",
+  backHref = "/",
 }: {
   events: BetaEvent[];
   savedContact?: GoContactProfile | null;
@@ -99,7 +99,7 @@ export function QuickSellFlow({
   );
 
   useEffect(() => {
-    if (state.ok) router.replace("/go/done?intent=sell");
+    if (state.ok) router.replace("/done?intent=sell");
   }, [state.ok, router]);
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export function QuickSellFlow({
     }
   }, [state.error]);
 
-  // While redirecting to /go/done, keep the last submit state — no interim success page.
+  // While redirecting to /done, keep the last submit state — no interim success page.
   const redirecting = Boolean(state.ok);
 
   const phone = composeQuickPhone(phoneCountry, phoneNational);
@@ -201,7 +201,7 @@ export function QuickSellFlow({
     !state.error?.toLowerCase().includes("screenshot");
 
   return (
-    <QuickShell>
+    <AppFlowShell>
       <button
         type="button"
         onClick={onBack}
@@ -466,6 +466,6 @@ export function QuickSellFlow({
             : "Continue"}
         </button>
       </form>
-    </QuickShell>
+    </AppFlowShell>
   );
 }

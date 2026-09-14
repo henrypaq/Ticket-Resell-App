@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  BETA_SOCIALS,
   formatBetaEventWhen,
   isPastNightlife,
   type BetaEvent,
@@ -13,16 +14,16 @@ import {
   dismissPastSellLeadsAction,
   leaveWaitlistLeadAction,
   removeSellLeadAction,
-  submitQuickEventRequestAction,
   updateWaitlistLeadAction,
 } from "@/domains/beta-quick/actions";
 import type { GoActivityEntry, QuickActionState, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
-import { BUTTON_CLASS } from "@/components/beta-waitlist/field-styles";
-import { ArrowLeft, MoreVerticalIcon } from "@/components/icons";
+import { BUTTON_CLASS } from "@/components/forms/field-styles";
+import { ArrowLeft, InstagramIcon, MoreVerticalIcon, SnapchatIcon } from "@/components/icons";
 import { COUNTRY_CODES } from "@/lib/country-codes";
-import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./shared";
-import { QuickShell } from "./shell";
+import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./flow-fields";
+import { EventIntentView, EventPoster, SECONDARY_BUTTON_CLASS } from "./event-pieces";
+import { EventRequestSection } from "./event-request";
 
 function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
   if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
@@ -36,41 +37,38 @@ function splitSavedPhone(e164: string | null | undefined): { iso2: string; natio
   return { iso2: DEFAULT_COUNTRY_ISO2, national: digits };
 }
 
-export function QuickHub({
+/**
+ * Home. Deliberately shows tonight only — the whole board lives behind
+ * "See all" on `/upcoming`. The old `/member` events tab opened with every
+ * upcoming night at once, which buried the two things people actually come
+ * here to do.
+ */
+export function AppHome({
   tonight,
   tonightDay,
-  otherEvents,
   waitlist,
   activity,
 }: {
   tonight: BetaEvent[];
   tonightDay: BetaWeekday;
-  otherEvents: BetaEvent[];
   waitlist: QuickWaitlistEntry[];
   activity: GoActivityEntry[];
 }) {
   const [selected, setSelected] = useState<{ event: BetaEvent; day: BetaWeekday } | null>(null);
   const [editing, setEditing] = useState<QuickWaitlistEntry | null>(null);
   const hasTonight = tonight.length > 0;
-  const posters = hasTonight ? tonight : otherEvents.slice(0, 4);
 
   if (editing) {
-    return (
-      <QuickShell>
-        <WaitlistEditView entry={editing} onBack={() => setEditing(null)} />
-      </QuickShell>
-    );
+    return <WaitlistEditView entry={editing} onBack={() => setEditing(null)} />;
   }
 
   if (selected) {
     return (
-      <QuickShell>
-        <EventIntentView
-          event={selected.event}
-          day={selected.day}
-          onBack={() => setSelected(null)}
-        />
-      </QuickShell>
+      <EventIntentView
+        event={selected.event}
+        day={selected.day}
+        onBack={() => setSelected(null)}
+      />
     );
   }
 
@@ -86,10 +84,9 @@ export function QuickHub({
   const totalNet = doneSells.reduce((sum, a) => sum + (a.netVsPaidCad ?? 0), 0);
 
   return (
-    <QuickShell>
-      <header className="relative">
-        <p className="text-[17px] font-semibold tracking-tight text-[#ffe500]">mcgill.tickets</p>
-        <h1 className="headline mt-4 text-[32px] leading-[1.12] tracking-tight sm:text-[36px]">
+    <>
+      <header className="relative pt-3">
+        <h1 className="headline text-[32px] leading-[1.12] tracking-tight sm:text-[36px]">
           DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted">
@@ -168,39 +165,74 @@ export function QuickHub({
 
       <section className="relative mt-10 flex flex-col gap-3">
         <p className="section-header text-[11px] text-muted">What do you need?</p>
-        <Link href="/go/buy" className={`${BUTTON_CLASS} min-h-[64px] text-[17px]`}>
+        <Link href="/buy" className={`${BUTTON_CLASS} min-h-[64px] text-[17px]`}>
           I need a ticket
         </Link>
-        <Link
-          href="/go/sell"
-          className="flex min-h-[64px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[17px] font-bold text-ink transition-colors hover:bg-white/[0.1]"
-        >
+        <Link href="/sell" className={`${SECONDARY_BUTTON_CLASS} min-h-[64px] text-[17px]`}>
           I have a ticket to sell
         </Link>
       </section>
 
       <section className="relative mt-8">
-        <p className="section-header text-[11px] text-muted">
-          {hasTonight ? `Tonight · ${formatBetaEventWhen(tonightDay)}` : "Upcoming"}
-        </p>
-        <div className="-mx-5 mt-3 flex gap-3 overflow-x-auto px-5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {posters.map((event) => (
-            <EventPoster
-              key={event.slug}
-              event={event}
-              day={hasTonight ? tonightDay : event.days[0]!}
-              onSelect={() => setSelected({ event, day: hasTonight ? tonightDay : event.days[0]! })}
-            />
-          ))}
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="section-header text-[11px] text-muted">
+            {hasTonight ? `Tonight · ${formatBetaEventWhen(tonightDay)}` : "Tonight"}
+          </p>
+          <Link
+            href="/upcoming"
+            className="shrink-0 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
+          >
+            See all →
+          </Link>
         </div>
-        {!hasTonight && (
-          <p className="mt-3 text-[13px] text-muted">
-            Nothing listed for tonight — more nights once you pick buy or sell.
+
+        {hasTonight ? (
+          <div className="-mx-5 mt-3 flex gap-3 overflow-x-auto px-5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6">
+            {tonight.map((event) => (
+              <EventPoster
+                key={event.slug}
+                event={event}
+                day={tonightDay}
+                onSelect={() => setSelected({ event, day: tonightDay })}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
+            Nothing running tonight.{" "}
+            <Link href="/upcoming" className="font-semibold text-ink underline decoration-dotted underline-offset-4">
+              See what&apos;s coming up
+            </Link>
+            .
           </p>
         )}
-        <QuickEventRequestSection />
+
+        <div className="mt-4">
+          <EventRequestSection />
+        </div>
       </section>
-    </QuickShell>
+
+      <footer className="relative mt-auto flex items-center justify-center gap-3 pt-12">
+        <a
+          href={BETA_SOCIALS.instagram}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Instagram"
+          className="transition-transform hover:scale-105"
+        >
+          <InstagramIcon className="h-8 w-8" />
+        </a>
+        <a
+          href={BETA_SOCIALS.snapchat}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Snapchat"
+          className="transition-transform hover:scale-105"
+        >
+          <SnapchatIcon className="h-8 w-8" />
+        </a>
+      </footer>
+    </>
   );
 }
 
@@ -435,145 +467,6 @@ function PastUnsoldSellNotice({
   );
 }
 
-function QuickEventRequestSection() {
-  const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState(
-    submitQuickEventRequestAction,
-    {} as QuickActionState,
-  );
-
-  return (
-    <div className="relative mt-4">
-      {!open ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex w-full items-center justify-between rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-colors hover:bg-white/[0.07] active:scale-[0.99]"
-        >
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span
-              aria-hidden
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-[12px] font-bold text-ink"
-            >
-              +
-            </span>
-            <span className="truncate text-[13.5px] font-medium text-ink">
-              Going somewhere else tonight?
-            </span>
-          </div>
-          <span className="shrink-0 text-[12.5px] font-semibold text-[#ffe500]">
-            Request an event →
-          </span>
-        </button>
-      ) : (
-        <div className="rounded-[18px] border border-white/12 bg-white/[0.04] p-4 sm:p-5">
-          {state.ok ? (
-            <div className="flex flex-col items-start gap-2">
-              <div className="flex items-center gap-2 text-[#ffe500]">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#ffe500]/20 text-[14px] font-bold">
-                  ✓
-                </span>
-                <p className="text-[15px] font-bold text-ink">Request received!</p>
-              </div>
-              <p className="text-[13.5px] leading-relaxed text-muted">
-                {state.message ?? "We'll do our best to support this event ASAP so you can trade tickets safely."}
-              </p>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="mt-3 rounded-[10px] bg-white/10 px-4 py-1.5 text-[13px] font-semibold text-ink hover:bg-white/15"
-              >
-                Done
-              </button>
-            </div>
-          ) : (
-            <form action={formAction} className="flex flex-col gap-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-[15px] font-bold text-ink">Request a new event</h3>
-                  <p className="mt-0.5 text-[12.5px] text-muted">
-                    Tell us what club or event you&apos;re heading to and we&apos;ll support it ASAP.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="rounded-full p-1 text-[13px] text-muted hover:text-ink"
-                  aria-label="Close request form"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="mt-1 flex flex-col gap-2.5">
-                <div>
-                  <label htmlFor="req-name" className="text-[12px] font-semibold text-muted">
-                    Event or club name *
-                  </label>
-                  <input
-                    id="req-name"
-                    name="name"
-                    required
-                    placeholder="e.g. Stereo, Muzique, New City Gas…"
-                    className="mt-1 w-full rounded-[12px] border border-white/15 bg-white/[0.05] px-3.5 py-2.5 text-[14px] text-ink placeholder:text-muted/60 focus:border-[#ffe500]/60 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="req-details" className="text-[12px] font-semibold text-muted">
-                    Date or details (optional)
-                  </label>
-                  <input
-                    id="req-details"
-                    name="details"
-                    placeholder="Tonight, date, or special DJ"
-                    className="mt-1 w-full rounded-[12px] border border-white/15 bg-white/[0.05] px-3.5 py-2.5 text-[14px] text-ink placeholder:text-muted/60 focus:border-[#ffe500]/60 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="req-contact" className="text-[12px] font-semibold text-muted">
-                    Your Instagram or phone (optional)
-                  </label>
-                  <input
-                    id="req-contact"
-                    name="contact"
-                    placeholder="@handle or phone for when it's live"
-                    className="mt-1 w-full rounded-[12px] border border-white/15 bg-white/[0.05] px-3.5 py-2.5 text-[14px] text-ink placeholder:text-muted/60 focus:border-[#ffe500]/60 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {state.error && (
-                <p role="alert" className="text-[12.5px] text-urgency">
-                  {state.error}
-                </p>
-              )}
-
-              <div className="mt-2 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="px-3 py-2 text-[13px] font-semibold text-muted hover:text-ink"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className="rounded-[10px] bg-[#ffe500] px-4 py-2 text-[13px] font-bold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
-                  {pending ? "Sending…" : "Request event"}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function WaitlistEditView({
   entry,
   onBack,
@@ -691,101 +584,11 @@ function WaitlistEditView({
       </button>
 
       <Link
-        href={`/go/buy?event=${encodeURIComponent(entry.eventSlug)}`}
+        href={`/buy?event=${encodeURIComponent(entry.eventSlug)}`}
         className="text-center text-[13px] font-semibold text-muted underline decoration-dotted underline-offset-4"
       >
         Or update via “I need a ticket”
       </Link>
     </div>
-  );
-}
-
-function EventIntentView({
-  event,
-  day,
-  onBack,
-}: {
-  event: BetaEvent;
-  day: BetaWeekday;
-  onBack: () => void;
-}) {
-  const buyHref = `/go/buy?event=${encodeURIComponent(event.slug)}`;
-  const sellHref = `/go/sell?event=${encodeURIComponent(event.slug)}`;
-
-  return (
-    <div className="relative flex flex-col gap-6">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </button>
-
-      <div className="flex gap-4">
-        <div className="relative h-[120px] w-[90px] shrink-0 overflow-hidden rounded-[16px] bg-[#17171a] ring-1 ring-white/10">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={event.flyerUrl} alt="" className="h-full w-full object-cover" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="headline text-[28px] leading-[1.12] tracking-tight">{event.name}</h1>
-          <p className="mt-2 text-[15px] text-muted">{formatBetaEventWhen(day)}</p>
-          {event.entryNote && (
-            <p className="mt-2 text-[13px] font-semibold text-[#ffe500]">{event.entryNote}</p>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <p className="section-header text-[11px] text-muted">What do you need?</p>
-        <Link href={buyHref} className={`${BUTTON_CLASS} min-h-[56px] text-[16px]`}>
-          I need a ticket
-        </Link>
-        <Link
-          href={sellHref}
-          className="flex min-h-[56px] items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 text-[16px] font-bold text-ink transition-colors hover:bg-white/[0.1]"
-        >
-          I have a ticket to sell
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function EventPoster({
-  event,
-  day,
-  onSelect,
-}: {
-  event: BetaEvent;
-  day: BetaWeekday;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-label={`${event.name} — choose buy or sell`}
-      className="relative w-[42vw] max-w-[180px] shrink-0 rounded-[20px] bg-[#17171a] outline-none ring-2 ring-transparent transition-[box-shadow,transform,ring-color] hover:ring-[#ffe500]/55 focus-visible:ring-[#ffe500] active:scale-[0.98] active:ring-[#ffe500]"
-    >
-      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[20px]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={event.flyerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent"
-        />
-        <div className="absolute inset-x-0 bottom-0 p-3 text-left">
-          <p className="headline text-[15px] leading-tight text-ink">{event.name}</p>
-          <p className="mt-1 text-[11px] text-muted">{formatBetaEventWhen(day)}</p>
-          {event.entryNote && (
-            <p className="mt-1 text-[10.5px] font-semibold leading-snug text-[#ffe500]">
-              {event.entryNote}
-            </p>
-          )}
-        </div>
-      </div>
-    </button>
   );
 }

@@ -35,16 +35,25 @@ export default async function proxy(request: NextRequest) {
 
   await supabase.auth.getUser();
 
-  // First-touch only. Bare `/`/`/member`/`/go` → ig_bio; `?src=qr_*` / flyer → that.
-  // `/go` = Instagram-bio quick flow; `/member` = full beta member onboarding.
+  // First-touch only. A bare entry path → ig_bio; `?src=qr_*` / flyer → that.
+  //
+  // `/member`, `/go`, `/go/buy` and `/go/sell` are the pre-merge paths, still
+  // printed on flyers and QR codes. They now redirect (next.config.ts), but the
+  // proxy runs before routing, so stamping them here is what keeps attribution
+  // working for anyone arriving on an old link. Whenever an entry path is
+  // added or renamed, it has to be added here too or its traffic silently
+  // records as `ig_bio` (DATA_CAPTURE.md § acquisition).
+  const ENTRY_PATHS = new Set([
+    "/",
+    "/buy",
+    "/sell",
+    "/member",
+    "/go",
+    "/go/buy",
+    "/go/sell",
+  ]);
   const path = request.nextUrl.pathname;
-  if (
-    path === "/" ||
-    path === "/member" ||
-    path === "/go" ||
-    path === "/go/buy" ||
-    path === "/go/sell"
-  ) {
+  if (ENTRY_PATHS.has(path)) {
     const existing = request.cookies.get(BETA_ACQUISITION_COOKIE)?.value;
     if (!isAcquisitionChannel(existing)) {
       response.cookies.set(

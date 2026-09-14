@@ -8,9 +8,12 @@ export const metadata: Metadata = {
 };
 
 /**
- * Branded QR share screen for the low-friction `/go` flow. The QR encodes
- * `/go?src=qr_share` so scans attribute correctly; the visible label stays the
- * clean domain. Plain printable QR: `/qr/go-qr-print.png`.
+ * Branded QR share screen for buy/sell. The visible label stays the clean
+ * domain. Plain printable QR: `/qr/go-qr-print.png`.
+ *
+ * The PNG still encodes the pre-merge `/go?src=qr_share`, which redirects to
+ * `/` with attribution intact (the proxy stamps `?src=` before the redirect).
+ * Regenerate it from `ACQUISITION_LANDING.go_qr_share` to point at the apex.
  */
 export default function GoQrDisplayPage() {
   return (
