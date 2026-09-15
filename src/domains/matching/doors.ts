@@ -17,6 +17,7 @@ import {
   betaEventBySlug,
   eventDayDateKey,
   montrealDateParts,
+  nightlifeDateKey,
   type BetaWeekday,
 } from "@/lib/beta-events";
 
@@ -64,10 +65,20 @@ export function doorsHourForEvent(eventSlug: string): number {
  */
 export function doorsAtForEvent(eventSlug: string, now: Date = new Date()): Date | null {
   const event = betaEventBySlug(eventSlug);
-  if (!event || !event.days || event.days.length === 0) return null;
+  if (!event) return null;
 
   const hour = doorsHourForEvent(eventSlug);
-  const schedules = event.days.map((day: BetaWeekday) => eventDayDateKey(day, now));
+  const currentKey = nightlifeDateKey(now);
+  const fromDays = (event.days ?? []).map((day: BetaWeekday) => {
+    const s = eventDayDateKey(day, now);
+    return { dateKey: s.dateKey, isPast: s.isPast };
+  });
+  const fromExtra = (event.extraDateKeys ?? []).map((dateKey) => ({
+    dateKey,
+    isPast: dateKey < currentKey,
+  }));
+  const schedules = [...fromDays, ...fromExtra];
+  if (schedules.length === 0) return null;
 
   const upcoming = schedules
     .filter((s) => !s.isPast)

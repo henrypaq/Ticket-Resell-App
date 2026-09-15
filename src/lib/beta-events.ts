@@ -19,6 +19,12 @@ export type BetaEvent = {
    * a multi-day event is listed once under each of its days.
    */
   days: BetaWeekday[];
+  /**
+   * One-off nightlife dates (YYYY-MM-DD, Montreal nightlife calendar) beyond
+   * the recurring `days` weekdays. Use for a single night that isn't on the
+   * usual schedule — e.g. Café Campus on a Tuesday.
+   */
+  extraDateKeys?: string[];
   /** When false, shown only as interest options / request targets, not live. */
   supported: boolean;
   /** Optional door / entry policy shown on posters (e.g. Café Campus cutoff). */
@@ -57,6 +63,8 @@ export const BETA_EVENTS: BetaEvent[] = [
       "The first venue we're supporting — post a ticket you can't use, or join the waitlist and we'll reach out when one drops.",
     flyerUrl: "/flyers/cafe-campus.jpg",
     days: ["Thursday", "Friday", "Saturday"],
+    // One-off Tuesday night (Montreal nightlife date) — not a recurring weekday.
+    extraDateKeys: ["2026-09-15"],
     supported: true,
   },
   {
@@ -236,7 +244,10 @@ export function currentBetaWeekday(from: Date = new Date()): BetaWeekday {
 /** Supported events happening tonight (Montreal nightlife day). */
 export function tonightBetaEvents(from: Date = new Date()): BetaEvent[] {
   const day = currentNightlifeWeekday(from);
-  return supportedBetaEvents().filter((e) => e.days.includes(day));
+  const dateKey = nightlifeDateKey(from);
+  return supportedBetaEvents().filter(
+    (e) => e.days.includes(day) || (e.extraDateKeys?.includes(dateKey) ?? false),
+  );
 }
 
 /**
@@ -249,49 +260,25 @@ export function upcomingBetaWeekdays(from: Date = new Date()): BetaWeekday[] {
 }
 
 /**
- * Events offered on /go buy & sell for the given night — ONLY events available for that night.
- * Avoids showing different nights or random extra events when selecting an event.
+ * Events offered on buy & sell for the given night — ONLY tonight's events.
+ * Empty when nothing is running; never falls forward to Thursday/Friday/etc.
  */
 export function goSelectableEvents(from: Date = new Date()): BetaEvent[] {
-  const tonight = tonightBetaEvents(from);
-  if (tonight.length > 0) {
-    return tonight;
-  }
-  for (const day of upcomingBetaWeekdays(from)) {
-    const list = supportedBetaEvents().filter((e) => e.days.includes(day));
-    if (list.length > 0) return list;
-  }
-  return supportedBetaEvents();
+  return tonightBetaEvents(from);
 }
 
 /**
- * Dropdown options for the given night — only events running on that night.
+ * Dropdown options for the given night — only events running tonight.
  */
 export function tonightEventOptions(from: Date = new Date()): UpcomingEventOption[] {
   const day = currentNightlifeWeekday(from);
-  const events = tonightBetaEvents(from);
-  if (events.length > 0) {
-    return events.map((event) => ({
-      key: `${event.slug}::${day}`,
-      slug: event.slug,
-      day,
-      event,
-      label: event.name,
-    }));
-  }
-  for (const upcomingDay of upcomingBetaWeekdays(from)) {
-    const list = supportedBetaEvents().filter((e) => e.days.includes(upcomingDay));
-    if (list.length > 0) {
-      return list.map((event) => ({
-        key: `${event.slug}::${upcomingDay}`,
-        slug: event.slug,
-        day: upcomingDay,
-        event,
-        label: `${event.name} · ${formatBetaEventWhen(upcomingDay, from)}`,
-      }));
-    }
-  }
-  return [];
+  return tonightBetaEvents(from).map((event) => ({
+    key: `${event.slug}::${day}`,
+    slug: event.slug,
+    day,
+    event,
+    label: event.name,
+  }));
 }
 
 

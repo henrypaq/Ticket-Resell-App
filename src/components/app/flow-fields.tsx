@@ -34,6 +34,14 @@ export function EventPicker({
   value: string;
   onChange: (slug: string) => void;
 }) {
+  if (events.length === 0) {
+    return (
+      <p className="rounded-[16px] border border-white/10 bg-white/[0.04] px-4 py-5 text-[14px] leading-relaxed text-muted">
+        Nothing running tonight. Check back when an event is live, or browse Upcoming from home.
+      </p>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {events.map((event) => {

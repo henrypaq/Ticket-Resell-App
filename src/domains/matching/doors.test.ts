@@ -53,6 +53,13 @@ describe("doorsAtForEvent", () => {
     expect(doorsAtForEvent("cafe-campus", now)?.toISOString()).toBe("2026-09-13T02:00:00.000Z");
   });
 
+  it("picks a one-off extraDateKey night before the next weekday", () => {
+    // Tuesday 2026-09-15 afternoon Montreal — Café Campus has an extraDateKey
+    // for tonight, which must win over Thursday's recurring night.
+    const now = new Date("2026-09-15T18:00:00.000Z");
+    expect(doorsAtForEvent("cafe-campus", now)?.toISOString()).toBe("2026-09-16T02:00:00.000Z");
+  });
+
   it("picks the nearest upcoming night, not the first one listed", () => {
     // Friday 2026-09-11, 18:00 Montreal: Thursday is past, Friday is tonight.
     const now = new Date("2026-09-11T22:00:00.000Z");
