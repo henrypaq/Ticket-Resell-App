@@ -6,11 +6,11 @@
     },
     {
       "path": "/api/v1/cron/reconcile-offers",
-      "schedule": "*/5 * * * *"
+      "schedule": "15 0 * * *"
     },
     {
       "path": "/api/v1/cron/release-stale-reservations",
-      "schedule": "*/15 * * * *"
+      "schedule": "30 0 * * *"
     }
   ]
 }

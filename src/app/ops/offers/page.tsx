@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
 import { OffersBoard } from "@/components/beta-ops/offers-board";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
-import { listAvailableUnits, listRecentOffers } from "@/domains/beta-matching/service";
+import { listAvailableUnits, listRecentOffers, reconcileExpiredOffers } from "@/domains/beta-matching/service";
 
 export const metadata: Metadata = {
   title: "Offers · Ops · mcgill.tickets",
@@ -14,6 +14,9 @@ export const dynamic = "force-dynamic";
 
 export default async function OpsOffersPage() {
   if (!(await getBetaOpsSession())) redirect("/ops/login");
+
+  // Hobby Vercel only allows daily crons — sweep expiries whenever ops opens offers.
+  await reconcileExpiredOffers().catch(() => {});
 
   const [units, offers] = await Promise.all([listAvailableUnits(), listRecentOffers(100)]);
 
