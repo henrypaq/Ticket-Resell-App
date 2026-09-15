@@ -416,17 +416,20 @@ function PastUnsoldSellNotice({
 
   if (!expanded) {
     return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        aria-expanded={false}
-        aria-label="Notice: There weren't enough buyers for your tickets last night — tap to view"
-        className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-[#ffe500]/30 bg-[#ffe500]/[0.06] p-3.5 text-left shadow-[0_4px_16px_rgba(255,229,0,0.06)] transition-all hover:bg-[#ffe500]/[0.1] active:scale-[0.99]"
+      <div
+        className="flex w-full items-center gap-2 rounded-[16px] border border-[#6ee1ff]/35 bg-[#6ee1ff]/[0.06] p-3.5"
+        role="status"
       >
-        <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-expanded={false}
+          aria-label="Notice: Unsold tickets from last night — tap to view details"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left transition-opacity hover:opacity-90 active:scale-[0.99]"
+        >
           <span
             aria-hidden
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#ffe500]/25 text-[15px] font-black text-[#ffe500]"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#6ee1ff]/20 text-[15px] font-black text-[#6ee1ff]"
           >
             !
           </span>
@@ -435,12 +438,28 @@ function PastUnsoldSellNotice({
               Notice: Unsold tickets from last night
             </p>
             <p className="truncate text-[12px] text-muted">
-              {eventsLabel} ({totalTickets} {totalTickets === 1 ? "ticket" : "tickets"}) · Tap to view
+              {eventsLabel} ({totalTickets} {totalTickets === 1 ? "ticket" : "tickets"})
             </p>
           </div>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDismiss}
+            disabled={dismissPending}
+            className="rounded-[8px] px-2.5 py-1.5 text-[12.5px] font-semibold text-[#6ee1ff] transition-colors hover:bg-[#6ee1ff]/10 disabled:opacity-50"
+          >
+            {dismissPending ? "…" : "Got it"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="pr-0.5 text-[12.5px] font-semibold text-[#6ee1ff]/80 hover:text-[#6ee1ff]"
+          >
+            View
+          </button>
         </div>
-        <span className="shrink-0 text-[12.5px] font-semibold text-[#ffe500]">View →</span>
-      </button>
+      </div>
     );
   }
 
@@ -448,13 +467,13 @@ function PastUnsoldSellNotice({
     <div
       role="region"
       aria-label="Unsold tickets notice"
-      className="rounded-[18px] border border-[#ffe500]/30 bg-[#ffe500]/[0.06] p-4 shadow-[0_4px_24px_rgba(255,229,0,0.08)] sm:p-5"
+      className="rounded-[16px] border border-[#6ee1ff]/35 bg-[#6ee1ff]/[0.06] p-4 sm:p-5"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">
           <span
             aria-hidden
-            className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#ffe500]/25 text-[14px] font-black text-[#ffe500]"
+            className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#6ee1ff]/20 text-[14px] font-black text-[#6ee1ff]"
           >
             !
           </span>
@@ -472,7 +491,7 @@ function PastUnsoldSellNotice({
         </button>
       </div>
 
-      <div className="mt-3.5 space-y-1.5 rounded-[12px] bg-black/30 p-3 text-[13px]">
+      <div className="mt-3.5 space-y-1.5 rounded-[12px] border border-white/10 bg-transparent p-3 text-[13px]">
         {pastUnsoldSells.map((entry) => (
           <div key={entry.leadId} className="flex items-center justify-between gap-2">
             <span className="font-medium text-ink">{entry.eventName}</span>
@@ -496,7 +515,7 @@ function PastUnsoldSellNotice({
         post early and we&apos;ll do our best to match you.
       </p>
 
-      <div className="mt-4 flex items-center justify-end gap-3 border-t border-white/8 pt-3">
+      <div className="mt-4 flex items-center justify-end gap-3 border-t border-white/10 pt-3">
         <button
           type="button"
           onClick={() => setExpanded(false)}
@@ -508,9 +527,9 @@ function PastUnsoldSellNotice({
           type="button"
           onClick={handleDismiss}
           disabled={dismissPending}
-          className="rounded-[10px] bg-[#ffe500] px-4 py-2 text-[13px] font-bold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="rounded-[10px] border border-[#6ee1ff]/40 bg-[#6ee1ff]/15 px-4 py-2 text-[13px] font-semibold text-[#6ee1ff] transition-colors hover:bg-[#6ee1ff]/25 disabled:opacity-50"
         >
-          {dismissPending ? "Removing…" : "Got it — remove"}
+          {dismissPending ? "Removing…" : "Got it"}
         </button>
       </div>
     </div>
