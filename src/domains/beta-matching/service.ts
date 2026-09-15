@@ -741,6 +741,9 @@ export async function allocateAvailableUnitsForEvent(
   eventSlug: string,
   now = new Date(),
 ): Promise<{ offered: string[]; skipped: string[] }> {
+  // Free expired exclusive holds before offering new ones (daily cron is Hobby-limited).
+  await reconcileExpiredOffers(now).catch(() => {});
+
   const admin = createAdminClient();
   const { data: units } = await admin
     .from("beta_ticket_units")
