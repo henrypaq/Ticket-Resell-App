@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   resetBetaSignupAction,
@@ -16,7 +15,7 @@ import { SaveProfileCard } from "./save-profile";
 import { BETA_SOCIALS } from "@/lib/beta-events";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
-import { InstagramIcon, SnapchatIcon } from "@/components/icons";
+import { ArrowLeft, InstagramIcon, SnapchatIcon } from "@/components/icons";
 import { CountryCodeSelect } from "@/components/forms/country-code-select";
 import { Field } from "@/components/forms/field";
 import {
@@ -49,15 +48,21 @@ export function AppSettings({
   prefill?: ProfilePrefillData | null;
   showDevReset?: boolean;
 }) {
+  const router = useRouter();
+
   return (
     <div className="relative flex flex-col gap-12 pt-3">
+      <button
+        type="button"
+        onClick={() => router.push("/")}
+        className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back
+      </button>
+
       <header>
         <h1 className="headline text-[30px] leading-[1.12] tracking-tight">Your account</h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-muted">
-          {profile
-            ? "Edit your details, choose what we message you about, or get in touch."
-            : "You don't need an account to buy or sell. Save a profile to carry your tickets across devices."}
-        </p>
       </header>
 
       {profile ? (
@@ -68,10 +73,7 @@ export function AppSettings({
           </section>
 
           <section>
-            <p className="section-header mb-1 text-[12px] text-muted">Communication settings</p>
-            <p className="mb-4 text-[12.5px] leading-relaxed text-muted">
-              Pick a channel per alert. Changes save as you tap.
-            </p>
+            <p className="section-header mb-4 text-[12px] text-muted">Communication settings</p>
             <PrefsForm profile={profile} />
           </section>
         </>
@@ -119,12 +121,13 @@ export function AppSettings({
       </section>
 
       <section className="border-t border-hairline pt-6">
-        <Link
-          href="/"
+        <button
+          type="button"
+          onClick={() => router.push("/")}
           className="text-[14px] font-semibold text-muted underline decoration-dotted underline-offset-4 transition-colors hover:text-ink"
         >
           Back to home
-        </Link>
+        </button>
         {showDevReset && <DevReset />}
       </section>
     </div>
@@ -222,8 +225,8 @@ function PersonalInfoForm({ profile }: { profile: BetaSignupProfile }) {
         </div>
       </Field>
       <p className="text-[12px] leading-relaxed text-muted">
-        Keep your phone current — it&apos;s how we match the tickets you list and the waitlists you
-        join back to you.
+        Keep your email current — it&apos;s how we&apos;ll send most alerts for now about the tickets
+        you list and the waitlists you join.
       </p>
       <StatusLine state={state} />
       <button type="submit" disabled={!canSave} className={`mt-2 ${BUTTON_CLASS_COMPACT}`}>
@@ -269,7 +272,6 @@ function PrefsForm({ profile }: { profile: BetaSignupProfile }) {
     <div className="flex flex-col gap-2.5">
       <PrefRow
         label="#1 in the waitlist"
-        description="Be notified when it's your turn to checkout for the ticket you requested"
         emailChecked={prefs.notifyQueueEmail}
         smsChecked={prefs.notifyQueueSms}
         disabled={pending}
@@ -278,7 +280,6 @@ function PrefsForm({ profile }: { profile: BetaSignupProfile }) {
       />
       <PrefRow
         label="Available tickets"
-        description="Be notified of extra tickets for events you like"
         emailChecked={prefs.notifyTicketsEmail}
         smsChecked={prefs.notifyTicketsSms}
         disabled={pending}
@@ -294,7 +295,6 @@ function PrefsForm({ profile }: { profile: BetaSignupProfile }) {
 
 function PrefRow({
   label,
-  description,
   emailChecked,
   smsChecked,
   disabled,
@@ -302,7 +302,6 @@ function PrefRow({
   onToggleSms,
 }: {
   label: string;
-  description: string;
   emailChecked: boolean;
   smsChecked: boolean;
   disabled: boolean;
@@ -313,7 +312,6 @@ function PrefRow({
     <div className="flex items-stretch gap-4 rounded-[18px] bg-white/[0.06] px-5 py-4">
       <div className="min-w-0 flex-1 pr-1">
         <p className="text-[14px] font-medium text-ink">{label}</p>
-        <p className="mt-1 text-[12.5px] leading-relaxed text-muted">{description}</p>
       </div>
       <div className="flex shrink-0 items-center gap-3 self-center">
         <ChannelCheckbox
@@ -379,9 +377,6 @@ function SupportForm({ profile }: { profile: BetaSignupProfile | null }) {
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <p className="text-[13px] text-muted">
-        Send us your questions, requests, and concerns. We&apos;ll get back to you asap!
-      </p>
       <Field label="Email" htmlFor="help-email">
         <input
           id="help-email"
