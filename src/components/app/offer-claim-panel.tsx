@@ -207,28 +207,41 @@ export function OfferClaimPanel({
       {stage === "held" && (
         <>
           <p className="mt-3 text-[15px] leading-relaxed text-muted">
-            Your payment is held while we match you with the seller and confirm the ticket transfer.
-            You don&apos;t need to do anything else right now.
+            Your money is with mcgill.tickets — not the seller yet. We hold it until the ticket is
+            transferred.
           </p>
           <div className="mt-6 rounded-2xl border border-hairline bg-card px-4 py-4">
             <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
-              Escrow
+              Payment held
             </p>
             <p className="mt-2 text-[22px] font-semibold tabular-nums text-ink">
               ${priceEach.toFixed(2)} CAD
             </p>
-            <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-              If the ticket isn&apos;t transferred within 30 minutes of confirmation, we refund you
-              in full. Only you have this exclusive hold — nobody else can pay for this ticket while
-              it&apos;s yours.
-            </p>
+            <ol className="mt-4 flex flex-col gap-3 text-[13.5px] leading-relaxed text-muted">
+              <li>
+                <span className="font-semibold text-ink">1. We confirm your Interac</span>
+                <span className="mt-0.5 block">Ops matches your transfer using memo {paymentMemo}.</span>
+              </li>
+              <li>
+                <span className="font-semibold text-ink">2. Seller transfers the ticket</span>
+                <span className="mt-0.5 block">
+                  They have 30 minutes after we confirm. If it doesn&apos;t arrive, you get a full
+                  refund.
+                </span>
+              </li>
+              <li>
+                <span className="font-semibold text-ink">3. You&apos;re done</span>
+                <span className="mt-0.5 block">
+                  We message you when the ticket is on the way. Nobody else can buy this seat while
+                  it&apos;s yours.
+                </span>
+              </li>
+            </ol>
           </div>
-          <PayDetails
-            priceEach={priceEach}
-            paymentMemo={paymentMemo}
-            etransfer={etransfer}
-            compact
-          />
+          <p className="mt-4 text-[13px] leading-relaxed text-muted">
+            You don&apos;t need to do anything else right now. Keep this page or check home for
+            status.
+          </p>
           <Link href="/" className={`${BUTTON_CLASS} mt-8 w-full`}>
             Back to home
           </Link>
