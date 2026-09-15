@@ -12,6 +12,8 @@ const TABS = [
   { href: "/ops/waitlist", label: "Waitlist" },
   { href: "/ops/sellers", label: "Sellers" },
   { href: "/ops/offers", label: "Offers" },
+  { href: "/ops/links", label: "Links" },
+  { href: "/ops/analytics", label: "Analytics" },
 ] as const;
 
 /** Shared chrome for authenticated ops pages. */
@@ -20,7 +22,14 @@ export async function OpsChrome({
   active,
 }: {
   children: React.ReactNode;
-  active: "overview" | "members" | "waitlist" | "sellers" | "offers";
+  active:
+    | "overview"
+    | "members"
+    | "waitlist"
+    | "sellers"
+    | "offers"
+    | "links"
+    | "analytics";
 }) {
   const session = await getBetaOpsSession();
   if (!session) redirect("/ops/login");
@@ -53,7 +62,7 @@ export async function OpsChrome({
         </form>
       </header>
 
-      <nav className="mt-5 inline-flex items-center rounded-lg bg-zinc-900/80 p-1 text-zinc-400 gap-1">
+      <nav className="mt-5 flex flex-wrap items-center gap-1 rounded-lg bg-zinc-900/80 p-1 text-zinc-400">
         {TABS.map((tab) => {
           const key = tab.href === "/ops" ? "overview" : tab.href.split("/").pop()!;
           const isActive = active === key;

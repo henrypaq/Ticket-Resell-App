@@ -173,3 +173,38 @@ export function looksLikeInstagram(
 export function isAcquisitionChannel(value: string | undefined | null): value is AcquisitionChannel {
   return (ACQUISITION_CHANNELS as readonly string[]).includes(value ?? "");
 }
+
+/**
+ * Human label for a lead/member source tag. Known enum channels get a fixed
+ * label; free-form campaign tags (story links, future QRs) are spaced for ops.
+ */
+export function formatAcquisitionSource(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (!value || value === "(none)") return "Untagged";
+  if (isAcquisitionChannel(value)) return ACQUISITION_CHANNEL_LABELS[value];
+  return value.replace(/[_-]+/g, " ");
+}
+
+export type CampaignLinkIntent = "buy" | "sell" | "home";
+
+/**
+ * Instagram-friendly campaign URLs. Keep them short: path + event + src.
+ * `src` is last-touch (free-form); omit it for an untagged deep link.
+ */
+export function buildCampaignLink(args: {
+  intent: CampaignLinkIntent;
+  eventSlug?: string | null;
+  src?: string | null;
+  origin?: string;
+}): string {
+  const origin = (args.origin ?? SITE).replace(/\/$/, "");
+  const path =
+    args.intent === "buy" ? "/buy" : args.intent === "sell" ? "/sell" : "/";
+  const params = new URLSearchParams();
+  const event = (args.eventSlug ?? "").trim();
+  if (event && args.intent !== "home") params.set("event", event);
+  const src = parseLastSrc(args.src);
+  if (src) params.set("src", src);
+  const qs = params.toString();
+  return qs ? `${origin}${path}?${qs}` : `${origin}${path}`;
+}

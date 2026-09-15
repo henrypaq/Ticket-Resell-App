@@ -44,7 +44,10 @@ export type AnalyticsEventType =
   | "waitlist_offer_expired"
   | "waitlist_offer_paid"
   | "waitlist_offer_payment_declared"
-  | "waitlist_offer_payout_released";
+  | "waitlist_offer_payout_released"
+  // Beta buy/sell funnel (ops abandonment analysis)
+  | "beta_flow_step"
+  | "beta_flow_completed";
 
 type LogInput = {
   type: AnalyticsEventType;

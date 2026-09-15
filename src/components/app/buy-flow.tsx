@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveContactDraftAction, submitQuickBuyAction } from "@/domains/beta-quick/actions";
+import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
 import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
@@ -19,8 +20,11 @@ import {
   StepHeading,
   composeQuickPhone,
 } from "./flow-fields";
+import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
 
 const initial: QuickActionState = {};
+
+const BUY_STEP_KEYS = ["event", "quantity", "contact", "transfer"] as const;
 
 function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
   if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
@@ -70,9 +74,11 @@ export function QuickBuyFlow({
 
   useEffect(() => {
     if (!state.ok) return;
+    void logBetaFlowStepAction({ intent: "buy", step: "submit", eventSlug });
+    logFlowCompleted({ intent: "buy", eventSlug });
     if (state.offerId) router.replace(`/offer/${state.offerId}`);
     else router.replace("/done?intent=buy");
-  }, [state.ok, state.offerId, router]);
+  }, [state.ok, state.offerId, router, eventSlug]);
 
   // While redirecting to /done, keep the form — no interim success page.
   const redirecting = Boolean(state.ok);
@@ -92,6 +98,14 @@ export function QuickBuyFlow({
   const isLast = step === lastStep;
   const stepIndex = step - firstStep + 1;
   const stepLabel = `Need a ticket · ${stepIndex} of ${totalSteps}`;
+  const stepKey = BUY_STEP_KEYS[Math.min(step, BUY_STEP_KEYS.length - 1)] ?? "event";
+
+  useBetaFlowStepLog({
+    intent: "buy",
+    stepKey,
+    eventSlug,
+    enabled: !redirecting,
+  });
 
   useEffect(() => {
     if (step > lastStep) setStep(lastStep);

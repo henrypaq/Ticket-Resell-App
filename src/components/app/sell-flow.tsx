@@ -24,9 +24,19 @@ import {
   composeQuickPhone,
 } from "./flow-fields";
 import { TicketUploadZone, type TicketFile } from "./ticket-upload";
+import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
+import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
 
 const initial: QuickActionState = {};
 const LAST_STEP = 5;
+const SELL_STEP_KEYS = [
+  "event",
+  "quantity",
+  "pricing",
+  "contact",
+  "ticket",
+  "etransfer",
+] as const;
 const TICKET_URL_RE = /^https?:\/\//i;
 const TICKET_URL_ERROR = "Paste a full link starting with https://";
 
@@ -99,8 +109,11 @@ export function QuickSellFlow({
   );
 
   useEffect(() => {
-    if (state.ok) router.replace("/done?intent=sell");
-  }, [state.ok, router]);
+    if (!state.ok) return;
+    void logBetaFlowStepAction({ intent: "sell", step: "submit", eventSlug });
+    logFlowCompleted({ intent: "sell", eventSlug });
+    router.replace("/done?intent=sell");
+  }, [state.ok, router, eventSlug]);
 
   useEffect(() => {
     setTicketFiles((prev) => (prev.length > quantity ? prev.slice(0, quantity) : prev));
@@ -155,6 +168,14 @@ export function QuickSellFlow({
   const stepIndex = step - firstStep + 1;
   const stepLabel = `Sell · ${stepIndex} of ${totalSteps}`;
   const isLast = step === LAST_STEP;
+  const stepKey = SELL_STEP_KEYS[Math.min(step, SELL_STEP_KEYS.length - 1)] ?? "event";
+
+  useBetaFlowStepLog({
+    intent: "sell",
+    stepKey,
+    eventSlug,
+    enabled: !redirecting,
+  });
 
   const stepReady =
     (step === 0 && Boolean(eventSlug)) ||

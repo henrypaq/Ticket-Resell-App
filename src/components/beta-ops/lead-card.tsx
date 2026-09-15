@@ -13,10 +13,7 @@ import {
   type LeadStatus,
   type QuickLeadRow,
 } from "@/domains/beta-ops/shared";
-import {
-  ACQUISITION_CHANNEL_LABELS,
-  isAcquisitionChannel,
-} from "@/lib/beta-acquisition";
+import { formatAcquisitionSource } from "@/lib/beta-acquisition";
 import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,11 +24,6 @@ import { Badge } from "@/components/ui/badge";
  * story link — `ig_story_cafe_0914` reads back as "ig story cafe 0914", so a
  * new tag needs no code change to show up here legibly.
  */
-function formatLeadSource(raw: string): string {
-  if (isAcquisitionChannel(raw)) return ACQUISITION_CHANNEL_LABELS[raw];
-  return raw.replace(/[_-]+/g, " ");
-}
-
 const STATUS_LABEL: Record<LeadStatus, string> = {
   new: "New",
   contacted: "Contacted",
@@ -145,7 +137,7 @@ export function LeadCard({
           </>
         )}
         {lead.acquisitionChannel && (
-          <Row label="Came from" value={formatLeadSource(lead.acquisitionChannel)} />
+          <Row label="Came from" value={formatAcquisitionSource(lead.acquisitionChannel)} />
         )}
       </dl>
 

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { getOpsStats, listQuickLeads } from "@/domains/beta-ops/service";
-import { ACQUISITION_CHANNEL_LABELS } from "@/lib/beta-acquisition";
+import { ACQUISITION_CHANNEL_LABELS, formatAcquisitionSource } from "@/lib/beta-acquisition";
 import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = {
@@ -55,12 +55,38 @@ export default async function OpsOverviewPage() {
                     ? ACQUISITION_CHANNEL_LABELS[
                         row.channel as keyof typeof ACQUISITION_CHANNEL_LABELS
                       ]
-                    : row.channel}
+                    : formatAcquisitionSource(row.channel)}
                 </span>
                 <span className="text-zinc-500">· {row.count}</span>
               </Link>
             ))}
           </div>
+        </section>
+      )}
+
+      {stats.leadsBySource.length > 0 && (
+        <section className="mt-7">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+            Leads by link / QR
+          </h2>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Last-touch on each buy/sell — Instagram stories, flyers, custom tags.
+          </p>
+          <ul className="mt-2.5 flex flex-col gap-1">
+            {stats.leadsBySource.slice(0, 12).map((row) => (
+              <li
+                key={row.channel}
+                className="flex items-center justify-between gap-3 rounded-lg bg-zinc-900/60 px-3 py-2 text-xs text-zinc-300"
+              >
+                <span className="min-w-0 truncate font-medium">
+                  {formatAcquisitionSource(row.channel)}
+                </span>
+                <span className="shrink-0 tabular-nums text-zinc-500">
+                  {row.buy} buy · {row.sell} sell · {row.count}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -91,7 +117,9 @@ export default async function OpsOverviewPage() {
                   </p>
                   <p className="mt-0.5 text-[11px] text-zinc-400 truncate">
                     ×{lead.quantity}
-                    {lead.acquisitionChannel ? ` · ${lead.acquisitionChannel}` : ""}
+                    {lead.acquisitionChannel
+                      ? ` · ${formatAcquisitionSource(lead.acquisitionChannel)}`
+                      : " · untagged"}
                     {lead.contactInstagram
                       ? ` · @${lead.contactInstagram}`
                       : lead.contactPhone

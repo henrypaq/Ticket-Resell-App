@@ -43,6 +43,8 @@ export type OpsStats = {
   done: number;
   classicMembers: number;
   bySource: { channel: string; count: number }[];
+  /** Last-touch tags on /go buy+sell leads (includes free-form campaign src). */
+  leadsBySource: { channel: string; buy: number; sell: number; count: number }[];
 };
 
 function mapLead(row: Record<string, unknown>): QuickLeadRow {
@@ -102,7 +104,7 @@ export async function listQuickLeads(filter?: {
 export async function getOpsStats(): Promise<OpsStats> {
   const admin = createAdminClient();
   const [{ data }, { data: signups }] = await Promise.all([
-    admin.from("beta_go_leads").select("intent, status"),
+    admin.from("beta_go_leads").select("intent, status, acquisition_channel"),
     admin.from("beta_members").select("acquisition_channel"),
   ]);
   const rows = data ?? [];
@@ -112,6 +114,17 @@ export async function getOpsStats(): Promise<OpsStats> {
     const key = s.acquisition_channel ?? "(none)";
     sourceMap.set(key, (sourceMap.get(key) ?? 0) + 1);
   }
+
+  const leadSourceMap = new Map<string, { buy: number; sell: number }>();
+  for (const r of rows) {
+    if (r.status === "cancelled") continue;
+    const key = (r.acquisition_channel as string | null)?.trim() || "(none)";
+    const cur = leadSourceMap.get(key) ?? { buy: 0, sell: 0 };
+    if (r.intent === "buy") cur.buy += 1;
+    else if (r.intent === "sell") cur.sell += 1;
+    leadSourceMap.set(key, cur);
+  }
+
   return {
     buyNew: rows.filter((r) => r.intent === "buy" && r.status === "new").length,
     sellNew: rows.filter((r) => r.intent === "sell" && r.status === "new").length,
@@ -121,6 +134,14 @@ export async function getOpsStats(): Promise<OpsStats> {
     classicMembers: (signups ?? []).length,
     bySource: [...sourceMap.entries()]
       .map(([channel, count]) => ({ channel, count }))
+      .sort((a, b) => b.count - a.count),
+    leadsBySource: [...leadSourceMap.entries()]
+      .map(([channel, { buy, sell }]) => ({
+        channel,
+        buy,
+        sell,
+        count: buy + sell,
+      }))
       .sort((a, b) => b.count - a.count),
   };
 }
