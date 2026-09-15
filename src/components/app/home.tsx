@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BETA_SOCIALS,
-  formatBetaEventWhen,
+  formatBetaEventWhenShort,
   isPastNightlife,
   type BetaEvent,
   type BetaWeekday,
@@ -192,13 +192,13 @@ export function AppHome({
       <section className="relative mt-8">
         <div className="flex items-baseline justify-between gap-3">
           <p className="section-header text-[11px] text-muted">
-            {hasTonight ? `Tonight · ${formatBetaEventWhen(tonightDay)}` : "Tonight"}
+            {hasTonight ? `Tonight · ${formatBetaEventWhenShort(tonightDay)}` : "Tonight"}
           </p>
           <Link
             href="/upcoming"
             className="shrink-0 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
           >
-            See all →
+            See all events
           </Link>
         </div>
 

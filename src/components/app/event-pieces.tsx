@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { formatBetaEventWhen, type BetaEvent, type BetaWeekday } from "@/lib/beta-events";
+import { formatBetaEventWhenShort, type BetaEvent, type BetaWeekday } from "@/lib/beta-events";
 import { ArrowLeft } from "@/components/icons";
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import { SERVICE_FEE_CAD, SERVICE_FEE_LABEL } from "@/lib/compliance/fees";
@@ -46,7 +46,7 @@ export function EventIntentView({
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="headline text-[28px] leading-[1.12] tracking-tight">{event.name}</h1>
-          <p className="mt-2 text-[15px] text-muted">{formatBetaEventWhen(day)}</p>
+          <p className="mt-2 text-[15px] text-muted">{formatBetaEventWhenShort(day)}</p>
           {event.entryNote && (
             <p className="mt-2 text-[13px] font-semibold text-[#ffe500]">{event.entryNote}</p>
           )}
@@ -102,7 +102,7 @@ export function EventPoster({
         />
         <div className="absolute inset-x-0 bottom-0 p-3 text-left">
           <p className="headline text-[15px] leading-tight text-ink">{event.name}</p>
-          <p className="mt-1 text-[11px] text-muted">{formatBetaEventWhen(day)}</p>
+          <p className="mt-1 text-[11px] text-muted">{formatBetaEventWhenShort(day)}</p>
           {event.entryNote && (
             <p className="mt-1 text-[10.5px] font-semibold leading-snug text-[#ffe500]">
               {event.entryNote}

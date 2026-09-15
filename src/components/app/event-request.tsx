@@ -29,8 +29,9 @@ export function EventRequestSection() {
           className="flex w-full items-center justify-between gap-3 rounded-[14px] border border-white/15 bg-transparent px-4 py-3 text-left transition-colors hover:border-white/25 hover:bg-white/[0.02] active:scale-[0.99]"
         >
           <span className="truncate text-[13.5px] text-muted">Going somewhere else?</span>
-          <span className="shrink-0 text-[12.5px] font-medium text-muted/80 underline decoration-white/20 underline-offset-4">
+          <span className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-semibold text-ink">
             Request an event
+            <span aria-hidden>→</span>
           </span>
         </button>
       ) : (

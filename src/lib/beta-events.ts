@@ -367,6 +367,15 @@ export function formatBetaEventWhen(day: BetaWeekday, from: Date = new Date()): 
   return `${weekday} - ${month} ${ordinal(d.getUTCDate())}`;
 }
 
+/** e.g. "Tuesday 15/09" — compact date for home / posters. */
+export function formatBetaEventWhenShort(day: BetaWeekday, from: Date = new Date()): string {
+  const d = nextDateForWeekday(day, from);
+  const weekday = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${weekday} ${dd}/${mm}`;
+}
+
 /** Options shown on the "which events are you interested in" step. */
 export const INTEREST_OPTIONS = [
   { value: "cafe-campus", label: "Café Campus" },
