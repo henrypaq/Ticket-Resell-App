@@ -14,16 +14,26 @@ export function DoneScreen({
   intent,
   prefill,
   hasProfile,
+  offerId,
 }: {
   intent: "buy" | "sell";
   /** Null when they already have a profile, or when there's nothing to build on. */
   prefill: ProfilePrefillData | null;
   hasProfile: boolean;
+  /** When set, a ticket is already held — jump to pay. */
+  offerId?: string | null;
 }) {
-  const headline = intent === "buy" ? "You're on the waitlist" : "Ticket listing received";
+  const headline =
+    intent === "buy"
+      ? offerId
+        ? "A ticket is ready for you"
+        : "You're on the waitlist"
+      : "Ticket listing received";
   const sub =
     intent === "buy"
-      ? "We'll message you when a ticket opens up."
+      ? offerId
+        ? "You're next in line — claim it and send payment now."
+        : "We'll message you when a ticket opens up."
       : "We'll review your ticket and reach out when there's a buyer.";
 
   return (
@@ -35,7 +45,9 @@ export function DoneScreen({
 
         <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
           {intent === "buy"
-            ? "Your spot in line is on your home page — tap it any time to change how many tickets you need or how we reach you."
+            ? offerId
+              ? "Only you can pay for this ticket while the hold is live."
+              : "Your spot in line is on your home page — tap it any time to change how many tickets you need or how we reach you."
             : "Your listing is on your home page — you can remove it from there until it sells."}
         </p>
 
@@ -54,9 +66,15 @@ export function DoneScreen({
           </div>
         )}
 
-        <Link href="/" className={`${BUTTON_CLASS} mt-8 w-full`}>
-          Back to home
-        </Link>
+        {offerId ? (
+          <Link href={`/offer/${offerId}`} className={`${BUTTON_CLASS} mt-8 w-full`}>
+            Claim &amp; pay
+          </Link>
+        ) : (
+          <Link href="/" className={`${BUTTON_CLASS} mt-8 w-full`}>
+            Back to home
+          </Link>
+        )}
 
         {hasProfile && (
           <p className="mt-4 text-center text-[13px] text-muted">

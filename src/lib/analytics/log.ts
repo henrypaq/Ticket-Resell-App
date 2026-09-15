@@ -42,7 +42,9 @@ export type AnalyticsEventType =
   | "waitlist_offer_accepted"
   | "waitlist_offer_declined"
   | "waitlist_offer_expired"
-  | "waitlist_offer_paid";
+  | "waitlist_offer_paid"
+  | "waitlist_offer_payment_declared"
+  | "waitlist_offer_payout_released";
 
 type LogInput = {
   type: AnalyticsEventType;

@@ -12,6 +12,7 @@ import {
   markOfferPaidAction,
   markOfferPaymentFailedAction,
   reactivateSeatAction,
+  releaseSellerPayoutAction,
   releaseUnitToOpenAction,
 } from "@/domains/beta-ops/actions";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,9 @@ type Offer = {
   offered_at: string;
   expires_at: string;
   payment_due_at: string | null;
+  buyer_declared_sent_at?: string | null;
+  ticket_transferred_at?: string | null;
+  payout_released_at?: string | null;
 };
 
 export function OffersBoard({
@@ -128,6 +132,8 @@ export function OffersBoard({
                     {o.payment_due_at
                       ? ` · pay by ${new Date(o.payment_due_at).toLocaleString()}`
                       : ""}
+                    {o.buyer_declared_sent_at ? " · buyer says sent" : ""}
+                    {o.payout_released_at ? " · payout released" : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -163,6 +169,12 @@ export function OffersBoard({
                         onClick={() => markOfferPaymentFailedAction(o.id)}
                       />
                     </>
+                  )}
+                  {o.status === "paid" && !o.payout_released_at && (
+                    <ActionButton
+                      label="Ticket transferred · release payout"
+                      onClick={() => releaseSellerPayoutAction(o.id)}
+                    />
                   )}
                   <ActionButton
                     label="Reactivate seat"

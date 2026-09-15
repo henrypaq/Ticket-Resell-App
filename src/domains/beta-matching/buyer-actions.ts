@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import {
   acceptOffer,
+  declareOfferPaymentSent,
   declineOffer,
   getOfferForBuyer,
   reactivateSeat,
@@ -14,7 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type OfferActionState = { ok?: true; error?: string; message?: string };
 
-async function buyerOwnsOffer(offerId: string): Promise<boolean> {
+export async function buyerOwnsOffer(offerId: string): Promise<boolean> {
   const offer = await getOfferForBuyer(offerId);
   if (!offer) return false;
 
@@ -55,7 +56,10 @@ export async function buyerAcceptOfferAction(offerId: string): Promise<OfferActi
   if (!(await buyerOwnsOffer(offerId))) return { error: "This offer isn't yours." };
   const result = await acceptOffer(offerId);
   if (!result.ok) return { error: result.error };
-  return { ok: true, message: "You're in — send the Interac e-transfer before the payment deadline." };
+  return {
+    ok: true,
+    message: "You're in — send the Interac e-transfer with the details below.",
+  };
 }
 
 export async function buyerDeclineOfferAction(
@@ -71,6 +75,16 @@ export async function buyerDeclineOfferAction(
       reason === "not_going"
         ? "Got it — you're off this waitlist."
         : "Passed. You're still in line for a better match.",
+  };
+}
+
+export async function buyerDeclarePaymentSentAction(offerId: string): Promise<OfferActionState> {
+  if (!(await buyerOwnsOffer(offerId))) return { error: "This offer isn't yours." };
+  const result = await declareOfferPaymentSent(offerId);
+  if (!result.ok) return { error: result.error };
+  return {
+    ok: true,
+    message: "Got it — we're matching you with the seller and holding your payment.",
   };
 }
 

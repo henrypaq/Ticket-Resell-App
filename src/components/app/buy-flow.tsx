@@ -69,8 +69,10 @@ export function QuickBuyFlow({
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
 
   useEffect(() => {
-    if (state.ok) router.replace("/done?intent=buy");
-  }, [state.ok, router]);
+    if (!state.ok) return;
+    if (state.offerId) router.replace(`/offer/${state.offerId}`);
+    else router.replace("/done?intent=buy");
+  }, [state.ok, state.offerId, router]);
 
   // While redirecting to /done, keep the form — no interim success page.
   const redirecting = Boolean(state.ok);

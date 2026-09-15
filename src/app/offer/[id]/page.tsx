@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { OfferClaimPanel } from "@/components/app/offer-claim-panel";
-import { getOfferForBuyer } from "@/domains/beta-matching/service";
+import { buyerOwnsOffer } from "@/domains/beta-matching/buyer-actions";
+import {
+  getOfferForBuyer,
+  paymentMemoForOffer,
+} from "@/domains/beta-matching/service";
 import { betaEventBySlug } from "@/lib/beta-events";
+import { platformEtransfer } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Your ticket offer · mcgill.tickets",
@@ -23,6 +28,8 @@ export default async function OfferPage({
   if (!offer) notFound();
 
   const eventName = betaEventBySlug(offer.event_slug)?.name ?? offer.event_slug;
+  const isOwner = await buyerOwnsOffer(id);
+  const etransfer = platformEtransfer();
 
   return (
     <OfferClaimPanel
@@ -32,6 +39,10 @@ export default async function OfferPage({
       status={offer.status}
       expiresAt={offer.expires_at}
       paymentDueAt={offer.payment_due_at}
+      buyerDeclaredSentAt={offer.buyer_declared_sent_at ?? null}
+      paymentMemo={paymentMemoForOffer(offer.id)}
+      etransfer={etransfer}
+      isOwner={isOwner}
     />
   );
 }

@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { listUnifiedQueueSeats } from "@/domains/beta-queue/unified";
 import { logEvent } from "@/lib/analytics/log";
 import { doorsAtForEvent } from "@/domains/matching/doors";
-import { notifyOfferSeat } from "@/domains/beta-matching/notify";
+import { notifyOfferSeat, notifySellLead } from "@/domains/beta-matching/notify";
 import {
   type DeclineReason,
   type OfferStatus,
@@ -49,6 +49,11 @@ type OfferRow = {
   expires_at: string;
   payment_due_at: string | null;
   decline_reason: DeclineReason | null;
+  buyer_declared_sent_at: string | null;
+  payment_amount: number | null;
+  payment_reference: string | null;
+  ticket_transferred_at: string | null;
+  payout_released_at: string | null;
 };
 
 function parseSeat(seatKey: string): {
@@ -632,6 +637,22 @@ export async function markOfferPaid(
       .eq("id", offer.buy_lead_id);
   }
 
+  const { data: unit } = await admin
+    .from("beta_ticket_units")
+    .select("sell_lead_id")
+    .eq("id", offer.unit_id)
+    .maybeSingle();
+
+  if (unit?.sell_lead_id) {
+    void notifySellLead({
+      kind: "seller_sale_paid",
+      sellLeadId: unit.sell_lead_id,
+      priceEach: Number(offer.price_each),
+      offerId,
+      eventSlug: offer.event_slug,
+    });
+  }
+
   void logEvent({
     type: "waitlist_offer_paid",
     metadata: { offer_id: offerId, unit_id: offer.unit_id, seat_key: offer.seat_key },
@@ -643,6 +664,144 @@ export async function markOfferPaid(
     priceEach: Number(offer.price_each),
     offerId,
     eventSlug: offer.event_slug,
+  });
+
+  return { ok: true, id: offerId };
+}
+
+/**
+ * Ops confirmed the ticket moved to the buyer and released the seller payout.
+ */
+export async function releaseSellerPayout(offerId: string): Promise<MatchingResult> {
+  const now = new Date();
+  const admin = createAdminClient();
+  const { data: offer, error } = await admin
+    .from("beta_offers")
+    .select("*")
+    .eq("id", offerId)
+    .maybeSingle();
+  if (error || !offer) return { ok: false, error: "Offer not found." };
+  if (offer.status !== "paid") {
+    return { ok: false, error: `Offer is ${offer.status}, not paid.` };
+  }
+
+  const stamp = {
+    ticket_transferred_at: offer.ticket_transferred_at ?? now.toISOString(),
+    payout_released_at: now.toISOString(),
+  };
+  const { error: updateError } = await admin
+    .from("beta_offers")
+    .update(stamp)
+    .eq("id", offerId)
+    .eq("status", "paid");
+  if (updateError) return { ok: false, error: updateError.message };
+
+  const { data: unit } = await admin
+    .from("beta_ticket_units")
+    .select("sell_lead_id")
+    .eq("id", offer.unit_id)
+    .maybeSingle();
+
+  if (unit?.sell_lead_id) {
+    // Mark sell lead done when every unit is sold.
+    const { data: units } = await admin
+      .from("beta_ticket_units")
+      .select("status")
+      .eq("sell_lead_id", unit.sell_lead_id);
+    const allSold = (units ?? []).every((u) => u.status === "sold" || u.status === "withdrawn");
+    if (allSold) {
+      await admin
+        .from("beta_go_leads")
+        .update({ status: "done", updated_at: now.toISOString() })
+        .eq("id", unit.sell_lead_id);
+    }
+
+    void notifySellLead({
+      kind: "seller_payout_released",
+      sellLeadId: unit.sell_lead_id,
+      priceEach: Number(offer.payment_amount ?? offer.price_each),
+      offerId,
+      eventSlug: offer.event_slug,
+    });
+  }
+
+  void logEvent({
+    type: "waitlist_offer_payout_released",
+    metadata: { offer_id: offerId, unit_id: offer.unit_id },
+  });
+
+  return { ok: true, id: offerId };
+}
+
+/**
+ * Try to place exclusive offers on available units for an event.
+ * Used after a new sell (inventory) or buy (demand) so #1 can jump to pay.
+ */
+export async function allocateAvailableUnitsForEvent(
+  eventSlug: string,
+  now = new Date(),
+): Promise<{ offered: string[]; skipped: string[] }> {
+  const admin = createAdminClient();
+  const { data: units } = await admin
+    .from("beta_ticket_units")
+    .select("id")
+    .eq("event_slug", eventSlug)
+    .eq("status", "available")
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  const offered: string[] = [];
+  const skipped: string[] = [];
+  for (const u of units ?? []) {
+    const result = await allocateNextForUnit({ unitId: u.id, now });
+    if (result.ok && result.id) offered.push(result.id);
+    else if (result.ok && result.skipped) skipped.push(`${u.id}:${result.skipped}`);
+  }
+  return { offered, skipped };
+}
+
+/** Live offer for a buy lead, if any (for jump-to-pay redirects). */
+export async function getLiveOfferIdForBuyLead(buyLeadId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("beta_offers")
+    .select("id")
+    .eq("buy_lead_id", buyLeadId)
+    .in("status", ["offered", "accepted", "paid", "needs_review"])
+    .order("offered_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+/**
+ * Buyer tapped “I’ve sent the money” — keep status `accepted` (exclusivity
+ * unchanged) and stamp buyer_declared_sent_at so the held screen can render.
+ */
+export async function declareOfferPaymentSent(offerId: string): Promise<MatchingResult> {
+  const now = new Date();
+  const admin = createAdminClient();
+  const { data: offer, error } = await admin
+    .from("beta_offers")
+    .select("id, status, buyer_declared_sent_at")
+    .eq("id", offerId)
+    .maybeSingle();
+  if (error || !offer) return { ok: false, error: "Offer not found." };
+  if (offer.status !== "accepted") {
+    return { ok: false, error: `Offer is ${offer.status}, not awaiting payment.` };
+  }
+  if (offer.buyer_declared_sent_at) return { ok: true, id: offerId };
+
+  const { error: updateError } = await admin
+    .from("beta_offers")
+    .update({ buyer_declared_sent_at: now.toISOString() })
+    .eq("id", offerId)
+    .eq("status", "accepted");
+  if (updateError) return { ok: false, error: updateError.message };
+
+  void logEvent({
+    type: "waitlist_offer_payment_declared",
+    metadata: { offer_id: offerId },
   });
 
   return { ok: true, id: offerId };
@@ -789,7 +948,7 @@ export async function listRecentOffers(limit = 100): Promise<OfferRow[]> {
   const { data } = await admin
     .from("beta_offers")
     .select(
-      "id, group_id, unit_id, buy_lead_id, classic_interest_id, seat_key, event_slug, rank, price_each, status, offered_at, expires_at, payment_due_at, decline_reason",
+      "id, group_id, unit_id, buy_lead_id, classic_interest_id, seat_key, event_slug, rank, price_each, status, offered_at, expires_at, payment_due_at, decline_reason, buyer_declared_sent_at, payment_amount, payment_reference, ticket_transferred_at, payout_released_at",
     )
     .order("offered_at", { ascending: false })
     .limit(limit);
@@ -903,4 +1062,9 @@ export async function getOfferForBuyer(
   const admin = createAdminClient();
   const { data } = await admin.from("beta_offers").select("*").eq("id", offerId).maybeSingle();
   return (data as OfferRow | null) ?? null;
+}
+
+/** Short Interac memo so ops can match incoming transfers to an offer. */
+export function paymentMemoForOffer(offerId: string): string {
+  return `MT-${offerId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }

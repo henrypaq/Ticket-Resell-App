@@ -32,9 +32,17 @@ export type GoActivityEntry = {
   /** Seller proceeds − original paid × qty when done; usually ≤ 0 at face cap. */
   netVsPaidCad: number | null;
   createdAt: string;
+  /** Seller sale stage when a unit is paid / payout released. */
+  saleStage?: "awaiting_transfer" | "payout_released" | null;
 };
 
-export type QuickActionState = { ok?: true; error?: string; message?: string };
+export type QuickActionState = {
+  ok?: true;
+  error?: string;
+  message?: string;
+  /** When a ticket is already held for this buyer, redirect to claim/pay. */
+  offerId?: string;
+};
 
 /** Cookie of buy lead UUIDs so /go can show queue position on return visits. */
 export const QUICK_BUYER_COOKIE = "passe_quick_buyer";

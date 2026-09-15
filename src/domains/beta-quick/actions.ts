@@ -385,7 +385,7 @@ export async function submitQuickBuyAction(
   if (!result.ok) return { error: result.error };
   await appendQuickBuyerCookie(result.id);
   if (result.contactId) await setGoContactCookie(result.contactId);
-  return { ok: true };
+  return { ok: true, offerId: result.offerId };
 }
 
 export async function submitQuickSellAction(

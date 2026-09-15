@@ -114,7 +114,7 @@ export function AppHome({
                       {entry.dormant
                         ? " · paused — reactivate to get holds again"
                         : entry.activeOfferId
-                          ? " · ticket held for you — claim it"
+                          ? " · ticket held for you — claim / pay"
                           : entry.status === "matched"
                             ? " · matched — we’ll message you"
                             : entry.status === "done"
@@ -136,7 +136,7 @@ export function AppHome({
                     href={`/offer/${entry.activeOfferId}`}
                     className={`${BUTTON_CLASS} min-h-[44px] text-[14px]`}
                   >
-                    Claim your ticket
+                    Open payment / claim
                   </Link>
                 )}
                 {entry.dormant && !entry.activeOfferId && (
@@ -318,11 +318,15 @@ function SellListingRow({ entry }: { entry: GoActivityEntry }) {
           <p className="mt-0.5 text-[12.5px] text-muted">
             ×{entry.quantity}
             {entry.askEach != null ? ` · $${entry.askEach.toFixed(0)} each` : ""}
-            {entry.status === "done"
-              ? " · sold"
-              : entry.status === "matched"
-                ? " · matched"
-                : " · listed"}
+            {entry.saleStage === "payout_released"
+              ? " · sold · payment released"
+              : entry.saleStage === "awaiting_transfer"
+                ? " · sold — transfer the ticket"
+                : entry.status === "done"
+                  ? " · sold"
+                  : entry.status === "matched"
+                    ? " · matched"
+                    : " · listed"}
           </p>
         </div>
         <div className="flex shrink-0 items-start gap-2">

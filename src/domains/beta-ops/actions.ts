@@ -21,6 +21,7 @@ import {
   markOfferPaid,
   markOfferPaymentFailed,
   reactivateSeat,
+  releaseSellerPayout,
   releaseUnitToOpen,
 } from "@/domains/beta-matching/service";
 
@@ -260,6 +261,17 @@ export async function reactivateSeatAction(seatKey: string): Promise<OpsActionSt
     return { error: "Session expired. Sign in again." };
   }
   const result = await reactivateSeat(seatKey);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function releaseSellerPayoutAction(offerId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await releaseSellerPayout(offerId);
   if (!result.ok) return { error: result.error };
   return { ok: true };
 }

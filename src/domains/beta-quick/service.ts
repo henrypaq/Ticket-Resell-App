@@ -3,7 +3,7 @@ import "server-only";
 import { z } from "zod";
 import { notifyAdminsOfQuickLead } from "@/domains/admin-alerts/service";
 import { upsertGoContact } from "@/domains/beta-go/contacts";
-import { createUnitsFromSellLead } from "@/domains/beta-matching/service";
+import { createUnitsFromSellLead, allocateAvailableUnitsForEvent, getLiveOfferIdForBuyLead } from "@/domains/beta-matching/service";
 import {
   getFakeFrontMap,
   listUnifiedQueueSeats,
@@ -188,7 +188,7 @@ export type QuickBuyInput = z.infer<typeof quickBuySchema>;
 export type QuickSellInput = z.infer<typeof quickSellSchema>;
 
 export type QuickLeadResult =
-  | { ok: true; id: string; contactId?: string }
+  | { ok: true; id: string; contactId?: string; offerId?: string }
   | { ok: false; error: string };
 
 /**
@@ -273,7 +273,9 @@ export async function submitQuickBuy(
       );
       return { ok: false, error: "Couldn't update your waitlist. Try again in a moment." };
     }
-    return { ok: true, id: existing.id, contactId };
+    await allocateAvailableUnitsForEvent(input.eventSlug);
+    const offerId = (await getLiveOfferIdForBuyLead(existing.id)) ?? undefined;
+    return { ok: true, id: existing.id, contactId, offerId };
   }
 
   const { data, error } = await admin
@@ -312,7 +314,12 @@ export async function submitQuickBuy(
     transferEmail: transferEmail || undefined,
   }).catch(() => {});
 
-  return { ok: true, id: data.id, contactId };
+  // If inventory exists and this seat is next in the real queue, allocate now
+  // so the buyer can jump straight to pay.
+  await allocateAvailableUnitsForEvent(input.eventSlug);
+  const offerId = (await getLiveOfferIdForBuyLead(data.id)) ?? undefined;
+
+  return { ok: true, id: data.id, contactId, offerId };
 }
 
 export async function updateWaitlistLead(input: {
@@ -561,6 +568,9 @@ export async function submitQuickSell(
         error: units.error,
       }),
     );
+  } else {
+    // New inventory → try exclusive offers for anyone already waiting.
+    void allocateAvailableUnitsForEvent(input.eventSlug).catch(() => {});
   }
 
   void notifyAdminsOfQuickLead({
@@ -691,6 +701,35 @@ export async function getGoActivity(input: {
 
   if (error || !data?.length) return [];
 
+  const sellIds = data.filter((r) => r.intent === "sell").map((r) => r.id as string);
+  const saleStageByLead = new Map<string, "awaiting_transfer" | "payout_released">();
+  if (sellIds.length > 0) {
+    const { data: units } = await admin
+      .from("beta_ticket_units")
+      .select("id, sell_lead_id")
+      .in("sell_lead_id", sellIds);
+    const unitIds = (units ?? []).map((u) => u.id as string);
+    const sellByUnit = new Map(
+      (units ?? []).map((u) => [u.id as string, u.sell_lead_id as string]),
+    );
+    if (unitIds.length > 0) {
+      const { data: offers } = await admin
+        .from("beta_offers")
+        .select("unit_id, status, payout_released_at")
+        .in("unit_id", unitIds)
+        .eq("status", "paid");
+      for (const o of offers ?? []) {
+        const leadId = sellByUnit.get(o.unit_id as string);
+        if (!leadId) continue;
+        const stage = o.payout_released_at ? "payout_released" : "awaiting_transfer";
+        // Prefer awaiting_transfer if any unit still needs transfer.
+        const prev = saleStageByLead.get(leadId);
+        if (prev === "awaiting_transfer") continue;
+        saleStageByLead.set(leadId, stage);
+      }
+    }
+  }
+
   return data.map((row) => {
     const qty = Number(row.quantity) || 1;
     const paid = row.paid_each != null ? Number(row.paid_each) : null;
@@ -713,6 +752,7 @@ export async function getGoActivity(input: {
       proceedsCad,
       netVsPaidCad,
       createdAt: row.created_at,
+      saleStage: saleStageByLead.get(row.id) ?? null,
     };
   });
 }

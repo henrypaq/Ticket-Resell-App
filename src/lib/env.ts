@@ -183,3 +183,27 @@ export function adminSmsRecipients(): string[] {
     .map((n) => n.trim())
     .filter((n) => n.length > 0);
 }
+
+/**
+ * Platform Interac destination for beta offer payments.
+ * Buyers must send here (not to the seller) so we can hold/refund.
+ * Inert until email is set — pay UI shows a configure message instead.
+ */
+export type PlatformEtransfer = {
+  name: string;
+  email: string;
+  phone: string | null;
+  configured: boolean;
+};
+
+export function platformEtransfer(): PlatformEtransfer {
+  const email = (process.env.PLATFORM_ETRANSFER_EMAIL ?? "").trim();
+  const name = (process.env.PLATFORM_ETRANSFER_NAME ?? "mcgill.tickets").trim();
+  const phone = (process.env.PLATFORM_ETRANSFER_PHONE ?? "").trim() || null;
+  return {
+    name: name || "mcgill.tickets",
+    email,
+    phone,
+    configured: email.length > 3,
+  };
+}
