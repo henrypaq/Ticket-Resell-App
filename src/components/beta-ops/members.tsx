@@ -125,9 +125,12 @@ export function AddMemberForm({ heading }: { heading?: React.ReactNode }) {
   useEffect(() => {
     if (state.ok) {
       router.refresh();
-      setOpen(false);
     }
   }, [state.ok, router]);
+
+  if (state.ok && open) {
+    setOpen(false);
+  }
 
   return (
     <div>

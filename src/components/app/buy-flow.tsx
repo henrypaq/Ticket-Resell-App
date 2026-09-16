@@ -95,10 +95,15 @@ export function QuickBuyFlow({
     transferFirstName.trim().length >= 1 &&
     transferLastName.trim().length >= 1 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(transferEmail.trim());
-  const isLast = step === lastStep;
-  const stepIndex = step - firstStep + 1;
+  // Café Campus adds a transfer step; clamp if the event switch shortens the flow.
+  const safeStep = Math.min(step, lastStep);
+  if (safeStep !== step) {
+    setStep(safeStep);
+  }
+  const isLast = safeStep === lastStep;
+  const stepIndex = safeStep - firstStep + 1;
   const stepLabel = `Need a ticket · ${stepIndex} of ${totalSteps}`;
-  const stepKey = BUY_STEP_KEYS[Math.min(step, BUY_STEP_KEYS.length - 1)] ?? "event";
+  const stepKey = BUY_STEP_KEYS[Math.min(safeStep, BUY_STEP_KEYS.length - 1)] ?? "event";
 
   useBetaFlowStepLog({
     intent: "buy",
@@ -107,15 +112,11 @@ export function QuickBuyFlow({
     enabled: !redirecting,
   });
 
-  useEffect(() => {
-    if (step > lastStep) setStep(lastStep);
-  }, [step, lastStep]);
-
   const stepReady =
-    (step === 0 && Boolean(eventSlug)) ||
-    step === 1 ||
-    (step === 2 && canContact) ||
-    (step === 3 && transferOk);
+    (safeStep === 0 && Boolean(eventSlug)) ||
+    safeStep === 1 ||
+    (safeStep === 2 && canContact) ||
+    (safeStep === 3 && transferOk);
 
   function goNext() {
     if (!stepReady || tapGuard || pending || isLast || redirecting) return;
@@ -172,15 +173,15 @@ export function QuickBuyFlow({
           <input type="hidden" name="maxPriceEach" value={maxPriceEach.trim()} />
         )}
 
-        <div key={step} className="flex flex-col gap-6">
-          {step === 0 && (
+        <div key={safeStep} className="flex flex-col gap-6">
+          {safeStep === 0 && (
             <>
               <StepHeading eyebrow={stepLabel} title="Which event?" />
               <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
             </>
           )}
 
-          {step === 1 && (
+          {safeStep === 1 && (
             <>
               <StepHeading eyebrow={stepLabel} title="How many tickets?" />
               {eventLocked && lockedEvent && (
@@ -208,7 +209,7 @@ export function QuickBuyFlow({
             </>
           )}
 
-          {step === 2 && (
+          {safeStep === 2 && (
             <>
               <StepHeading
                 eyebrow={stepLabel}
@@ -226,7 +227,7 @@ export function QuickBuyFlow({
             </>
           )}
 
-          {step === 3 && isCafeCampus && (
+          {safeStep === 3 && isCafeCampus && (
             <>
               <StepHeading
                 eyebrow={stepLabel}

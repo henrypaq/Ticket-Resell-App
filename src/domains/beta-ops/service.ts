@@ -15,10 +15,8 @@ import {
   type ClassicInterest,
   type QueuePaddingRow,
   type OpsWaitlistEntry,
-  type OpsWaitlistGroup,
   partitionWaitlistEntries,
   partitionSellerLeads,
-  groupOpsWaitlistByEventDate,
 } from "./shared";
 
 export {

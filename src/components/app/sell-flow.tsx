@@ -115,26 +115,30 @@ export function QuickSellFlow({
     router.replace("/done?intent=sell");
   }, [state.ok, router, eventSlug]);
 
-  useEffect(() => {
-    setTicketFiles((prev) => (prev.length > quantity ? prev.slice(0, quantity) : prev));
-  }, [quantity]);
-
   // Ticket-proof errors belong on the prove-ticket step, not payout.
-  useEffect(() => {
-    if (!state.error) return;
-    const msg = state.error.toLowerCase();
-    if (
-      state.error.includes("https://") ||
-      msg.includes("link") ||
-      msg.includes("upload all") ||
-      msg.includes("screenshot")
-    ) {
-      setTicketUrlError(
-        state.error.includes("https://") || msg.includes("link") ? state.error : null,
-      );
-      setStep(4);
+  const [seenError, setSeenError] = useState<string | null | undefined>(undefined);
+  if (state.error !== seenError) {
+    setSeenError(state.error);
+    if (state.error) {
+      const msg = state.error.toLowerCase();
+      if (
+        state.error.includes("https://") ||
+        msg.includes("link") ||
+        msg.includes("upload all") ||
+        msg.includes("screenshot")
+      ) {
+        setTicketUrlError(
+          state.error.includes("https://") || msg.includes("link") ? state.error : null,
+        );
+        setStep(4);
+      }
     }
-  }, [state.error]);
+  }
+
+  function onQuantityChange(n: number) {
+    setQuantity(n);
+    setTicketFiles((prev) => (prev.length > n ? prev.slice(0, n) : prev));
+  }
 
   // While redirecting to /done, keep the last submit state — no interim success page.
   const redirecting = Boolean(state.ok);
@@ -279,7 +283,7 @@ export function QuickSellFlow({
                   For <span className="font-semibold text-ink">{lockedEvent.name}</span>
                 </p>
               )}
-              <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
+              <QuantityStepper value={quantity} onChange={onQuantityChange} max={2} />
             </>
           )}
 

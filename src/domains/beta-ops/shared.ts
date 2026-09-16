@@ -4,7 +4,6 @@ import {
   isPastNightlife,
   supportedBetaEvents,
   INTEREST_OPTIONS,
-  type BetaWeekday,
 } from "../../lib/beta-events";
 
 export const LEAD_STATUSES = ["new", "contacted", "matched", "done", "cancelled"] as const;

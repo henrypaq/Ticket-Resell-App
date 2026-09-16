@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { GO_CONTACT_COOKIE, type GoContactProfile } from "@/domains/beta-go/shared";
+import type { GoContactProfile } from "@/domains/beta-go/shared";
 
 export { GO_CONTACT_COOKIE, type GoContactProfile } from "@/domains/beta-go/shared";
 
