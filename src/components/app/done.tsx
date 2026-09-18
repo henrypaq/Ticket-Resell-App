@@ -23,18 +23,18 @@ export function DoneScreen({
   /** When set, a ticket is already held — jump to pay. */
   offerId?: string | null;
 }) {
-  const headline =
-    intent === "buy"
-      ? offerId
-        ? "A ticket is ready for you"
-        : "You're on the waitlist"
-      : "Ticket listing received";
-  const sub =
-    intent === "buy"
-      ? offerId
-        ? "You're next in line — claim it and send payment now."
-        : "We'll message you when a ticket opens up."
-      : "We'll review your ticket and reach out when there's a buyer.";
+  if (intent === "sell") {
+    return (
+      <AppFlowShell>
+        <SellConfirmation />
+      </AppFlowShell>
+    );
+  }
+
+  const headline = offerId ? "A ticket is ready for you" : "You're on the waitlist";
+  const sub = offerId
+    ? "It's held only for you — claim it and send Interac now."
+    : "When a ticket is held for you, we'll message you with a short claim window.";
 
   return (
     <AppFlowShell>
@@ -44,11 +44,9 @@ export function DoneScreen({
         <p className="mt-3 text-[15px] leading-relaxed text-muted">{sub}</p>
 
         <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-          {intent === "buy"
-            ? offerId
-              ? "Only you can pay for this ticket while the hold is live."
-              : "Your spot in line is on your home page — tap it any time to change how many tickets you need or how we reach you."
-            : "Your listing is on your home page — you can remove it from there until it sells."}
+          {offerId
+            ? "Nobody else can take this ticket while your hold is live."
+            : "Your spot is on your home page — change quantity or contact anytime."}
         </p>
 
         {prefill && (
@@ -90,5 +88,27 @@ export function DoneScreen({
         )}
       </div>
     </AppFlowShell>
+  );
+}
+
+/** Shared sell success — also rendered inline so submit doesn't wait on a second page load. */
+export function SellConfirmation() {
+  return (
+    <div className="flex flex-1 flex-col">
+      <p className="text-[17px] font-semibold tracking-tight text-[#ffe500]">mcgill.tickets</p>
+      <h1 className="headline mt-8 text-[32px] leading-[1.12] tracking-tight">
+        You&apos;re all set
+      </h1>
+      <p className="mt-4 text-[15px] leading-relaxed text-muted">
+        Your ticket is listed. We match one buyer at a time — they pay us by Interac, then we pay
+        you the same way. We emailed a confirmation and will notify you when it sells.
+      </p>
+      <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
+        Your listing is on your home page until it sells or you remove it.
+      </p>
+      <Link href="/" className={`${BUTTON_CLASS} mt-10 w-full`}>
+        Go back home
+      </Link>
+    </div>
   );
 }

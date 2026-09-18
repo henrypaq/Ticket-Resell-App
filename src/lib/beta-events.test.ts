@@ -3,15 +3,25 @@ import {
   betaEventBySlug,
   eventDayDateKey,
   goSelectableEvents,
+  groupEventsByUpcomingDays,
   isPastNightlife,
   nightlifeDateKey,
   tonightEventOptions,
+  type BetaEvent,
 } from "./beta-events";
 
 describe("beta-events and nightlife date calculations", () => {
   it("removes entryNote from cafe-campus", () => {
     const cafe = betaEventBySlug("cafe-campus");
     expect(cafe?.entryNote).toBeUndefined();
+  });
+
+  it("schedules Café Campus Tue–Sat and leaves one-offs unscheduled", () => {
+    const cafe = betaEventBySlug("cafe-campus");
+    expect(cafe?.days).toEqual(["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]);
+    expect(betaEventBySlug("montreal-frosh-muzique")?.days).toEqual([]);
+    expect(betaEventBySlug("niska-bell-center")?.days).toEqual([]);
+    expect(betaEventBySlug("piknik-electronik")?.days).toEqual([]);
   });
 
   it("keeps late night before 6am attached to previous night", () => {
@@ -64,46 +74,57 @@ describe("beta-events and nightlife date calculations", () => {
     expect(sunday.dateKey).toBe("2026-09-13");
   });
 
-  it("limits goSelectableEvents to ONLY the events available for the given night", () => {
-    // Saturday Sep 12: only Café Campus and Niska @ Bell Center run tonight
+  it("limits goSelectableEvents to Café Campus on a recurring café night", () => {
+    // Saturday Sep 12: only Café Campus runs (one-offs have empty days).
     const nowSaturday = new Date("2026-09-12T15:48:00Z");
     const selectable = goSelectableEvents(nowSaturday);
-    const slugs = selectable.map((e) => e.slug);
-
-    expect(slugs).toContain("cafe-campus");
-    expect(slugs).toContain("niska-bell-center");
-    // Piknik is Sunday only, Muzique is Thursday only -> must NOT show on Saturday
-    expect(slugs).not.toContain("piknik-electronik");
-    expect(slugs).not.toContain("montreal-frosh-muzique");
-    expect(selectable.length).toBe(2);
+    expect(selectable.map((e) => e.slug)).toEqual(["cafe-campus"]);
   });
 
   it("does not fall forward to later nights when tonight is empty", () => {
-    // Monday Sep 14 — no recurring events, and the Café Campus one-off is tomorrow.
+    // Monday Sep 14 — Café Campus does not run Mondays.
     const nowMonday = new Date("2026-09-14T18:00:00Z");
     expect(goSelectableEvents(nowMonday)).toEqual([]);
     expect(tonightEventOptions(nowMonday)).toEqual([]);
   });
 
-  it("includes one-off extraDateKeys on that nightlife date only", () => {
-    // Tuesday Sep 15 afternoon Montreal — Café Campus one-off, nothing else.
-    const nowTuesday = new Date("2026-09-15T18:00:00Z");
-    const selectable = goSelectableEvents(nowTuesday);
-    expect(selectable.map((e) => e.slug)).toEqual(["cafe-campus"]);
-    // Next Tuesday has no extraDateKey.
+  it("lists Café Campus on recurring Tuesdays without a one-off date", () => {
+    const tuesday = new Date("2026-09-15T18:00:00Z");
+    expect(goSelectableEvents(tuesday).map((e) => e.slug)).toEqual(["cafe-campus"]);
     const nextTuesday = new Date("2026-09-22T18:00:00Z");
-    expect(goSelectableEvents(nextTuesday)).toEqual([]);
+    expect(goSelectableEvents(nextTuesday).map((e) => e.slug)).toEqual(["cafe-campus"]);
   });
 
-  it("limits tonightEventOptions to ONLY the events available for the given night", () => {
+  it("does not recycle unscheduled one-offs onto later weeks", () => {
     const nowSaturday = new Date("2026-09-12T15:48:00Z");
     const options = tonightEventOptions(nowSaturday);
-    const slugs = options.map((o) => o.slug);
+    expect(options.map((o) => o.slug)).toEqual(["cafe-campus"]);
+    expect(options.map((o) => o.slug)).not.toContain("niska-bell-center");
+    expect(options.map((o) => o.slug)).not.toContain("montreal-frosh-muzique");
+    expect(options.map((o) => o.slug)).not.toContain("piknik-electronik");
+  });
 
-    expect(slugs).toEqual(["cafe-campus", "niska-bell-center"]);
-    expect(slugs).not.toContain("piknik-electronik");
-    expect(slugs).not.toContain("montreal-frosh-muzique");
+  it("surfaces manually scheduled extraDateKeys under that night only", () => {
+    // Monday 2026-09-14 — no recurring café night; a one-off must be explicit.
+    const monday = new Date("2026-09-14T18:00:00Z");
+    const oneOff: BetaEvent = {
+      slug: "test-one-off",
+      name: "Test One-Off",
+      venue: "Test",
+      city: "Montreal",
+      blurb: "fixture",
+      flyerUrl: "/flyers/cafe-campus.jpg",
+      days: [],
+      extraDateKeys: ["2026-09-14"],
+      supported: true,
+    };
+    const grouped = groupEventsByUpcomingDays([oneOff], monday);
+    expect(grouped[0]?.[0]).toBe("Monday");
+    expect(grouped[0]?.[1].map((e) => e.slug)).toEqual(["test-one-off"]);
+    expect(
+      grouped.some(
+        ([day, events]) => day !== "Monday" && events.some((e) => e.slug === "test-one-off"),
+      ),
+    ).toBe(false);
   });
 });
-
-

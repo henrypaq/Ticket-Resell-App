@@ -119,7 +119,7 @@ export function AppHome({
                             ? " · matched — we’ll message you"
                             : entry.status === "done"
                               ? " · completed"
-                              : " · tap to edit · we’ll message you when a ticket opens"}
+                              : " · tap to edit · we’ll hold a ticket exclusively for you"}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

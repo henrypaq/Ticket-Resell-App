@@ -23,6 +23,12 @@ export default async function DonePage({
   const params = await searchParams;
   const intent = params.intent === "sell" ? "sell" : "buy";
 
+  // Sell confirmation is a fixed screen — skip profile fetches so the URL
+  // swap after submit isn't another long wait.
+  if (intent === "sell") {
+    return <DoneScreen intent="sell" prefill={null} hasProfile={false} />;
+  }
+
   const [profile, prefill] = await Promise.all([loadBetaProfile(), loadProfilePrefill()]);
 
   return (

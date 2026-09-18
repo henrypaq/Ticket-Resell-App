@@ -47,21 +47,19 @@ describe("doorsHourForEvent", () => {
 
 describe("doorsAtForEvent", () => {
   it("picks tonight for a multi-night event on one of its nights", () => {
-    // Saturday 2026-09-12, 18:00 Montreal. Café Campus runs Thu/Fri/Sat, so
-    // Thursday and Friday are behind us and tonight is the answer.
+    // Saturday 2026-09-12, 18:00 Montreal. Café Campus runs Tue–Sat, so
+    // earlier weeknights are behind us and tonight is the answer.
     const now = new Date("2026-09-12T22:00:00.000Z");
     expect(doorsAtForEvent("cafe-campus", now)?.toISOString()).toBe("2026-09-13T02:00:00.000Z");
   });
 
-  it("picks a one-off extraDateKey night before the next weekday", () => {
-    // Tuesday 2026-09-15 afternoon Montreal — Café Campus has an extraDateKey
-    // for tonight, which must win over Thursday's recurring night.
+  it("picks tonight on a Tuesday café night", () => {
     const now = new Date("2026-09-15T18:00:00.000Z");
     expect(doorsAtForEvent("cafe-campus", now)?.toISOString()).toBe("2026-09-16T02:00:00.000Z");
   });
 
   it("picks the nearest upcoming night, not the first one listed", () => {
-    // Friday 2026-09-11, 18:00 Montreal: Thursday is past, Friday is tonight.
+    // Friday 2026-09-11, 18:00 Montreal: earlier café nights are past, Friday is tonight.
     const now = new Date("2026-09-11T22:00:00.000Z");
     expect(doorsAtForEvent("cafe-campus", now)?.toISOString()).toBe("2026-09-12T02:00:00.000Z");
   });
@@ -76,12 +74,9 @@ describe("doorsAtForEvent", () => {
     expect(doors!.getTime()).toBeLessThan(now.getTime());
   });
 
-  it("uses the event's own doors hour for a daytime event", () => {
-    const now = new Date("2026-09-12T22:00:00.000Z"); // Saturday evening
-    // Piknik is Sunday; 14:00 Montreal on the 13th is 18:00 UTC.
-    expect(doorsAtForEvent("piknik-electronik", now)?.toISOString()).toBe(
-      "2026-09-13T18:00:00.000Z",
-    );
+  it("returns null for an unscheduled one-off with no nights", () => {
+    const now = new Date("2026-09-12T22:00:00.000Z");
+    expect(doorsAtForEvent("piknik-electronik", now)).toBeNull();
   });
 
   it("returns null for an interest-only option with no scheduled nights", () => {
@@ -93,10 +88,9 @@ describe("doorsAtForEvent", () => {
   });
 
   it("rolls forward rather than returning a time days in the past", () => {
-    // Wednesday: every Café Campus night in this cycle is behind us. A doors
-    // time in the past would read as "inside the open window" and silently
-    // disable exclusivity for an event two days away.
-    const now = new Date("2026-09-17T16:00:00.000Z"); // Thursday 12:00 Montreal
+    // Sunday afternoon: every Café Campus night in this cycle is behind us.
+    // A doors time in the past would read as "inside the open window".
+    const now = new Date("2026-09-13T18:00:00.000Z"); // Sunday 14:00 Montreal
     const doors = doorsAtForEvent("cafe-campus", now);
     expect(doors).not.toBeNull();
     expect(doors!.getTime()).toBeGreaterThan(now.getTime());

@@ -159,18 +159,17 @@ describe("ops waitlist and sellers partitioning", () => {
     expect(groups.some((g) => g.key.includes("Thursday"))).toBe(false);
     expect(groups.some((g) => g.key.includes("Friday"))).toBe(false);
 
-    // First group should be tonight (Saturday Sep 12)
-    const satGroup = groups.find((g) => g.eventSlug === "cafe-campus");
+    // First group should be tonight (Saturday Sep 12) — Café Campus only
+    const satGroup = groups.find((g) => g.eventSlug === "cafe-campus" && g.isTonight);
     expect(satGroup).toBeDefined();
-    expect(satGroup?.isTonight).toBe(true);
     expect(satGroup?.dateKey).toBe("2026-09-12");
 
-    // Sunday Piknik should be next
-    const sunGroup = groups.find((g) => g.eventSlug === "piknik-electronik");
-    expect(sunGroup).toBeDefined();
-    expect(sunGroup?.dateKey).toBe("2026-09-13");
+    // Unscheduled one-offs (empty days) land in the interest bucket, not a dated night
+    expect(groups.some((g) => g.eventSlug === "piknik-electronik" && g.dateKey !== "9999-99-99")).toBe(
+      false,
+    );
 
-    // Chronological order: Saturday before Sunday before interest-only
+    // Chronological order: dated nights before interest-only sentinel
     const keys = groups.map((g) => g.dateKey);
     for (let i = 0; i < keys.length - 1; i++) {
       expect(keys[i]! <= keys[i + 1]!).toBe(true);

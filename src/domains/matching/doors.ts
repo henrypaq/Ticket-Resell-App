@@ -4,7 +4,7 @@
  * Matching needs this because both clocks shorten as the event approaches, and
  * inside a couple of hours nothing is held on a promise at all. Leads carry
  * only an `event_slug` and beta events are weekday-shaped (`cafe-campus` runs
- * Thursday, Friday and Saturday), so "the doors time" is really "the next
+ * Tuesday–Saturday), so "the doors time" is really "the next
  * occurrence of this event's nearest upcoming night".
  *
  * Pure, and built entirely on the existing date helpers in `lib/beta-events` —

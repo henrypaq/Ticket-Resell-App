@@ -4,6 +4,7 @@ import {
   isPastNightlife,
   supportedBetaEvents,
   INTEREST_OPTIONS,
+  type BetaWeekday,
 } from "../../lib/beta-events";
 
 export const LEAD_STATUSES = ["new", "contacted", "matched", "done", "cancelled"] as const;
@@ -176,26 +177,42 @@ export function groupOpsWaitlistByEventDate(
   // 1. Initialize groups for supported live events with their upcoming dates
   const supported = supportedBetaEvents();
   for (const event of supported) {
-    if (event.days && event.days.length > 0) {
-      for (const day of event.days) {
-        const schedule = eventDayDateKey(day, now);
-        // Exclude dates that have passed (e.g. Thursday and Friday)
-        if (schedule.isPast) continue;
+    const scheduledDays = new Set<BetaWeekday>();
+    for (const day of event.days ?? []) {
+      scheduledDays.add(day);
+    }
+    for (const dateKey of event.extraDateKeys ?? []) {
+      // Map each one-off date onto its weekday for grouping.
+      const [y, m, d] = dateKey.split("-").map(Number);
+      if (!y || !m || !d) continue;
+      const utc = new Date(Date.UTC(y, m - 1, d, 17));
+      const weekday = utc.toLocaleDateString("en-US", {
+        weekday: "long",
+        timeZone: "UTC",
+      }) as BetaWeekday;
+      scheduledDays.add(weekday);
+    }
 
-        const key = `${event.slug}::${day}`;
-        const group: OpsWaitlistGroup = {
-          key,
-          eventSlug: event.slug,
-          eventName: event.name,
-          dateLabel: `${schedule.label}${schedule.isTonight ? " · Tonight" : ""}`,
-          dateKey: schedule.dateKey,
-          isTonight: schedule.isTonight,
-          entries: [],
-          ticketDemand: 0,
-        };
-        groupMap.set(key, group);
-        groups.push(group);
-      }
+    for (const day of scheduledDays) {
+      const schedule = eventDayDateKey(day, now);
+      const onRecurring = event.days.includes(day);
+      const onExtra = event.extraDateKeys?.includes(schedule.dateKey) ?? false;
+      if (!onRecurring && !onExtra) continue;
+      if (schedule.isPast) continue;
+
+      const key = `${event.slug}::${day}`;
+      const group: OpsWaitlistGroup = {
+        key,
+        eventSlug: event.slug,
+        eventName: event.name,
+        dateLabel: `${schedule.label}${schedule.isTonight ? " · Tonight" : ""}`,
+        dateKey: schedule.dateKey,
+        isTonight: schedule.isTonight,
+        entries: [],
+        ticketDemand: 0,
+      };
+      groupMap.set(key, group);
+      groups.push(group);
     }
   }
 

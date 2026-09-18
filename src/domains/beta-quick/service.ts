@@ -11,6 +11,7 @@ import {
 } from "@/domains/beta-queue/unified";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug } from "@/lib/beta-events";
+import { sendEmail } from "@/lib/email/resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateTicketEvidenceFile, encodeEvidencePaths } from "@/lib/verification/ticket-evidence";
 import type { QuickWaitlistEntry, GoActivityEntry } from "./shared";
@@ -588,6 +589,20 @@ export async function submitQuickSell(
     etransferEmail: input.etransferEmail ?? undefined,
     etransferPhone: input.etransferPhone ?? undefined,
   }).catch(() => {});
+
+  // Confirmation goes to the Interac email they just gave us (payout destination).
+  const confirmTo = (input.etransferEmail || "").trim();
+  if (confirmTo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(confirmTo)) {
+    const eventName = betaEventBySlug(input.eventSlug)?.name ?? "your event";
+    const qtyLabel =
+      input.quantity === 1 ? "ticket is" : `${input.quantity} tickets are`;
+    void sendEmail({
+      to: confirmTo,
+      subject: `Listing received — ${eventName}`,
+      text: `Thanks for listing on mcgill.tickets.\n\nYour ${qtyLabel} listed for ${eventName}. We match one buyer at a time: they pay us by Interac, then we pay you at this address when the sale clears.\n\nWe'll email you again when it sells.\n\n— mcgill.tickets`,
+      html: `<p>Thanks for listing on <strong>mcgill.tickets</strong>.</p><p>Your ${qtyLabel} listed for <strong>${eventName}</strong>. We match one buyer at a time: they pay us by Interac, then we pay you at this address when the sale clears.</p><p>We'll email you again when it sells.</p><p>— mcgill.tickets</p>`,
+    }).catch(() => {});
+  }
 
   return { ok: true, id: data.id, contactId };
 }

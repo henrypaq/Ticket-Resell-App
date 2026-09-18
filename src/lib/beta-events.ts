@@ -1,10 +1,13 @@
 /**
- * Events shown on the beta waitlist's final screen. Deliberately NOT a row in
+ * Events shown on home / buy / sell / upcoming. Deliberately NOT a row in
  * `public.events` — that table drives the real resale-enabled listing flow
- * (pending/resale_enabled status, price-cap machinery, § hard constraints),
- * none of which applies to a "here's what's coming" preview card. Add rows
- * here as more venues come online; promote one to a real `events` row only
- * once listings should actually be postable against it.
+ * (pending/resale_enabled status, price-cap machinery, § hard constraints).
+ *
+ * Scheduling model (add nights manually — nothing auto-recycles a one-off):
+ * - `days`: recurring weekdays that run every week (e.g. Café Campus Tue–Sat).
+ * - `extraDateKeys`: specific Montreal nightlife dates (`YYYY-MM-DD`) for
+ *   one-off shows. Put dates here when you schedule a new event; leave `days`
+ *   empty so last week's frosh / concert does not reappear next Thursday.
  */
 export type BetaEvent = {
   slug: string;
@@ -15,14 +18,14 @@ export type BetaEvent = {
   /** Poster art for the events-tab card — full-bleed, same convention as the real app's flyer_url. */
   flyerUrl: string;
   /**
-   * Weeknight(s) this card belongs under. List headers are one day at a time —
-   * a multi-day event is listed once under each of its days.
+   * Recurring weeknight(s). Empty means the event only appears on dates listed
+   * in `extraDateKeys` — use that for manually scheduled one-offs.
    */
   days: BetaWeekday[];
   /**
-   * One-off nightlife dates (YYYY-MM-DD, Montreal nightlife calendar) beyond
-   * the recurring `days` weekdays. Use for a single night that isn't on the
-   * usual schedule — e.g. Café Campus on a Tuesday.
+   * One-off nightlife dates (YYYY-MM-DD, Montreal nightlife calendar). Add a
+   * date here when you schedule a show; remove or leave past dates — they
+   * stop listing once the night has passed.
    */
   extraDateKeys?: string[];
   /** When false, shown only as interest options / request targets, not live. */
@@ -60,11 +63,10 @@ export const BETA_EVENTS: BetaEvent[] = [
     venue: "Café Campus",
     city: "Montreal",
     blurb:
-      "The first venue we're supporting — post a ticket you can't use, or join the waitlist and we'll reach out when one drops.",
+      "The first venue we're supporting — list a ticket you can't use, or join the waitlist for an exclusive hold when one opens.",
     flyerUrl: "/flyers/cafe-campus.jpg",
-    days: ["Thursday", "Friday", "Saturday"],
-    // One-off Tuesday night (Montreal nightlife date) — not a recurring weekday.
-    extraDateKeys: ["2026-09-15"],
+    // Recurring every weeknight café is open.
+    days: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
     supported: true,
   },
   {
@@ -72,9 +74,10 @@ export const BETA_EVENTS: BetaEvent[] = [
     name: "Montreal Frosh Night @ Muzique",
     venue: "Muzique",
     city: "Montreal",
-    blurb: "Frosh night at Muzique — join the waitlist or let us know you've got an extra.",
+    blurb: "Frosh night at Muzique — join the waitlist or list an extra when a date is scheduled.",
     flyerUrl: "/flyers/montreal-frosh-muzique.jpg",
-    days: ["Thursday"],
+    // Manual only — add nightlife dates under extraDateKeys when scheduled.
+    days: [],
     supported: true,
   },
   {
@@ -82,9 +85,9 @@ export const BETA_EVENTS: BetaEvent[] = [
     name: "Niska @ Bell Center",
     venue: "Bell Centre",
     city: "Montreal",
-    blurb: "Niska at the Bell Centre — we'll ping you when a ticket drops.",
+    blurb: "Niska at the Bell Centre — join the waitlist for an exclusive hold when a ticket opens.",
     flyerUrl: "/flyers/niska-bell-center.jpg",
-    days: ["Saturday"],
+    days: [],
     supported: true,
   },
   {
@@ -92,11 +95,11 @@ export const BETA_EVENTS: BetaEvent[] = [
     name: "Piknik Électronik",
     venue: "Parc Jean-Drapeau",
     city: "Montreal",
-    blurb: "Sunday Piknik — join the waitlist or post a ticket you can't use.",
+    blurb: "Sunday Piknik — join the waitlist or list a ticket you can't use when a date is scheduled.",
     flyerUrl: "/flyers/piknik-electronik.jpg",
-    days: ["Sunday"],
+    days: [],
     supported: true,
-    // Daytime outdoor event, not a club night.
+    // Daytime outdoor event, not a club night — used when a date is scheduled.
     doorsHour: 14,
   },
 ];
@@ -291,6 +294,7 @@ export function betaDaySectionLabel(day: BetaWeekday, from: Date = new Date()): 
 /**
  * Group live events under upcoming nightlife days only (Montreal).
  * Multi-day venues appear once under each remaining night they run.
+ * Manually scheduled `extraDateKeys` land under the matching weekday.
  */
 export function groupEventsByUpcomingDays(
   events: BetaEvent[],
@@ -298,7 +302,10 @@ export function groupEventsByUpcomingDays(
 ): [BetaWeekday, BetaEvent[]][] {
   const byDay = new Map<BetaWeekday, BetaEvent[]>();
   for (const day of upcomingBetaWeekdays(from)) {
-    const list = events.filter((e) => e.days.includes(day));
+    const { dateKey } = eventDayDateKey(day, from);
+    const list = events.filter(
+      (e) => e.days.includes(day) || (e.extraDateKeys?.includes(dateKey) ?? false),
+    );
     if (list.length) byDay.set(day, list);
   }
   return [...byDay.entries()];

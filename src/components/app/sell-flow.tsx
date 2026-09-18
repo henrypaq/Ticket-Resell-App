@@ -25,6 +25,7 @@ import {
 } from "./flow-fields";
 import { TicketUploadZone, type TicketFile } from "./ticket-upload";
 import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
+import { SellConfirmation } from "./done";
 import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
 
 const initial: QuickActionState = {};
@@ -83,7 +84,6 @@ export function QuickSellFlow({
   const [eventSlug, setEventSlug] = useState(preset);
   const lockedEvent = events.find((e) => e.slug === eventSlug) ?? null;
   const [quantity, setQuantity] = useState(1);
-  const [paidEach, setPaidEach] = useState("");
   const [askEach, setAskEach] = useState("");
   const savedPhone = splitSavedPhone(savedContact?.contactPhone);
   const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);
@@ -112,6 +112,7 @@ export function QuickSellFlow({
     if (!state.ok) return;
     void logBetaFlowStepAction({ intent: "sell", step: "submit", eventSlug });
     logFlowCompleted({ intent: "sell", eventSlug });
+    // Durable URL so a refresh doesn't dump them back into the form.
     router.replace("/done?intent=sell");
   }, [state.ok, router, eventSlug]);
 
@@ -140,21 +141,13 @@ export function QuickSellFlow({
     setTicketFiles((prev) => (prev.length > n ? prev.slice(0, n) : prev));
   }
 
-  // While redirecting to /done, keep the last submit state — no interim success page.
-  const redirecting = Boolean(state.ok);
-
   const phone = composeQuickPhone(phoneCountry, phoneNational);
   const phoneOk = phoneNational.replace(/\D/g, "").length >= 7;
   const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
-  const paid = Number(paidEach);
   const ask = Number(askEach);
-  const pricesOk =
-    Number.isFinite(paid) &&
-    Number.isFinite(ask) &&
-    paid >= 0 &&
-    ask >= 0 &&
-    paidEach.trim() !== "" &&
-    askEach.trim() !== "";
+  const pricesOk = Number.isFinite(ask) && ask >= 0 && askEach.trim() !== "";
+  // Units store price_each = min(ask, paid) and the DB trigger caps both.
+  // Single listing-price field → mirror into paid_each as face-value attestation.
 
   const ticketUrlTrimmed = ticketUrl.trim();
   const ticketUrlOk = isValidTicketUrl(ticketUrl);
@@ -178,7 +171,7 @@ export function QuickSellFlow({
     intent: "sell",
     stepKey,
     eventSlug,
-    enabled: !redirecting,
+    enabled: !pending && !state.ok,
   });
 
   const stepReady =
@@ -195,7 +188,7 @@ export function QuickSellFlow({
   }
 
   function goNext() {
-    if (!stepReady || tapGuard || pending || redirecting) return;
+    if (!stepReady || tapGuard || pending) return;
     if (step === 4) {
       if (!ticketUrlOk) {
         setTicketUrlError(TICKET_URL_ERROR);
@@ -232,6 +225,16 @@ export function QuickSellFlow({
     !state.error?.toLowerCase().includes("upload all") &&
     !state.error?.toLowerCase().includes("screenshot");
 
+  // Show confirmation the moment the action returns — don't leave them staring
+  // at the form (or a remounted step 1) while /done is still loading.
+  if (state.ok) {
+    return (
+      <AppFlowShell>
+        <SellConfirmation />
+      </AppFlowShell>
+    );
+  }
+
   return (
     <AppFlowShell>
       <button
@@ -256,7 +259,7 @@ export function QuickSellFlow({
       >
         <input type="hidden" name="eventSlug" value={eventSlug} />
         <input type="hidden" name="quantity" value={quantity} />
-        <input type="hidden" name="paidEach" value={paidEach} />
+        <input type="hidden" name="paidEach" value={askEach} />
         <input type="hidden" name="askEach" value={askEach} />
         <input type="hidden" name="contactPhone" value={phone} />
         <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
@@ -289,39 +292,26 @@ export function QuickSellFlow({
 
           {step === 2 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="Pricing" />
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="You paid (each)" htmlFor="paidEach">
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
-                      $
-                    </span>
-                    <input
-                      id="paidEach"
-                      inputMode="decimal"
-                      placeholder="45"
-                      value={paidEach}
-                      onChange={(e) => setPaidEach(e.target.value.replace(/[^\d.]/g, ""))}
-                      className={`${FIELD_CLASS} pl-8`}
-                    />
-                  </div>
-                </Field>
-                <Field label="You want (each)" htmlFor="askEach">
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
-                      $
-                    </span>
-                    <input
-                      id="askEach"
-                      inputMode="decimal"
-                      placeholder="45"
-                      value={askEach}
-                      onChange={(e) => setAskEach(e.target.value.replace(/[^\d.]/g, ""))}
-                      className={`${FIELD_CLASS} pl-8`}
-                    />
-                  </div>
-                </Field>
-              </div>
+              <StepHeading
+                eyebrow={stepLabel}
+                title="Listing price"
+                hint="Per ticket, at or under face value (what you paid). Quebec's resale cap."
+              />
+              <Field label="Price each" htmlFor="askEach">
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
+                    $
+                  </span>
+                  <input
+                    id="askEach"
+                    inputMode="decimal"
+                    placeholder="45"
+                    value={askEach}
+                    onChange={(e) => setAskEach(e.target.value.replace(/[^\d.]/g, ""))}
+                    className={`${FIELD_CLASS} pl-8`}
+                  />
+                </div>
+              </Field>
             </>
           )}
 
@@ -336,7 +326,7 @@ export function QuickSellFlow({
                 onPhoneNational={setPhoneNational}
                 onInstagram={setInstagram}
                 hintAbove
-                hint="Enter one of the contacts below. We'll message you there."
+                hint="WhatsApp or Instagram — we'll message you when a buyer claims your ticket."
               />
             </>
           )}
@@ -348,16 +338,28 @@ export function QuickSellFlow({
                 title={quantity > 1 ? "Prove the tickets" : "Prove the ticket"}
                 hint={
                   quantity > 1
-                    ? `Upload a clear screenshot or PDF for each of the ${quantity} tickets, or paste one official share link that covers all of them.`
-                    : "Upload a clear screenshot or PDF, or paste the official share link."
+                    ? `One clear screenshot or PDF per ticket (${quantity}), or one share link for all.`
+                    : "A clear screenshot, PDF, or the official share link."
                 }
               />
+
               <TicketUploadZone quantity={quantity} files={ticketFiles} onChange={setTicketFiles} />
-              <Field label="Or paste a share link" htmlFor="ticketUrl">
+
+              <div className="relative flex items-center gap-3 py-1">
+                <span aria-hidden className="h-px flex-1 bg-white/10" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                  or
+                </span>
+                <span aria-hidden className="h-px flex-1 bg-white/10" />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label htmlFor="ticketUrl" className="text-[13px] font-medium text-ink">
+                  Paste a share link
+                </label>
                 {eventSlug === "cafe-campus" && (
-                  <p className="-mt-1 mb-2 text-[13px] leading-relaxed text-muted">
-                    View e-tickets from your confirmation email, then copy-paste that URL directly
-                    here.
+                  <p className="text-[12.5px] leading-relaxed text-muted">
+                    Open the e-ticket from your confirmation email and paste that URL here.
                   </p>
                 )}
                 <input
@@ -381,35 +383,39 @@ export function QuickSellFlow({
                   }}
                   className={FIELD_CLASS}
                 />
-              </Field>
+              </div>
+
               {(ticketUrlError || (ticketUrlTrimmed.length > 0 && !ticketUrlOk)) && (
-                <p role="alert" className="-mt-3 text-[13.5px] text-urgency">
+                <p role="alert" className="text-[13px] text-urgency">
                   {ticketUrlError ?? TICKET_URL_ERROR}
                 </p>
               )}
               {!hasEvidence && ticketUrlOk && (
-                <p className="-mt-3 text-[13px] text-muted">
+                <p className="text-[12.5px] text-muted">
                   {quantity > 1
                     ? `Add all ${quantity} files, or a link, to continue.`
                     : "Add a file or a link to continue."}
                 </p>
               )}
-              {quantity > 1 && ticketFiles.length > 0 && ticketFiles.length < quantity && !hasValidLink && (
-                <p className="-mt-3 text-[13.5px] text-urgency">
-                  {quantity - ticketFiles.length} more ticket
-                  {quantity - ticketFiles.length === 1 ? "" : "s"} needed.
-                </p>
-              )}
-              <label className="flex cursor-pointer items-start gap-3 rounded-[16px] border border-hairline bg-white/[0.04] px-4 py-4">
+              {quantity > 1 &&
+                ticketFiles.length > 0 &&
+                ticketFiles.length < quantity &&
+                !hasValidLink && (
+                  <p className="text-[13px] text-urgency">
+                    {quantity - ticketFiles.length} more ticket
+                    {quantity - ticketFiles.length === 1 ? "" : "s"} needed.
+                  </p>
+                )}
+
+              <label className="flex cursor-pointer items-start gap-3 pt-1">
                 <input
                   type="checkbox"
                   checked={terms}
                   onChange={(e) => setTerms(e.target.checked)}
-                  className="mt-0.5 h-5 w-5 shrink-0 accent-[#6ee1ff]"
+                  className="mt-0.5 h-5 w-5 shrink-0 rounded-[5px] accent-[#6ee1ff]"
                 />
-                <span className="text-[13px] leading-relaxed text-muted">
-                  I confirm this is a real, unused ticket I own, the file/link is accurate and
-                  unedited, and I agree to the{" "}
+                <span className="text-[12.5px] leading-relaxed text-muted">
+                  Real unused ticket I own — file/link is accurate — I agree to the{" "}
                   <Link
                     href={SELLER_TERMS_PATH}
                     target="_blank"
@@ -419,7 +425,7 @@ export function QuickSellFlow({
                   >
                     seller terms
                   </Link>
-                  . Make sure your ticket is for the correct date before posting.
+                  . Confirm the date before posting.
                 </span>
               </label>
             </>
@@ -430,7 +436,7 @@ export function QuickSellFlow({
               <StepHeading
                 eyebrow={stepLabel}
                 title="Interac e-Transfer"
-                hint="Where we send the payment when your ticket sells."
+                hint="Buyers pay the platform; we pay you here once the sale clears."
               />
               <Field label="Name on Interac" htmlFor="etName">
                 <input
@@ -485,14 +491,14 @@ export function QuickSellFlow({
 
         <button
           type={isLast ? "submit" : "button"}
-          disabled={!stepReady || pending || tapGuard || redirecting}
+          disabled={!stepReady || pending || tapGuard}
           onClick={() => {
             if (!isLast) goNext();
           }}
           className={`${BUTTON_CLASS} relative z-10 mt-6 w-full shrink-0`}
         >
           {isLast
-            ? pending || redirecting
+            ? pending
               ? "Submitting…"
               : "Submit ticket"
             : "Continue"}
