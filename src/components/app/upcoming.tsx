@@ -42,7 +42,7 @@ export function AppUpcoming() {
       <header className="relative pt-3">
         <h1 className="headline text-[30px] leading-[1.12] tracking-tight">Upcoming events</h1>
         <p className="mt-2 text-[14px] leading-relaxed text-muted">
-          Every night we currently support. Pick one to buy or sell a ticket.
+          Nights currently listed for buy and sell. Request anything else below.
         </p>
       </header>
 

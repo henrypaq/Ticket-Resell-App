@@ -273,14 +273,14 @@ export function QuickSellFlow({
         <div key={step} className="flex flex-col gap-6">
           {step === 0 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="Which event?" />
+              <StepHeading eyebrow={stepLabel} title="Choose an event" />
               <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
             </>
           )}
 
           {step === 1 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="How many tickets?" />
+              <StepHeading eyebrow={stepLabel} title="Number of tickets" />
               {eventLocked && lockedEvent && (
                 <p className="text-[13.5px] text-muted">
                   For <span className="font-semibold text-ink">{lockedEvent.name}</span>
@@ -295,9 +295,9 @@ export function QuickSellFlow({
               <StepHeading
                 eyebrow={stepLabel}
                 title="Listing price"
-                hint="Per ticket, at or under face value (what you paid). Quebec's resale cap."
+                hint="Enter the price per ticket. It must not exceed face value (what you paid)."
               />
-              <Field label="Price each" htmlFor="askEach">
+              <Field label="Price per ticket" htmlFor="askEach">
                 <div className="relative">
                   <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted">
                     $
@@ -317,7 +317,7 @@ export function QuickSellFlow({
 
           {step === 3 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="How do we reach you?" />
+              <StepHeading eyebrow={stepLabel} title="Contact information" />
               <ContactFields
                 phoneCountry={phoneCountry}
                 phoneNational={phoneNational}
@@ -326,7 +326,7 @@ export function QuickSellFlow({
                 onPhoneNational={setPhoneNational}
                 onInstagram={setInstagram}
                 hintAbove
-                hint="WhatsApp or Instagram — we'll message you when a buyer claims your ticket."
+                hint="Provide WhatsApp or Instagram so we can notify you when a buyer claims your ticket."
               />
             </>
           )}
@@ -335,11 +335,11 @@ export function QuickSellFlow({
             <>
               <StepHeading
                 eyebrow={stepLabel}
-                title={quantity > 1 ? "Prove the tickets" : "Prove the ticket"}
+                title="Ticket verification"
                 hint={
                   quantity > 1
-                    ? `One clear screenshot or PDF per ticket (${quantity}), or one share link for all.`
-                    : "A clear screenshot, PDF, or the official share link."
+                    ? `Upload one clear screenshot or PDF for each of the ${quantity} tickets, or one official share link covering all of them.`
+                    : "Upload a clear screenshot or PDF, or paste the official share link."
                 }
               />
 
@@ -355,11 +355,11 @@ export function QuickSellFlow({
 
               <div className="flex flex-col gap-2">
                 <label htmlFor="ticketUrl" className="text-[13px] font-medium text-ink">
-                  Paste a share link
+                  Official share link
                 </label>
                 {eventSlug === "cafe-campus" && (
                   <p className="text-[12.5px] leading-relaxed text-muted">
-                    Open the e-ticket from your confirmation email and paste that URL here.
+                    Open the e-ticket from your confirmation email and paste the URL below.
                   </p>
                 )}
                 <input
@@ -393,8 +393,8 @@ export function QuickSellFlow({
               {!hasEvidence && ticketUrlOk && (
                 <p className="text-[12.5px] text-muted">
                   {quantity > 1
-                    ? `Add all ${quantity} files, or a link, to continue.`
-                    : "Add a file or a link to continue."}
+                    ? `Please add all ${quantity} files, or a share link, to continue.`
+                    : "Please add a file or a share link to continue."}
                 </p>
               )}
               {quantity > 1 &&
@@ -403,7 +403,7 @@ export function QuickSellFlow({
                 !hasValidLink && (
                   <p className="text-[13px] text-urgency">
                     {quantity - ticketFiles.length} more ticket
-                    {quantity - ticketFiles.length === 1 ? "" : "s"} needed.
+                    {quantity - ticketFiles.length === 1 ? "" : "s"} required.
                   </p>
                 )}
 
@@ -415,7 +415,8 @@ export function QuickSellFlow({
                   className="mt-0.5 h-5 w-5 shrink-0 rounded-[5px] accent-[#6ee1ff]"
                 />
                 <span className="text-[12.5px] leading-relaxed text-muted">
-                  Real unused ticket I own — file/link is accurate — I agree to the{" "}
+                  I confirm this is a real, unused ticket I own, the file or link is accurate and
+                  unedited, and I agree to the{" "}
                   <Link
                     href={SELLER_TERMS_PATH}
                     target="_blank"
@@ -425,7 +426,7 @@ export function QuickSellFlow({
                   >
                     seller terms
                   </Link>
-                  . Confirm the date before posting.
+                  . Please verify the event date before posting.
                 </span>
               </label>
             </>
@@ -435,10 +436,10 @@ export function QuickSellFlow({
             <>
               <StepHeading
                 eyebrow={stepLabel}
-                title="Interac e-Transfer"
-                hint="Buyers pay the platform; we pay you here once the sale clears."
+                title="Payout details"
+                hint="Buyers pay mcgill.tickets by Interac. We send your payout here once the sale clears."
               />
-              <Field label="Name on Interac" htmlFor="etName">
+              <Field label="Name on Interac account" htmlFor="etName">
                 <input
                   id="etName"
                   autoComplete="name"
@@ -459,7 +460,7 @@ export function QuickSellFlow({
                   className={FIELD_CLASS}
                 />
               </Field>
-              <Field label="Or Interac phone" htmlFor="etPhone">
+              <Field label="Or Interac phone number" htmlFor="etPhone">
                 <div className={FIELD_GROUP_CLASS}>
                   <CountryCodeSelect
                     value={etPhoneCountry}

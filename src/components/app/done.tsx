@@ -33,8 +33,8 @@ export function DoneScreen({
 
   const headline = offerId ? "A ticket is ready for you" : "You're on the waitlist";
   const sub = offerId
-    ? "It's held only for you — claim it and send Interac now."
-    : "When a ticket is held for you, we'll message you with a short claim window.";
+    ? "This ticket is held exclusively for you. Claim it and send Interac payment to complete the purchase."
+    : "When a ticket is held for you, we will notify you with a short claim window.";
 
   return (
     <AppFlowShell>
@@ -45,8 +45,8 @@ export function DoneScreen({
 
         <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
           {offerId
-            ? "Nobody else can take this ticket while your hold is live."
-            : "Your spot is on your home page — change quantity or contact anytime."}
+            ? "No other buyer can take this ticket while your hold is active."
+            : "Your place in line is on your home page. You can update quantity or contact details anytime."}
         </p>
 
         {prefill && (
@@ -100,11 +100,11 @@ export function SellConfirmation() {
         You&apos;re all set
       </h1>
       <p className="mt-4 text-[15px] leading-relaxed text-muted">
-        Your ticket is listed. We match one buyer at a time — they pay us by Interac, then we pay
-        you the same way. We emailed a confirmation and will notify you when it sells.
+        Your ticket is listed. We match one buyer at a time: they pay us by Interac, then we pay you
+        the same way. A confirmation email has been sent, and we will notify you when it sells.
       </p>
       <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-        Your listing is on your home page until it sells or you remove it.
+        Your listing remains on your home page until it sells or you remove it.
       </p>
       <Link href="/" className={`${BUTTON_CLASS} mt-10 w-full`}>
         Go back home

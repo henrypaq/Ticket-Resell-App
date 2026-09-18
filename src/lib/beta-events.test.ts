@@ -16,12 +16,13 @@ describe("beta-events and nightlife date calculations", () => {
     expect(cafe?.entryNote).toBeUndefined();
   });
 
-  it("schedules Café Campus Tue–Sat and leaves one-offs unscheduled", () => {
+  it("schedules Café Campus Tue–Sat and leaves one-offs unlisted", () => {
     const cafe = betaEventBySlug("cafe-campus");
     expect(cafe?.days).toEqual(["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]);
-    expect(betaEventBySlug("montreal-frosh-muzique")?.days).toEqual([]);
-    expect(betaEventBySlug("niska-bell-center")?.days).toEqual([]);
-    expect(betaEventBySlug("piknik-electronik")?.days).toEqual([]);
+    expect(cafe?.supported).toBe(true);
+    expect(betaEventBySlug("montreal-frosh-muzique")?.supported).toBe(false);
+    expect(betaEventBySlug("niska-bell-center")?.supported).toBe(false);
+    expect(betaEventBySlug("piknik-electronik")?.supported).toBe(false);
   });
 
   it("keeps late night before 6am attached to previous night", () => {

@@ -1,6 +1,7 @@
 import {
   betaEventBySlug,
   eventDayDateKey,
+  eventListedOnNight,
   isPastNightlife,
   supportedBetaEvents,
   INTEREST_OPTIONS,
@@ -195,9 +196,7 @@ export function groupOpsWaitlistByEventDate(
 
     for (const day of scheduledDays) {
       const schedule = eventDayDateKey(day, now);
-      const onRecurring = event.days.includes(day);
-      const onExtra = event.extraDateKeys?.includes(schedule.dateKey) ?? false;
-      if (!onRecurring && !onExtra) continue;
+      if (!eventListedOnNight(event, day, schedule.dateKey)) continue;
       if (schedule.isPast) continue;
 
       const key = `${event.slug}::${day}`;

@@ -76,9 +76,9 @@ export const BETA_EVENTS: BetaEvent[] = [
     city: "Montreal",
     blurb: "Frosh night at Muzique — join the waitlist or list an extra when a date is scheduled.",
     flyerUrl: "/flyers/montreal-frosh-muzique.jpg",
-    // Manual only — add nightlife dates under extraDateKeys when scheduled.
+    // Not on the public board until an admin adds nightlife dates.
     days: [],
-    supported: true,
+    supported: false,
   },
   {
     slug: "niska-bell-center",
@@ -88,7 +88,7 @@ export const BETA_EVENTS: BetaEvent[] = [
     blurb: "Niska at the Bell Centre — join the waitlist for an exclusive hold when a ticket opens.",
     flyerUrl: "/flyers/niska-bell-center.jpg",
     days: [],
-    supported: true,
+    supported: false,
   },
   {
     slug: "piknik-electronik",
@@ -98,7 +98,7 @@ export const BETA_EVENTS: BetaEvent[] = [
     blurb: "Sunday Piknik — join the waitlist or list a ticket you can't use when a date is scheduled.",
     flyerUrl: "/flyers/piknik-electronik.jpg",
     days: [],
-    supported: true,
+    supported: false,
     // Daytime outdoor event, not a club night — used when a date is scheduled.
     doorsHour: 14,
   },
@@ -106,6 +106,17 @@ export const BETA_EVENTS: BetaEvent[] = [
 
 export function supportedBetaEvents(): BetaEvent[] {
   return BETA_EVENTS.filter((e) => e.supported);
+}
+
+/** True when this event should appear under a given nightlife day / date. */
+export function eventListedOnNight(
+  event: BetaEvent,
+  day: BetaWeekday,
+  dateKey: string,
+): boolean {
+  if (!event.supported) return false;
+  if (event.days.includes(day)) return true;
+  return event.extraDateKeys?.includes(dateKey) ?? false;
 }
 
 export function betaEventBySlug(slug: string): BetaEvent | undefined {
@@ -248,9 +259,7 @@ export function currentBetaWeekday(from: Date = new Date()): BetaWeekday {
 export function tonightBetaEvents(from: Date = new Date()): BetaEvent[] {
   const day = currentNightlifeWeekday(from);
   const dateKey = nightlifeDateKey(from);
-  return supportedBetaEvents().filter(
-    (e) => e.days.includes(day) || (e.extraDateKeys?.includes(dateKey) ?? false),
-  );
+  return supportedBetaEvents().filter((e) => eventListedOnNight(e, day, dateKey));
 }
 
 /**
@@ -303,9 +312,7 @@ export function groupEventsByUpcomingDays(
   const byDay = new Map<BetaWeekday, BetaEvent[]>();
   for (const day of upcomingBetaWeekdays(from)) {
     const { dateKey } = eventDayDateKey(day, from);
-    const list = events.filter(
-      (e) => e.days.includes(day) || (e.extraDateKeys?.includes(dateKey) ?? false),
-    );
+    const list = events.filter((e) => eventListedOnNight(e, day, dateKey));
     if (list.length) byDay.set(day, list);
   }
   return [...byDay.entries()];

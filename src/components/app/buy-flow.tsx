@@ -176,21 +176,24 @@ export function QuickBuyFlow({
         <div key={safeStep} className="flex flex-col gap-6">
           {safeStep === 0 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="Which event?" />
+              <StepHeading eyebrow={stepLabel} title="Choose an event" />
               <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
             </>
           )}
 
           {safeStep === 1 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="How many tickets?" />
+              <StepHeading eyebrow={stepLabel} title="Number of tickets" />
               {eventLocked && lockedEvent && (
                 <p className="text-[13.5px] text-muted">
                   For <span className="font-semibold text-ink">{lockedEvent.name}</span>
                 </p>
               )}
               <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
-              <Field label="Max you'll pay each (optional)" htmlFor="maxPriceEach">
+              <Field
+                label="Enter the price you would pay per ticket (optional)"
+                htmlFor="maxPriceEach"
+              >
                 <input
                   id="maxPriceEach"
                   type="number"
@@ -204,7 +207,8 @@ export function QuickBuyFlow({
                 />
               </Field>
               <p className="text-[12.5px] text-muted">
-                We&apos;ll only hold tickets at or under this price. Leave blank for no limit.
+                We will only hold tickets at or below this amount. Leave blank if you have no
+                maximum.
               </p>
             </>
           )}
@@ -213,8 +217,8 @@ export function QuickBuyFlow({
             <>
               <StepHeading
                 eyebrow={stepLabel}
-                title="How do we reach you?"
-                hint="We'll message you when a ticket is ready."
+                title="Contact information"
+                hint="We will notify you when a ticket is held exclusively for you."
               />
               <ContactFields
                 phoneCountry={phoneCountry}
@@ -232,7 +236,7 @@ export function QuickBuyFlow({
               <StepHeading
                 eyebrow={stepLabel}
                 title="Ticket transfer details"
-                hint="Café Campus transfers the ticket into this name and email — use them exactly as they should appear."
+                hint="Enter the name and email exactly as they should appear on the Café Campus transfer."
               />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="First name" htmlFor="transferFirstName">

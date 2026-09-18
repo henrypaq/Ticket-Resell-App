@@ -121,7 +121,7 @@ export function ContactFields({
   onPhoneCountry,
   onPhoneNational,
   onInstagram,
-  hint = "One is enough — we'll message you there.",
+  hint = "Enter at least one contact method. We will message you there.",
   hintAbove = false,
 }: {
   phoneCountry: string;
@@ -139,7 +139,7 @@ export function ContactFields({
   return (
     <div className="flex flex-col gap-3">
       {hintAbove && hint && <p className="text-[12.5px] text-muted">{hint}</p>}
-      <Field label="WhatsApp / phone" htmlFor="quick-phone">
+      <Field label="WhatsApp or phone" htmlFor="quick-phone">
         <div className={FIELD_GROUP_CLASS}>
           <CountryCodeSelect
             value={phoneCountry}

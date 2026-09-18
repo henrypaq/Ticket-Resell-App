@@ -20,7 +20,7 @@ import { buyerReactivateSeatAction } from "@/domains/beta-matching/buyer-actions
 import type { GoActivityEntry, QuickActionState, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
-import { ArrowLeft, InstagramIcon, MoreVerticalIcon, SnapchatIcon } from "@/components/icons";
+import { ArrowLeft, ChevronRight, InstagramIcon, MoreVerticalIcon, SnapchatIcon } from "@/components/icons";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./flow-fields";
 import { EventIntentView, EventPoster, SECONDARY_BUTTON_CLASS } from "./event-pieces";
@@ -116,10 +116,10 @@ export function AppHome({
                         : entry.activeOfferId
                           ? " · ticket held for you — claim / pay"
                           : entry.status === "matched"
-                            ? " · matched — we’ll message you"
+                            ? " · matched — we will notify you"
                             : entry.status === "done"
                               ? " · completed"
-                              : " · tap to edit · we’ll hold a ticket exclusively for you"}
+                              : " · edit details · exclusive hold when available"}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -196,9 +196,10 @@ export function AppHome({
           </p>
           <Link
             href="/upcoming"
-            className="shrink-0 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
+            className="inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
           >
             See all events
+            <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
@@ -610,12 +611,14 @@ function WaitlistEditView({
         <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
 
         <div>
-          <p className="mb-3 text-[13.5px] font-semibold text-ink">How many tickets? (max {QUICK_MAX_TICKETS})</p>
+          <p className="mb-3 text-[13.5px] font-semibold text-ink">
+            Number of tickets (max {QUICK_MAX_TICKETS})
+          </p>
           <QuantityStepper value={quantity} onChange={setQuantity} max={QUICK_MAX_TICKETS} />
         </div>
 
         <div>
-          <p className="mb-3 text-[13.5px] font-semibold text-ink">How do we reach you?</p>
+          <p className="mb-3 text-[13.5px] font-semibold text-ink">Contact information</p>
           <ContactFields
             phoneCountry={phoneCountry}
             phoneNational={phoneNational}
@@ -624,7 +627,7 @@ function WaitlistEditView({
             onPhoneNational={setPhoneNational}
             onInstagram={setInstagram}
             hintAbove
-            hint="Enter one of the contacts below."
+            hint="Enter at least one contact method below."
           />
         </div>
 
