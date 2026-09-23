@@ -1,45 +1,35 @@
 # Email notifications — Resend templates
 
-Scope: the four notification emails that make sense to build against the app's
-*current* state (beta waitlist + `/go` lead capture). A longer list of
-product-stage notifications (real purchases, escrow, cancellations) is
-deferred to the bottom of this file until those flows exist for real users.
+Scope: lifecycle emails for the unified buy/sell app (not legacy `/go` routes).
+SMS is intentionally off until Twilio is productized.
+All user-facing HTML uses the yellow brand shell in
+`src/lib/email/user-notification-templates.ts`.
 
-## Status — what's built vs. wired
+## Status — what's sending (email only, yellow HTML)
 
-Read this table before touching any of these — it's the one place that
-answers "is this actually sending" without re-reading the whole file.
+| Audience | When | Status |
+|---|---|---|
+| New member | Signup welcome | ✅ `signupWelcomeEmail` |
+| Anyone | Event request confirmation | ✅ `eventRequestReceivedEmail` |
+| Buyer | Waitlist joined | ✅ yellow `lifecycleEmail` |
+| Buyer | Exclusive hold offered / reminder / expired | ✅ yellow |
+| Buyer | Payment declared ack | ✅ yellow |
+| Buyer | Ops marked paid | ✅ yellow |
+| Buyer | Ticket forwarded | ✅ yellow |
+| Buyer | Next-up / waitlist reactivated | ✅ yellow |
+| Seller | Listing received | ✅ yellow |
+| Seller | Buyer paid → transfer ticket | ✅ yellow |
+| Seller | Ops confirmed ticket in custody | ✅ yellow |
+| Seller | Payout released (+ confirm CTA) | ✅ yellow → `/payout/confirm` |
+| Ops | Buyer declared Interac sent | ✅ `notifyOpsBuyerPaymentDeclared` |
+| Ops | Seller posted a ticket | ✅ sell-only admin alert |
+| Ops | Waitlist join / buy lead | ❌ removed |
+| Ops | Seller declared ticket transferred | ❌ by design |
 
-| # | Template | Design | Wiring | Trigger (once wired) |
-|---|---|---|---|---|
-| 1 | Waitlist welcome | ✅ built, preview below, awaiting sign-off | ⏸ not wired | `submitBetaSignup` (`src/domains/beta-signup/service.ts`) |
-| 2 | Event waitlist joined | ✅ built, preview below, awaiting sign-off | ⏸ not wired | `setBetaEventInterest`, `intent: "waitlist"` |
-| 3 | Sell interest confirmed | ✅ built, preview below, awaiting sign-off | ⏸ not wired | `setBetaEventInterest`, `intent: "sell"` |
-| 4 | Event request received | ✅ built, preview below, awaiting sign-off | ⏸ not wired | `submitBetaEventRequest` |
-| 5–11 | See § Deferred at the bottom | ⛔ no template built yet | ⏸ not wired | n/a |
+Ops inbox: `/ops/requests` shows crowdfunded event requests with an iOS-style
+badge on the Requests tab for unseen items.
 
-**Wiring is deliberately on hold as of 2026-09-13** — not blocked on
-anything technical, but the user flow that decides where these triggers live
-(the `/go` + main-app merge discussed above) is about to change. Wiring
-against today's trigger points risks wiring against code that's about to
-move. **Do not add `sendEmail()` calls for any of these until that flow
-change lands and this table is explicitly updated to say otherwise.** When
-it's time to revisit: confirm the new trigger points still match the ones in
-this table (they may not, post-merge), then follow § Implementation notes at
-the bottom.
-
-*(Exception, 2026-09-14: waitlist **offer** SMS/email in
-`domains/beta-matching/notify.ts` is a separate lifecycle — claim holds,
-expiry, paid — and is wired. It does not use the four templates below.)*
-
-No code changes have been made toward sending any of these — every part of
-this file so far is design (HTML previews) and copy (this doc), not
-application code.
-
-Brand system for these templates — deliberately **not** a copy of the app's
-own dark-first UI (`CLAUDE_SPECS/STYLE.md`). An inbox is a different medium:
-the goal here is to stand out against a wall of white/gray transactional
-email, so the brand yellow carries the page instead of being a narrow accent.
+---
 
 | token | value | usage |
 |---|---|---|

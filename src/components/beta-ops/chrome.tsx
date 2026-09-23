@@ -3,18 +3,24 @@ import { redirect } from "next/navigation";
 import { betaOpsLogoutAction } from "@/domains/beta-ops/actions";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { getPastOpsData } from "@/domains/beta-ops/service";
+import { countUnseenEventRequests } from "@/domains/beta-ops/event-requests";
+import { listOpsTransactions } from "@/domains/beta-ops/transactions";
 import { PastOpsModal } from "@/components/beta-ops/past-records-modal";
 import { Button } from "@/components/ui/button";
 
 const TABS = [
-  { href: "/ops", label: "Overview" },
-  { href: "/ops/members", label: "Members" },
-  { href: "/ops/waitlist", label: "Waitlist" },
-  { href: "/ops/sellers", label: "Sellers" },
-  { href: "/ops/offers", label: "Offers" },
-  { href: "/ops/links", label: "Links" },
-  { href: "/ops/analytics", label: "Analytics" },
+  { href: "/ops", label: "Transactions", key: "transactions" },
+  { href: "/ops/requests", label: "Requests", key: "requests" },
+  { href: "/ops/events", label: "Events", key: "events" },
+  { href: "/ops/waitlist", label: "Waitlist", key: "waitlist" },
+  { href: "/ops/sellers", label: "Sellers", key: "sellers" },
+  { href: "/ops/offers", label: "Offers", key: "offers" },
+  { href: "/ops/members", label: "Members", key: "members" },
+  { href: "/ops/links", label: "Links", key: "links" },
+  { href: "/ops/analytics", label: "Analytics", key: "analytics" },
 ] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
 
 /** Shared chrome for authenticated ops pages. */
 export async function OpsChrome({
@@ -22,22 +28,24 @@ export async function OpsChrome({
   active,
 }: {
   children: React.ReactNode;
-  active:
-    | "overview"
-    | "members"
-    | "waitlist"
-    | "sellers"
-    | "offers"
-    | "links"
-    | "analytics";
+  active: TabKey;
 }) {
   const session = await getBetaOpsSession();
   if (!session) redirect("/ops/login");
 
-  const { pastWaitlist, pastSellers } = await getPastOpsData();
+  const [{ pastWaitlist, pastSellers }, unseenRequests, txBoard] = await Promise.all([
+    getPastOpsData(),
+    countUnseenEventRequests(),
+    listOpsTransactions().catch(() => null),
+  ]);
+
+  const badges: Partial<Record<TabKey, number>> = {
+    requests: unseenRequests,
+    transactions: txBoard?.attentionCount ?? 0,
+  };
 
   return (
-    <div className="mx-auto min-h-dvh w-full max-w-2xl px-4 pb-16 pt-[max(1.25rem,env(safe-area-inset-top))]">
+    <div className="mx-auto min-h-dvh w-full max-w-3xl px-4 pb-16 pt-[max(1.25rem,env(safe-area-inset-top))]">
       <header className="flex items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -64,19 +72,27 @@ export async function OpsChrome({
 
       <nav className="mt-5 flex flex-wrap items-center gap-1 rounded-lg bg-zinc-900/80 p-1 text-zinc-400">
         {TABS.map((tab) => {
-          const key = tab.href === "/ops" ? "overview" : tab.href.split("/").pop()!;
-          const isActive = active === key;
+          const isActive = active === tab.key;
+          const count = badges[tab.key] ?? 0;
           return (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`relative rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                 isActive
                   ? "bg-zinc-800 text-zinc-100 shadow-sm"
                   : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
               }`}
             >
               {tab.label}
+              {count > 0 && (
+                <span
+                  aria-label={`${count} new`}
+                  className="absolute -right-1 -top-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-red-500 px-[3px] text-[9px] font-bold leading-none text-white shadow-sm"
+                >
+                  {count > 99 ? "99+" : count}
+                </span>
+              )}
             </Link>
           );
         })}

@@ -3,7 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listUnifiedQueueSeats } from "@/domains/beta-queue/unified";
 import { logEvent } from "@/lib/analytics/log";
-import { doorsAtForEvent } from "@/domains/matching/doors";
+import { resolveDoorsAtForEvent } from "@/domains/matching/doors";
 import { notifyOfferSeat, notifySellLead } from "@/domains/beta-matching/notify";
 import {
   type DeclineReason,
@@ -279,7 +279,8 @@ export async function allocateNextForUnit(args: {
     return { ok: false, error: `Unit is ${unit.status}.` };
   }
 
-  const doorsAt = args.doorsAt !== undefined ? args.doorsAt : doorsAtForEvent(unit.event_slug, now);
+  const doorsAt =
+    args.doorsAt !== undefined ? args.doorsAt : await resolveDoorsAtForEvent(unit.event_slug, now);
   const mode = matchingModeAt(now, doorsAt);
   if (mode === "open") {
     return {
@@ -482,7 +483,7 @@ export async function acceptOffer(offerId: string, doorsAt?: Date | null): Promi
   if (error || !offer) return { ok: false, error: "Offer not found." };
 
   const resolvedDoors =
-    doorsAt !== undefined ? doorsAt : doorsAtForEvent(offer.event_slug, now);
+    doorsAt !== undefined ? doorsAt : await resolveDoorsAtForEvent(offer.event_slug, now);
   const mode = matchingModeAt(now, resolvedDoors);
 
   const lazy = lazyExpiryStatus(
@@ -670,7 +671,49 @@ export async function markOfferPaid(
 }
 
 /**
- * Ops confirmed the ticket moved to the buyer and released the seller payout.
+ * Ops confirmed the ticket left platform custody and reached the buyer.
+ * Independent of payout — use `releaseSellerPayout` when Interac to the seller clears.
+ */
+export async function markTicketForwardedToBuyer(offerId: string): Promise<MatchingResult> {
+  const now = new Date();
+  const admin = createAdminClient();
+  const { data: offer, error } = await admin
+    .from("beta_offers")
+    .select("id, status, ticket_transferred_at, unit_id, seat_key, event_slug, price_each")
+    .eq("id", offerId)
+    .maybeSingle();
+  if (error || !offer) return { ok: false, error: "Offer not found." };
+  if (offer.status !== "paid") {
+    return { ok: false, error: `Offer is ${offer.status}, not paid.` };
+  }
+  if (offer.ticket_transferred_at) return { ok: true, id: offerId };
+
+  const { error: updateError } = await admin
+    .from("beta_offers")
+    .update({ ticket_transferred_at: now.toISOString() })
+    .eq("id", offerId)
+    .eq("status", "paid");
+  if (updateError) return { ok: false, error: updateError.message };
+
+  void logEvent({
+    type: "waitlist_offer_ticket_forwarded",
+    metadata: { offer_id: offerId, unit_id: offer.unit_id },
+  });
+
+  void notifyOfferSeat({
+    kind: "ticket_forwarded",
+    seatKey: offer.seat_key,
+    priceEach: Number(offer.price_each),
+    offerId,
+    eventSlug: offer.event_slug,
+  });
+
+  return { ok: true, id: offerId };
+}
+
+/**
+ * Ops released (or recorded) the Interac payout to the seller.
+ * Does not stamp ticket_transferred_at — call `markTicketForwardedToBuyer` separately.
  */
 export async function releaseSellerPayout(offerId: string): Promise<MatchingResult> {
   const now = new Date();
@@ -684,14 +727,11 @@ export async function releaseSellerPayout(offerId: string): Promise<MatchingResu
   if (offer.status !== "paid") {
     return { ok: false, error: `Offer is ${offer.status}, not paid.` };
   }
+  if (offer.payout_released_at) return { ok: true, id: offerId };
 
-  const stamp = {
-    ticket_transferred_at: offer.ticket_transferred_at ?? now.toISOString(),
-    payout_released_at: now.toISOString(),
-  };
   const { error: updateError } = await admin
     .from("beta_offers")
-    .update(stamp)
+    .update({ payout_released_at: now.toISOString() })
     .eq("id", offerId)
     .eq("status", "paid");
   if (updateError) return { ok: false, error: updateError.message };
@@ -703,7 +743,6 @@ export async function releaseSellerPayout(offerId: string): Promise<MatchingResu
     .maybeSingle();
 
   if (unit?.sell_lead_id) {
-    // Mark sell lead done when every unit is sold.
     const { data: units } = await admin
       .from("beta_ticket_units")
       .select("status")
@@ -778,6 +817,62 @@ export async function getLiveOfferIdForBuyLead(buyLeadId: string): Promise<strin
 }
 
 /**
+ * Preview whether a new buyer joining now would likely get an exclusive hold
+ * immediately (surplus available units after serving people already waiting).
+ */
+export async function previewBuyAvailability(
+  eventSlug: string,
+  quantity: number,
+): Promise<{
+  availableUnits: number;
+  demandAhead: number;
+  canCheckoutNow: boolean;
+}> {
+  const qty = Math.max(1, Math.min(2, Math.floor(quantity) || 1));
+  const admin = createAdminClient();
+
+  const [{ count: availableUnits }, seats] = await Promise.all([
+    admin
+      .from("beta_ticket_units")
+      .select("id", { count: "exact", head: true })
+      .eq("event_slug", eventSlug)
+      .eq("status", "available"),
+    listUnifiedQueueSeats(eventSlug),
+  ]);
+
+  const available = availableUnits ?? 0;
+  if (seats.length === 0) {
+    return {
+      availableUnits: available,
+      demandAhead: 0,
+      canCheckoutNow: available >= qty,
+    };
+  }
+
+  const seatKeys = seats.map((s) => s.key);
+  const { data: liveOffers } = await admin
+    .from("beta_offers")
+    .select("seat_key")
+    .eq("event_slug", eventSlug)
+    .in("status", ["offered", "accepted", "paid", "needs_review"])
+    .in("seat_key", seatKeys);
+
+  const heldSeats = new Set((liveOffers ?? []).map((r) => r.seat_key as string));
+  let demandAhead = 0;
+  for (const seat of seats) {
+    if (heldSeats.has(seat.key)) continue;
+    demandAhead += Math.max(1, seat.quantity);
+  }
+
+  const surplus = available - demandAhead;
+  return {
+    availableUnits: available,
+    demandAhead,
+    canCheckoutNow: surplus >= qty,
+  };
+}
+
+/**
  * Buyer tapped “I’ve sent the money” — keep status `accepted` (exclusivity
  * unchanged) and stamp buyer_declared_sent_at so the held screen can render.
  */
@@ -786,7 +881,9 @@ export async function declareOfferPaymentSent(offerId: string): Promise<Matching
   const admin = createAdminClient();
   const { data: offer, error } = await admin
     .from("beta_offers")
-    .select("id, status, buyer_declared_sent_at")
+    .select(
+      "id, status, buyer_declared_sent_at, seat_key, event_slug, price_each, buy_lead_id, unit_id",
+    )
     .eq("id", offerId)
     .maybeSingle();
   if (error || !offer) return { ok: false, error: "Offer not found." };
@@ -804,6 +901,109 @@ export async function declareOfferPaymentSent(offerId: string): Promise<Matching
 
   void logEvent({
     type: "waitlist_offer_payment_declared",
+    metadata: { offer_id: offerId },
+  });
+
+  void notifyOfferSeat({
+    kind: "payment_declared",
+    seatKey: offer.seat_key,
+    priceEach: Number(offer.price_each),
+    offerId,
+    eventSlug: offer.event_slug,
+  });
+
+  void (async () => {
+    try {
+      const { notifyOpsBuyerPaymentDeclared } = await import(
+        "@/domains/beta-ops/notify-transactions"
+      );
+      const origin =
+        process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+        process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(/\/$/, "") ||
+        "https://mcgilltickets.party";
+      const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
+      const eventName =
+        (await getBetaEventBySlug(offer.event_slug))?.name ?? offer.event_slug;
+
+      let buyerName: string | null = null;
+      let buyerPhone: string | null = null;
+      let buyerInstagram: string | null = null;
+      if (offer.buy_lead_id) {
+        const { data: lead } = await admin
+          .from("beta_go_leads")
+          .select(
+            "transfer_first_name, transfer_last_name, contact_phone, contact_instagram",
+          )
+          .eq("id", offer.buy_lead_id)
+          .maybeSingle();
+        buyerName = [lead?.transfer_first_name, lead?.transfer_last_name]
+          .map((s) => (s ?? "").trim())
+          .filter(Boolean)
+          .join(" ") || null;
+        buyerPhone = (lead?.contact_phone as string | null) ?? null;
+        buyerInstagram = (lead?.contact_instagram as string | null) ?? null;
+      }
+
+      await notifyOpsBuyerPaymentDeclared({
+        offerId,
+        eventName,
+        priceEach: Number(offer.price_each),
+        memoHint: paymentMemoForOffer(offerId),
+        buyerName,
+        buyerPhone,
+        buyerInstagram,
+        opsUrl: `${origin}/ops`,
+      });
+    } catch (err) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "ops_payment_declared_notify_failed",
+          offerId,
+          error: String(err),
+        }),
+      );
+    }
+  })();
+
+  return { ok: true, id: offerId };
+}
+
+/**
+ * Seller tapped “I received the money” from the payout email / app.
+ * Offer UUID in the email link is the capability token (unguessable).
+ */
+export async function confirmSellerPayoutReceived(
+  offerId: string,
+): Promise<MatchingResult> {
+  const now = new Date();
+  const admin = createAdminClient();
+  const { data: offer, error } = await admin
+    .from("beta_offers")
+    .select(
+      "id, status, payout_released_at, seller_payout_confirmed_at, event_slug, payment_amount, price_each",
+    )
+    .eq("id", offerId)
+    .maybeSingle();
+  if (error || !offer) return { ok: false, error: "Offer not found." };
+  if (offer.status !== "paid") {
+    return { ok: false, error: `Offer is ${offer.status}, not paid.` };
+  }
+  if (!offer.payout_released_at) {
+    return { ok: false, error: "Payout hasn’t been released yet." };
+  }
+  if (offer.seller_payout_confirmed_at) return { ok: true, id: offerId };
+
+  const { error: updateError } = await admin
+    .from("beta_offers")
+    .update({ seller_payout_confirmed_at: now.toISOString() })
+    .eq("id", offerId)
+    .eq("status", "paid")
+    .not("payout_released_at", "is", null);
+  if (updateError) return { ok: false, error: updateError.message };
+
+  void logEvent({
+    type: "waitlist_offer_seller_payout_confirmed",
     metadata: { offer_id: offerId },
   });
 
@@ -835,7 +1035,7 @@ export async function markOfferPaymentFailed(offerId: string): Promise<MatchingR
   if (error) return { ok: false, error: error.message };
 
   const spend = await exclusivitySpendForUnit(admin, offer.unit_id, now);
-  const doorsAt = doorsAtForEvent(offer.event_slug, now);
+  const doorsAt = await resolveDoorsAtForEvent(offer.event_slug, now);
   const mode = matchingModeAt(now, doorsAt);
   const action = nextAllocationAction({
     terminalStatus: "payment_failed",
@@ -914,7 +1114,7 @@ export async function reconcileExpiredOffers(now = new Date()): Promise<{
     }
 
     const spend = await exclusivitySpendForUnit(admin, row.unit_id, now);
-    const doorsAt = doorsAtForEvent(row.event_slug, now);
+    const doorsAt = await resolveDoorsAtForEvent(row.event_slug, now);
     const mode = matchingModeAt(now, doorsAt);
     const action = nextAllocationAction({
       terminalStatus: row.new_status,

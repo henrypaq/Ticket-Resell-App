@@ -27,6 +27,7 @@ import { TicketUploadZone, type TicketFile } from "./ticket-upload";
 import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
 import { SellConfirmation } from "./done";
 import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
+import { CafeCampusTransferCard } from "./cafe-campus-transfer-card";
 
 const initial: QuickActionState = {};
 const LAST_STEP = 5;
@@ -63,12 +64,15 @@ export function QuickSellFlow({
   savedContact,
   initialEventSlug,
   backHref = "/",
+  cafeTransfer,
 }: {
   events: BetaEvent[];
   savedContact?: GoContactProfile | null;
   initialEventSlug?: string | null;
   /** Where Back goes from the first step (e.g. /member when launched from the app). */
   backHref?: string;
+  /** Café Campus custody destination for e-ticket transfer. */
+  cafeTransfer?: { name: string; email: string };
 }) {
   const router = useRouter();
   // Deep link from an event card (?event=) locks the venue — skip the picker.
@@ -112,9 +116,11 @@ export function QuickSellFlow({
     if (!state.ok) return;
     void logBetaFlowStepAction({ intent: "sell", step: "submit", eventSlug });
     logFlowCompleted({ intent: "sell", eventSlug });
-    // Durable URL so a refresh doesn't dump them back into the form.
-    router.replace("/done?intent=sell");
-  }, [state.ok, router, eventSlug]);
+    const params = new URLSearchParams({ intent: "sell" });
+    if (eventSlug === "cafe-campus") params.set("event", "cafe-campus");
+    if (state.sellLeadId) params.set("lead", state.sellLeadId);
+    router.replace(`/done?${params.toString()}`);
+  }, [state.ok, state.sellLeadId, router, eventSlug]);
 
   // Ticket-proof errors belong on the prove-ticket step, not payout.
   const [seenError, setSeenError] = useState<string | null | undefined>(undefined);
@@ -230,7 +236,11 @@ export function QuickSellFlow({
   if (state.ok) {
     return (
       <AppFlowShell>
-        <SellConfirmation />
+        <SellConfirmation
+          showSetup={false}
+          cafeTransfer={eventSlug === "cafe-campus" ? cafeTransfer : undefined}
+          sellLeadId={state.sellLeadId}
+        />
       </AppFlowShell>
     );
   }
@@ -390,6 +400,11 @@ export function QuickSellFlow({
                   {ticketUrlError ?? TICKET_URL_ERROR}
                 </p>
               )}
+
+              {eventSlug === "cafe-campus" && cafeTransfer && (
+                <CafeCampusTransferCard name={cafeTransfer.name} email={cafeTransfer.email} />
+              )}
+
               {!hasEvidence && ticketUrlOk && (
                 <p className="text-[12.5px] text-muted">
                   {quantity > 1

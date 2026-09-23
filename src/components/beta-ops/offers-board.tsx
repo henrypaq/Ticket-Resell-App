@@ -11,6 +11,7 @@ import {
   markOfferNeedsReviewAction,
   markOfferPaidAction,
   markOfferPaymentFailedAction,
+  markTicketForwardedAction,
   reactivateSeatAction,
   releaseSellerPayoutAction,
   releaseUnitToOpenAction,
@@ -170,9 +171,15 @@ export function OffersBoard({
                       />
                     </>
                   )}
+                  {o.status === "paid" && !o.ticket_transferred_at && (
+                    <ActionButton
+                      label="Mark ticket forwarded"
+                      onClick={() => markTicketForwardedAction(o.id)}
+                    />
+                  )}
                   {o.status === "paid" && !o.payout_released_at && (
                     <ActionButton
-                      label="Ticket transferred · release payout"
+                      label="Mark payout sent"
                       onClick={() => releaseSellerPayoutAction(o.id)}
                     />
                   )}

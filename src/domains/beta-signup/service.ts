@@ -1,7 +1,6 @@
 import "server-only";
 
 import { z } from "zod";
-import { notifyAdminsOfBetaInterest } from "@/domains/admin-alerts/service";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUnifiedPositionForSignup } from "@/domains/beta-queue/unified";
@@ -227,7 +226,48 @@ export async function submitBetaSignup(input: BetaSignupInput): Promise<BetaSign
     email: input.email,
   });
 
+  // Welcome email only on first insert (not idempotent resubmit).
+  if (data?.id && input.email) {
+    void sendSignupWelcomeEmail({
+      email: input.email,
+      name: input.name,
+      interestedEvents: input.interestedEvents,
+    }).catch(() => {});
+  }
+
   return { ok: true, id: signupId };
+}
+
+async function sendSignupWelcomeEmail(args: {
+  email: string;
+  name: string;
+  interestedEvents: string[];
+}): Promise<void> {
+  const { sendEmail } = await import("@/lib/email/resend");
+  const { signupWelcomeEmail } = await import("@/lib/email/user-notification-templates");
+  const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(/\/$/, "") ||
+    "https://mcgilltickets.party";
+
+  const firstSlug = args.interestedEvents.find((s) => KNOWN_INTEREST_SLUGS.has(s));
+  const event = firstSlug ? await getBetaEventBySlug(firstSlug) : null;
+  const copy = signupWelcomeEmail({
+    name: args.name,
+    eventName: event?.name,
+    eventDay: event?.days?.[0],
+    eventCity: event?.city,
+    flyerUrl: event?.flyerUrl,
+    appUrl: origin,
+    sellUrl: `${origin}/sell`,
+  });
+  await sendEmail({
+    to: args.email,
+    subject: copy.subject,
+    text: copy.text,
+    html: copy.html,
+  });
 }
 
 /** Look up an existing beta signup by email so a returning visitor can restore their cookie. */
@@ -383,25 +423,8 @@ export async function setBetaEventInterest(
       waitlistPosition = (await getWaitlistPosition(signupId, input.eventSlug)) ?? undefined;
     }
 
-    // Admin email — never block the user on Resend failures.
-    void notifyAdminsOfBetaInterest({
-      signupId,
-      eventSlug: input.eventSlug,
-      intent: input.intent,
-      contactPhone: input.contactPhone || undefined,
-      contactInstagram: input.contactInstagram || undefined,
-      waitlistPosition,
-    }).catch((err) => {
-      console.warn(
-        JSON.stringify({
-          level: "warn",
-          msg: "admin_email_unexpected",
-          error: String(err),
-          intent: input.intent,
-          eventSlug: input.eventSlug,
-        }),
-      );
-    });
+    // No ops email on classic interest — ops only gets buyer payment-declared
+    // and seller listings from the unified buy/sell flow.
 
     if (input.intent === "waitlist") {
       return { ok: true, waitlistPosition };
@@ -439,7 +462,62 @@ export async function submitBetaEventRequest(
     details: input.details || null,
   });
   if (error) return { ok: false, error: "Couldn't send that request. Try again." };
+
+  void sendEventRequestConfirmation({
+    memberId: signupId,
+    requestedName: input.name,
+    details: input.details || null,
+  }).catch(() => {});
+
   return { ok: true };
+}
+
+/** Soft-fail confirmation to the requester when we have an email. */
+export async function sendEventRequestConfirmation(args: {
+  memberId: string | null;
+  email?: string | null;
+  requestedName: string;
+  details: string | null;
+}): Promise<void> {
+  const { sendEmail } = await import("@/lib/email/resend");
+  const { eventRequestReceivedEmail } = await import(
+    "@/lib/email/user-notification-templates"
+  );
+  const { boardSelectableEvents } = await import("@/lib/beta-events");
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(/\/$/, "") ||
+    "https://mcgilltickets.party";
+
+  let email = args.email?.trim() || null;
+  if (!email && args.memberId) {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("beta_members")
+      .select("email")
+      .eq("id", args.memberId)
+      .maybeSingle();
+    email = (data?.email as string | null) ?? null;
+  }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+
+  const live = boardSelectableEvents()
+    .slice(0, 3)
+    .map((e) => e.name)
+    .join(", ");
+
+  const copy = eventRequestReceivedEmail({
+    eventNameRequested: args.requestedName,
+    details: args.details,
+    appUrl: origin,
+    supportedEventsShortlist: live || undefined,
+  });
+  await sendEmail({
+    to: email,
+    subject: copy.subject,
+    text: copy.text,
+    html: copy.html,
+  });
 }
 
 export async function submitBetaSupportMessage(

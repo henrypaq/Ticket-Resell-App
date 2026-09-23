@@ -43,7 +43,7 @@ export const MATCHING_DEFAULTS = {
   /** Inside this window → skip exclusivity (open / first money wins). */
   openWindowMs: 2 * 60 * 60_000,
   /** Response clock when inside the short window. */
-  shortResponseMs: 15 * 60_000,
+  shortResponseMs: 20 * 60_000,
   /** Consecutive no-response expiries before dormancy. */
   noResponseStrikesToDormant: 2,
   /** Accept-then-ghost is expensive — one strike to dormant. */

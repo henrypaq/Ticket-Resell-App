@@ -34,6 +34,10 @@ export type GoActivityEntry = {
   createdAt: string;
   /** Seller sale stage when a unit is paid / payout released. */
   saleStage?: "awaiting_transfer" | "payout_released" | null;
+  /** Seller tapped “I’ve transferred” for platform custody. */
+  sellerTicketSentAt?: string | null;
+  /** Ops verified custody receipt. */
+  ticketReceivedAt?: string | null;
 };
 
 export type QuickActionState = {
@@ -42,6 +46,8 @@ export type QuickActionState = {
   message?: string;
   /** When a ticket is already held for this buyer, redirect to claim/pay. */
   offerId?: string;
+  /** Sell lead id — used for Café custody confirm on the done screen. */
+  sellLeadId?: string;
 };
 
 /** Cookie of buy lead UUIDs so /go can show queue position on return visits. */
@@ -78,4 +84,10 @@ export type ProfilePrefillData = {
   intent: "buy" | "sell" | null;
   eventName: string | null;
   referralSource: string | null;
+  /** Instagram from the /go contact, when present. */
+  contactInstagram?: string | null;
+  /** Interac payout fields already on the contact (e.g. after a sell). */
+  etransferName?: string | null;
+  etransferEmail?: string | null;
+  etransferPhone?: string | null;
 };

@@ -6,7 +6,7 @@ import {
   getOfferForBuyer,
   paymentMemoForOffer,
 } from "@/domains/beta-matching/service";
-import { betaEventBySlug } from "@/lib/beta-events";
+import { getBetaEventBySlug } from "@/domains/beta-events/catalog";
 import { platformEtransfer } from "@/lib/env";
 
 export const metadata: Metadata = {
@@ -27,7 +27,8 @@ export default async function OfferPage({
   const offer = await getOfferForBuyer(id);
   if (!offer) notFound();
 
-  const eventName = betaEventBySlug(offer.event_slug)?.name ?? offer.event_slug;
+  const event = await getBetaEventBySlug(offer.event_slug);
+  const eventName = event?.name ?? offer.event_slug;
   const isOwner = await buyerOwnsOffer(id);
   const etransfer = platformEtransfer();
 

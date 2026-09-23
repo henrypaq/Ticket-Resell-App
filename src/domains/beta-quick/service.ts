@@ -4,6 +4,7 @@ import { z } from "zod";
 import { notifyAdminsOfQuickLead } from "@/domains/admin-alerts/service";
 import { upsertGoContact } from "@/domains/beta-go/contacts";
 import { createUnitsFromSellLead, allocateAvailableUnitsForEvent, getLiveOfferIdForBuyLead } from "@/domains/beta-matching/service";
+import { notifyBuyLead, notifySellLead } from "@/domains/beta-matching/notify";
 import {
   getFakeFrontMap,
   listUnifiedQueueSeats,
@@ -11,7 +12,7 @@ import {
 } from "@/domains/beta-queue/unified";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug } from "@/lib/beta-events";
-import { sendEmail } from "@/lib/email/resend";
+import { getBetaEventBySlug, loadBetaCatalog } from "@/domains/beta-events/catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateTicketEvidenceFile, encodeEvidencePaths } from "@/lib/verification/ticket-evidence";
 import type { QuickWaitlistEntry, GoActivityEntry } from "./shared";
@@ -77,9 +78,7 @@ export const quickBuySchema = z
   })
   .superRefine(contactRefine)
   .superRefine((value, ctx) => {
-    if (!betaEventBySlug(value.eventSlug)?.supported) {
-      ctx.addIssue({ code: "custom", message: "Pick a supported event.", path: ["eventSlug"] });
-    }
+    // Supported/live check happens in submit via loadBetaCatalog (DB + static).
     if (value.eventSlug === "cafe-campus") {
       if (!value.transferFirstName.trim()) {
         ctx.addIssue({
@@ -155,9 +154,7 @@ export const quickSellSchema = z
   })
   .superRefine(contactRefine)
   .superRefine((value, ctx) => {
-    if (!betaEventBySlug(value.eventSlug)?.supported) {
-      ctx.addIssue({ code: "custom", message: "Pick a supported event.", path: ["eventSlug"] });
-    }
+    // Supported/live check happens in submit via loadBetaCatalog (DB + static).
     const etPhoneOk = (value.etransferPhone ?? "").replace(/\D/g, "").length >= 7;
     const etEmailOk = (value.etransferEmail ?? "").length > 3;
     if (!etPhoneOk && !etEmailOk) {
@@ -217,6 +214,11 @@ function ownsLead(
 export async function submitQuickBuy(
   input: QuickBuyInput & { existingContactId?: string | null; memberId?: string | null },
 ): Promise<QuickLeadResult> {
+  const listed = await getBetaEventBySlug(input.eventSlug);
+  if (!listed?.supported) {
+    return { ok: false, error: "Pick a supported event." };
+  }
+
   const contactResult = await upsertGoContact({
     contactPhone: input.contactPhone,
     contactInstagram: input.contactInstagram,
@@ -303,17 +305,12 @@ export async function submitQuickBuy(
     return { ok: false, error: "Couldn't join the waitlist. Try again in a moment." };
   }
 
-  void notifyAdminsOfQuickLead({
-    id: data.id,
-    intent: "buy",
+  // Buyer ack only — ops is not emailed on waitlist join.
+  void notifyBuyLead({
+    kind: "waitlist_joined",
+    buyLeadId: data.id,
     eventSlug: input.eventSlug,
-    quantity: input.quantity,
-    contactPhone: phone ?? undefined,
-    contactInstagram: ig ?? undefined,
-    transferFirstName: transferFirstName || undefined,
-    transferLastName: transferLastName || undefined,
-    transferEmail: transferEmail || undefined,
-  }).catch(() => {});
+  });
 
   // If inventory exists and this seat is next in the real queue, allocate now
   // so the buyer can jump straight to pay.
@@ -465,6 +462,11 @@ export async function submitQuickSell(
   input: QuickSellInput & { existingContactId?: string | null; memberId?: string | null },
   files?: { bytes: Uint8Array; name: string }[] | null,
 ): Promise<QuickLeadResult> {
+  const listed = await getBetaEventBySlug(input.eventSlug);
+  if (!listed?.supported) {
+    return { ok: false, error: "Pick a supported event." };
+  }
+
   const hasUrl = Boolean(input.ticketShareUrl);
   const uploads = (files ?? []).filter((f) => f.bytes.byteLength > 0);
   const hasFiles = uploads.length > 0;
@@ -590,19 +592,13 @@ export async function submitQuickSell(
     etransferPhone: input.etransferPhone ?? undefined,
   }).catch(() => {});
 
-  // Confirmation goes to the Interac email they just gave us (payout destination).
-  const confirmTo = (input.etransferEmail || "").trim();
-  if (confirmTo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(confirmTo)) {
-    const eventName = betaEventBySlug(input.eventSlug)?.name ?? "your event";
-    const qtyLabel =
-      input.quantity === 1 ? "ticket is" : `${input.quantity} tickets are`;
-    void sendEmail({
-      to: confirmTo,
-      subject: `Listing received — ${eventName}`,
-      text: `Thanks for listing on mcgill.tickets.\n\nYour ${qtyLabel} listed for ${eventName}. We match one buyer at a time: they pay us by Interac, then we pay you at this address when the sale clears.\n\nWe'll email you again when it sells.\n\n— mcgill.tickets`,
-      html: `<p>Thanks for listing on <strong>mcgill.tickets</strong>.</p><p>Your ${qtyLabel} listed for <strong>${eventName}</strong>. We match one buyer at a time: they pay us by Interac, then we pay you at this address when the sale clears.</p><p>We'll email you again when it sells.</p><p>— mcgill.tickets</p>`,
-    }).catch(() => {});
-  }
+  void notifySellLead({
+    kind: "seller_listed",
+    sellLeadId: data.id,
+    priceEach: input.askEach,
+    eventSlug: input.eventSlug,
+    quantity: input.quantity,
+  });
 
   return { ok: true, id: data.id, contactId };
 }
@@ -650,6 +646,9 @@ export async function getQuickWaitlistEntries(
     (liveOffers ?? []).map((o) => [o.buy_lead_id as string, o.id as string]),
   );
 
+  const catalog = await loadBetaCatalog();
+  const bySlug = new Map(catalog.map((e) => [e.slug, e]));
+
   for (const row of mine) {
     if (row.status === "cancelled") continue;
     let seats = seatsByEvent.get(row.event_slug);
@@ -659,7 +658,7 @@ export async function getQuickWaitlistEntries(
     }
     const fakeFront = fakeFronts.get(row.event_slug) ?? 0;
     const pos = positionInSeats(seats, (s) => s.source === "go" && s.id === row.id, fakeFront);
-    const event = betaEventBySlug(row.event_slug);
+    const event = bySlug.get(row.event_slug) ?? betaEventBySlug(row.event_slug);
     const seatKey = `go:${row.id}`;
     entries.push({
       leadId: row.id,
@@ -697,7 +696,7 @@ export async function getGoActivity(input: {
   let query = admin
     .from("beta_go_leads")
     .select(
-      "id, intent, event_slug, quantity, status, paid_each, ask_each, created_at",
+      "id, intent, event_slug, quantity, status, paid_each, ask_each, created_at, seller_ticket_sent_at, ticket_received_at",
     );
 
   // `.or()` takes PostgREST filter syntax, not a chained builder — each term is
@@ -745,6 +744,9 @@ export async function getGoActivity(input: {
     }
   }
 
+  const catalog = await loadBetaCatalog();
+  const bySlug = new Map(catalog.map((e) => [e.slug, e]));
+
   return data.map((row) => {
     const qty = Number(row.quantity) || 1;
     const paid = row.paid_each != null ? Number(row.paid_each) : null;
@@ -754,7 +756,7 @@ export async function getGoActivity(input: {
       row.intent === "sell" && done && ask != null ? ask * qty : null;
     const netVsPaidCad =
       proceedsCad != null && paid != null ? proceedsCad - paid * qty : null;
-    const event = betaEventBySlug(row.event_slug);
+    const event = bySlug.get(row.event_slug) ?? betaEventBySlug(row.event_slug);
     return {
       leadId: row.id,
       intent: row.intent as "buy" | "sell",
@@ -768,6 +770,8 @@ export async function getGoActivity(input: {
       netVsPaidCad,
       createdAt: row.created_at,
       saleStage: saleStageByLead.get(row.id) ?? null,
+      sellerTicketSentAt: (row.seller_ticket_sent_at as string | null) ?? null,
+      ticketReceivedAt: (row.ticket_received_at as string | null) ?? null,
     };
   });
 }
@@ -869,16 +873,28 @@ export async function listBuyLeadIds(input: {
 export async function submitQuickEventRequest(input: {
   name: string;
   details?: string | null;
+  memberId?: string | null;
+  email?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createAdminClient();
   const { error } = await admin.from("beta_member_event_requests").insert({
     name: input.name,
     details: input.details ?? null,
+    member_id: input.memberId ?? null,
   });
   if (error) {
     console.warn(JSON.stringify({ level: "warn", msg: "quick_event_request_failed", error }));
     return { ok: false, error: "Couldn't send request. Please try again." };
   }
+
+  const { sendEventRequestConfirmation } = await import("@/domains/beta-signup/service");
+  void sendEventRequestConfirmation({
+    memberId: input.memberId ?? null,
+    email: input.email ?? null,
+    requestedName: input.name,
+    details: input.details ?? null,
+  }).catch(() => {});
+
   return { ok: true };
 }
 

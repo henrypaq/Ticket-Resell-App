@@ -207,3 +207,23 @@ export function platformEtransfer(): PlatformEtransfer {
     configured: email.length > 3,
   };
 }
+
+/**
+ * Where Café Campus sellers send e-tickets for custody / verification before resale.
+ * Defaults match the live ops inbox; override via env if needed.
+ */
+export type PlatformTicketTransfer = {
+  name: string;
+  email: string;
+};
+
+export function platformTicketTransfer(): PlatformTicketTransfer {
+  const email = (
+    process.env.PLATFORM_TICKET_TRANSFER_EMAIL ?? "contact@mcgilltickets.party"
+  ).trim();
+  const name = (process.env.PLATFORM_TICKET_TRANSFER_NAME ?? "McGill Tickets").trim();
+  return {
+    name: name || "McGill Tickets",
+    email: email || "contact@mcgilltickets.party",
+  };
+}

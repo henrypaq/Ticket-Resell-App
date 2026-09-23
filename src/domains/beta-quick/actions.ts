@@ -243,6 +243,10 @@ export async function loadProfilePrefill(): Promise<ProfilePrefillData | null> {
     intent: hints?.intent ?? null,
     eventName: hints?.eventName ?? null,
     referralSource: referralSource ?? null,
+    contactInstagram: contact?.contactInstagram ?? null,
+    etransferName: contact?.etransferName ?? hints?.name ?? null,
+    etransferEmail: contact?.etransferEmail ?? null,
+    etransferPhone: contact?.etransferPhone ?? null,
   };
 }
 
@@ -338,10 +342,13 @@ export async function submitQuickEventRequestAction(
     return { error: "Please enter the event or club name." };
   }
 
+  const memberId = await getBetaSignupId();
+
   const detailParts = [details, contact ? `Contact: ${contact}` : ""].filter(Boolean);
   const result = await submitQuickEventRequest({
     name,
     details: detailParts.length ? detailParts.join(" · ") : null,
+    memberId,
   });
 
   if (!result.ok) {
@@ -433,9 +440,61 @@ export async function submitQuickSellAction(
     if (!result.ok) return { error: result.error };
     if (result.contactId) await setGoContactCookie(result.contactId);
     await appendQuickSellerCookie(result.id);
-    return { ok: true };
+    return { ok: true, sellLeadId: result.id };
   } catch (error) {
     console.warn(JSON.stringify({ level: "warn", msg: "quick_sell_action_failed", error: String(error) }));
     return { error: "Couldn't submit. Try again in a moment." };
   }
+}
+
+/** Live inventory vs queue — drives “checkout now” copy in the buy flow. */
+export async function loadBuyAvailabilityAction(
+  eventSlug: string,
+  quantity: number,
+): Promise<{
+  availableUnits: number;
+  demandAhead: number;
+  canCheckoutNow: boolean;
+} | null> {
+  const slug = (eventSlug || "").trim();
+  if (!slug || slug.length > 80) return null;
+  const { previewBuyAvailability } = await import("@/domains/beta-matching/service");
+  return previewBuyAvailability(slug, quantity);
+}
+
+async function sellerOwnsLead(sellLeadId: string): Promise<boolean> {
+  if (!/^[0-9a-f-]{36}$/i.test(sellLeadId)) return false;
+  const jar = await cookies();
+  const sellerIds = (jar.get(QUICK_SELLER_COOKIE)?.value ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (sellerIds.includes(sellLeadId)) return true;
+
+  const contactId = jar.get(GO_CONTACT_COOKIE)?.value ?? null;
+  const memberId = await getBetaSignupId();
+  const admin = (await import("@/lib/supabase/admin")).createAdminClient();
+  const { data } = await admin
+    .from("beta_go_leads")
+    .select("contact_id, member_id, intent")
+    .eq("id", sellLeadId)
+    .maybeSingle();
+  if (!data || data.intent !== "sell") return false;
+  if (contactId && data.contact_id === contactId) return true;
+  if (memberId && data.member_id === memberId) return true;
+  return false;
+}
+
+/** Seller confirms Café / platform ticket transfer for ops custody queue. */
+export async function declareSellerTicketSentAction(
+  sellLeadId: string,
+): Promise<QuickActionState> {
+  if (!(await sellerOwnsLead(sellLeadId))) {
+    return { error: "This listing isn't yours." };
+  }
+  const { declareSellerTicketSent } = await import("@/domains/beta-ops/transactions");
+  const result = await declareSellerTicketSent(sellLeadId);
+  if (!result.ok) return { error: result.error };
+  // notifyOpsSellerTicketDeclared is intentionally not called yet (unwired).
+  return { ok: true, message: "Thanks — we'll confirm once we see the ticket." };
 }

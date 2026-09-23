@@ -3,16 +3,19 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { INTEREST_OPTIONS } from "@/lib/beta-events";
 
-/** Café Campus starts hotter; everything else gets a light fake front. */
-export function defaultFakeFront(eventSlug: string): number {
-  return eventSlug === "cafe-campus" ? 6 : 2;
+/**
+ * Default when ops has never set a row. Kept at 0 so public positions are
+ * real until someone explicitly pads via /ops/waitlist.
+ */
+export function defaultFakeFront(_eventSlug?: string): number {
+  return 0;
 }
 
-/** Map of event_slug → fake front count (defaults filled for known options). */
+/** Map of event_slug → fake front count (ops overrides only; default 0). */
 export async function getFakeFrontMap(): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   for (const opt of INTEREST_OPTIONS) {
-    map.set(opt.value, defaultFakeFront(opt.value));
+    map.set(opt.value, 0);
   }
 
   const admin = createAdminClient();
@@ -33,5 +36,5 @@ export async function getFakeFrontMap(): Promise<Map<string, number>> {
 
 export async function getFakeFront(eventSlug: string): Promise<number> {
   const map = await getFakeFrontMap();
-  return map.get(eventSlug) ?? defaultFakeFront(eventSlug);
+  return map.get(eventSlug) ?? 0;
 }

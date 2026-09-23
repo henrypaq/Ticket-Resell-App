@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   betaEventBySlug,
+  boardSelectableEvents,
   eventDayDateKey,
   goSelectableEvents,
   groupEventsByUpcomingDays,
   isPastNightlife,
   nightlifeDateKey,
+  supportedBetaEvents,
   tonightEventOptions,
   type BetaEvent,
 } from "./beta-events";
@@ -103,6 +105,23 @@ describe("beta-events and nightlife date calculations", () => {
     expect(options.map((o) => o.slug)).not.toContain("niska-bell-center");
     expect(options.map((o) => o.slug)).not.toContain("montreal-frosh-muzique");
     expect(options.map((o) => o.slug)).not.toContain("piknik-electronik");
+  });
+
+  it("boardSelectableEvents only includes supported listed venues", () => {
+    const monday = new Date("2026-09-14T18:00:00Z");
+    // Monday: Café not tonight, but still on the board for Tue–Sat this week.
+    expect(boardSelectableEvents(monday).map((e) => e.slug)).toEqual(["cafe-campus"]);
+    const saturday = new Date("2026-09-12T15:48:00Z");
+    expect(boardSelectableEvents(saturday).map((e) => e.slug)).toEqual(["cafe-campus"]);
+    expect(boardSelectableEvents(saturday).every((e) => e.supported)).toBe(true);
+  });
+
+  it("upcoming board never lists unsupported one-offs", () => {
+    const saturday = new Date("2026-09-12T15:48:00Z");
+    const slugs = groupEventsByUpcomingDays(supportedBetaEvents(), saturday).flatMap(([, events]) =>
+      events.map((e) => e.slug),
+    );
+    expect(new Set(slugs)).toEqual(new Set(["cafe-campus"]));
   });
 
   it("surfaces manually scheduled extraDateKeys under that night only", () => {

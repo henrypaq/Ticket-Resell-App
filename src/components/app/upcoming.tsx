@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   betaDaySectionLabel,
   groupEventsByUpcomingDays,
-  supportedBetaEvents,
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
@@ -22,7 +21,7 @@ import { EventRequestSection } from "./event-request";
  * offering two ways to take the same seat only ever confused people about
  * which one held their spot.
  */
-export function AppUpcoming() {
+export function AppUpcoming({ events }: { events: BetaEvent[] }) {
   const [selected, setSelected] = useState<{ event: BetaEvent; day: BetaWeekday } | null>(null);
 
   if (selected) {
@@ -35,7 +34,7 @@ export function AppUpcoming() {
     );
   }
 
-  const groups = groupEventsByUpcomingDays(supportedBetaEvents());
+  const groups = groupEventsByUpcomingDays(events);
 
   return (
     <>

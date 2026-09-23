@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { saveContactDraftAction, submitQuickBuyAction } from "@/domains/beta-quick/actions";
+import { saveContactDraftAction, submitQuickBuyAction, loadBuyAvailabilityAction } from "@/domains/beta-quick/actions";
 import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
 import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
@@ -71,6 +71,11 @@ export function QuickBuyFlow({
   const [transferEmail, setTransferEmail] = useState("");
   const [maxPriceEach, setMaxPriceEach] = useState("");
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
+  const [availability, setAvailability] = useState<{
+    availableUnits: number;
+    demandAhead: number;
+    canCheckoutNow: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!state.ok) return;
@@ -79,6 +84,20 @@ export function QuickBuyFlow({
     if (state.offerId) router.replace(`/offer/${state.offerId}`);
     else router.replace("/done?intent=buy");
   }, [state.ok, state.offerId, router, eventSlug]);
+
+  useEffect(() => {
+    if (!eventSlug) {
+      setAvailability(null);
+      return;
+    }
+    let cancelled = false;
+    void loadBuyAvailabilityAction(eventSlug, quantity).then((result) => {
+      if (!cancelled) setAvailability(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventSlug, quantity]);
 
   // While redirecting to /done, keep the form — no interim success page.
   const redirecting = Boolean(state.ok);
@@ -190,6 +209,23 @@ export function QuickBuyFlow({
                 </p>
               )}
               <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
+              {availability && (
+                <p
+                  className={`rounded-[14px] border px-4 py-3 text-[13px] leading-relaxed ${
+                    availability.canCheckoutNow
+                      ? "border-[#6ee1ff]/35 bg-[#6ee1ff]/[0.08] text-ink"
+                      : "border-white/10 bg-white/[0.03] text-muted"
+                  }`}
+                >
+                  {availability.canCheckoutNow
+                    ? quantity === 1
+                      ? "A ticket looks available right now. Finish these steps to claim an exclusive hold — only one buyer gets each ticket, first to complete wins."
+                      : `${quantity} tickets look available right now. Finish to claim exclusive holds — each ticket goes to only one buyer.`
+                    : availability.availableUnits > 0
+                      ? "Some tickets are listed, but others are ahead of you. Finish to join the waitlist; we’ll hold one exclusively when it’s your turn."
+                      : "No tickets listed yet. Finish to join the waitlist — we’ll message you the moment one is held for you."}
+                </p>
+              )}
               <Field
                 label="Enter the price you would pay per ticket (optional)"
                 htmlFor="maxPriceEach"
@@ -218,7 +254,11 @@ export function QuickBuyFlow({
               <StepHeading
                 eyebrow={stepLabel}
                 title="Contact information"
-                hint="We will notify you when a ticket is held exclusively for you."
+                hint={
+                  availability?.canCheckoutNow
+                    ? "Finish these details to try for an exclusive hold. If someone else claims it first, you’ll stay on the waitlist."
+                    : "We will notify you when a ticket is held exclusively for you."
+                }
               />
               <ContactFields
                 phoneCountry={phoneCountry}
@@ -236,7 +276,7 @@ export function QuickBuyFlow({
               <StepHeading
                 eyebrow={stepLabel}
                 title="Ticket transfer details"
-                hint="Enter the name and email exactly as they should appear on the Café Campus transfer."
+                hint="Where we should send the Café Campus ticket after payment clears. Use the name and email exactly as they should appear."
               />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="First name" htmlFor="transferFirstName">
@@ -294,8 +334,12 @@ export function QuickBuyFlow({
         >
           {isLast
             ? pending || redirecting
-              ? "Joining…"
-              : "Join waitlist"
+              ? availability?.canCheckoutNow
+                ? "Checking out…"
+                : "Joining…"
+              : availability?.canCheckoutNow
+                ? "Continue to checkout"
+                : "Join waitlist"
             : "Continue"}
         </button>
       </form>

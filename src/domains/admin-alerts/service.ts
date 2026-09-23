@@ -97,7 +97,7 @@ export async function notifyAdminsOfBetaInterest(input: BetaInterestAlertInput):
   }
 }
 
-/** Admin email for the low-friction `/go` buy/sell flow. */
+/** Admin email when a seller posts a ticket (unified sell flow). Buy leads do not alert ops. */
 export async function notifyAdminsOfQuickLead(input: QuickLeadAlertInput): Promise<void> {
   if (!resendConfigured()) {
     console.info(

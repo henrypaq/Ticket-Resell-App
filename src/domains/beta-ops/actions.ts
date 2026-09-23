@@ -20,10 +20,15 @@ import {
   markOfferNeedsReview,
   markOfferPaid,
   markOfferPaymentFailed,
+  markTicketForwardedToBuyer,
   reactivateSeat,
   releaseSellerPayout,
   releaseUnitToOpen,
 } from "@/domains/beta-matching/service";
+import {
+  markSellTicketReceived,
+} from "@/domains/beta-ops/transactions";
+import { markEventRequestResolved } from "@/domains/beta-ops/event-requests";
 
 export type OpsLoginState = { error?: string };
 
@@ -276,6 +281,28 @@ export async function releaseSellerPayoutAction(offerId: string): Promise<OpsAct
   return { ok: true };
 }
 
+export async function markTicketForwardedAction(offerId: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await markTicketForwardedToBuyer(offerId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function markSellTicketReceivedAction(sellLeadId: string): Promise<OpsActionState> {
+  try {
+    const session = await requireBetaOpsSession();
+    const result = await markSellTicketReceived(sellLeadId, session.email);
+    if (!result.ok) return { error: result.error };
+    return { ok: true };
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+}
+
 export async function markOfferNeedsReviewAction(offerId: string): Promise<OpsActionState> {
   try {
     await requireBetaOpsSession();
@@ -294,6 +321,17 @@ export async function markOfferPaymentFailedAction(offerId: string): Promise<Ops
     return { error: "Session expired. Sign in again." };
   }
   const result = await markOfferPaymentFailed(offerId);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+export async function resolveEventRequestAction(id: string): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+  const result = await markEventRequestResolved(id);
   if (!result.ok) return { error: result.error };
   return { ok: true };
 }

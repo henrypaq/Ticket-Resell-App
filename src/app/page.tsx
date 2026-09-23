@@ -4,7 +4,9 @@ import { initialsFromName } from "@/components/app/header";
 import { AppShell } from "@/components/app/shell";
 import { loadGoActivityForHub, loadQuickWaitlistForHub } from "@/domains/beta-quick/actions";
 import { loadBetaProfile } from "@/domains/beta-signup/actions";
-import { currentNightlifeWeekday, tonightBetaEvents } from "@/lib/beta-events";
+import { getTonightBetaEvents } from "@/domains/beta-events/catalog";
+import { currentNightlifeWeekday } from "@/lib/beta-events";
+import { platformTicketTransfer } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Buy & sell tickets · mcgill.tickets",
@@ -24,19 +26,21 @@ export const dynamic = "force-dynamic";
  * they've saved a profile, by member id.
  */
 export default async function HomePage() {
-  const [profile, waitlist, activity] = await Promise.all([
+  const [profile, waitlist, activity, tonight] = await Promise.all([
     loadBetaProfile(),
     loadQuickWaitlistForHub(),
     loadGoActivityForHub(),
+    getTonightBetaEvents(),
   ]);
 
   return (
     <AppShell initials={initialsFromName(profile?.name)}>
       <AppHome
-        tonight={tonightBetaEvents()}
+        tonight={tonight}
         tonightDay={currentNightlifeWeekday()}
         waitlist={waitlist}
         activity={activity}
+        cafeTransfer={platformTicketTransfer()}
       />
     </AppShell>
   );

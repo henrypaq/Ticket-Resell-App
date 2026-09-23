@@ -53,6 +53,7 @@ export default async function proxy(request: NextRequest) {
     "/sell",
     "/upcoming",
     "/done",
+    "/setup",
     "/member",
     "/go",
     "/go/buy",

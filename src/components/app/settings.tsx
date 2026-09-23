@@ -12,6 +12,7 @@ import {
 import { SUPPORT_CATEGORIES, type BetaSignupProfile } from "@/domains/beta-signup/shared";
 import type { ProfilePrefillData } from "@/domains/beta-quick/shared";
 import { SaveProfileCard } from "./save-profile";
+import { GoogleContinueButton } from "./google-continue-button";
 import { BETA_SOCIALS } from "@/lib/beta-events";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_ISO2, countryByIso2 } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
@@ -80,6 +81,12 @@ export function AppSettings({
       ) : (
         <section>
           <p className="section-header mb-4 text-[12px] text-muted">Personal info</p>
+          <div className="mb-4">
+            <GoogleContinueButton
+              nextPath="/setup?intent=buy&next=%2Fsettings"
+              label="Sign in with Google"
+            />
+          </div>
           <SaveProfileCard
             prefill={{
               name: prefill?.name,

@@ -1,22 +1,13 @@
 import type { Metadata } from "next";
 import { QuickBuyFlow } from "@/components/app/buy-flow";
 import { loadSavedGoContact } from "@/domains/beta-quick/actions";
-import { betaEventBySlug, goSelectableEvents, type BetaEvent } from "@/lib/beta-events";
+import { getBoardSelectableEvents } from "@/domains/beta-events/catalog";
 
 export const metadata: Metadata = {
   title: "I need a ticket · mcgill.tickets",
 };
 
 export const dynamic = "force-dynamic";
-
-function resolveEvents(initialEventSlug: string | null): BetaEvent[] {
-  const base = goSelectableEvents();
-  if (!initialEventSlug) return base;
-  const preset = betaEventBySlug(initialEventSlug);
-  if (!preset) return base;
-  if (base.some((e) => e.slug === preset.slug)) return base;
-  return [preset, ...base];
-}
 
 export default async function BuyPage({
   searchParams,
@@ -25,16 +16,18 @@ export default async function BuyPage({
 }) {
   const params = await searchParams;
   const raw = params.event;
-  const initialEventSlug = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : null;
+  const requested = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : null;
 
-  const events = resolveEvents(initialEventSlug);
+  const events = await getBoardSelectableEvents();
+  const lockedSlug =
+    requested && events.some((e) => e.slug === requested) ? requested : null;
   const savedContact = await loadSavedGoContact();
 
   return (
     <QuickBuyFlow
       events={events}
       savedContact={savedContact}
-      initialEventSlug={initialEventSlug}
+      initialEventSlug={lockedSlug}
     />
   );
 }

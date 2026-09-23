@@ -2,138 +2,48 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
+import { TransactionsBoard } from "@/components/beta-ops/transactions-board";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
-import { getOpsStats, listQuickLeads } from "@/domains/beta-ops/service";
-import { ACQUISITION_CHANNEL_LABELS, formatAcquisitionSource } from "@/lib/beta-acquisition";
-import { Badge } from "@/components/ui/badge";
+import { getOpsStats } from "@/domains/beta-ops/service";
+import { listOpsTransactions } from "@/domains/beta-ops/transactions";
+import { reconcileExpiredOffers } from "@/domains/beta-matching/service";
 
 export const metadata: Metadata = {
-  title: "Ops · mcgill.tickets",
+  title: "Transactions · Ops · mcgill.tickets",
   robots: { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";
 
-export default async function OpsOverviewPage() {
+export default async function OpsTransactionsPage() {
   if (!(await getBetaOpsSession())) redirect("/ops/login");
 
-  const [stats, recent] = await Promise.all([getOpsStats(), listQuickLeads()]);
-  const newest = recent.slice(0, 6);
+  // Sweep expiries when ops opens the hub (Hobby cron is daily-only).
+  await reconcileExpiredOffers().catch(() => {});
+
+  const [board, stats] = await Promise.all([listOpsTransactions(), getOpsStats()]);
 
   return (
-    <OpsChrome active="overview">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Overview</h1>
-        <p className="mt-1 text-xs sm:text-sm text-zinc-400">
-          Classic questionnaire members and live /go buy &amp; sell queue.
-        </p>
-      </div>
+    <OpsChrome active="transactions">
+      <TransactionsBoard board={board} />
 
-      <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-        <Stat label="Classic members" value={stats.classicMembers} href="/ops/members" />
-        <Stat label="New waitlist" value={stats.buyNew} href="/ops/waitlist" />
-        <Stat label="New sellers" value={stats.sellNew} href="/ops/sellers" />
-        <Stat label="Open waitlist" value={stats.buyOpen} href="/ops/waitlist" />
-        <Stat label="Open sellers" value={stats.sellOpen} href="/ops/sellers" />
-        <Stat label="Completed" value={stats.done} href="/ops/waitlist" />
-      </div>
-
-      {stats.bySource.length > 0 && (
-        <section className="mt-7">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Members by source
-          </h2>
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {stats.bySource.map((row) => (
-              <Link
-                key={row.channel}
-                href="/ops/members"
-                className="inline-flex items-center gap-1.5 rounded-md bg-zinc-900/80 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
-              >
-                <span>
-                  {row.channel in ACQUISITION_CHANNEL_LABELS
-                    ? ACQUISITION_CHANNEL_LABELS[
-                        row.channel as keyof typeof ACQUISITION_CHANNEL_LABELS
-                      ]
-                    : formatAcquisitionSource(row.channel)}
-                </span>
-                <span className="text-zinc-500">· {row.count}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {stats.leadsBySource.length > 0 && (
-        <section className="mt-7">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Leads by link / QR
-          </h2>
-          <p className="mt-1 text-[11px] text-zinc-500">
-            Last-touch on each buy/sell — Instagram stories, flyers, custom tags.
-          </p>
-          <ul className="mt-2.5 flex flex-col gap-1">
-            {stats.leadsBySource.slice(0, 12).map((row) => (
-              <li
-                key={row.channel}
-                className="flex items-center justify-between gap-3 rounded-lg bg-zinc-900/60 px-3 py-2 text-xs text-zinc-300"
-              >
-                <span className="min-w-0 truncate font-medium">
-                  {formatAcquisitionSource(row.channel)}
-                </span>
-                <span className="shrink-0 tabular-nums text-zinc-500">
-                  {row.buy} buy · {row.sell} sell · {row.count}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="mt-8">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Latest /go leads
-          </h2>
-          <Link
-            href="/ops/waitlist"
-            className="text-xs font-medium text-zinc-400 hover:text-zinc-200"
-          >
-            See all
-          </Link>
+      <section className="mt-10 border-t border-zinc-800 pt-8">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+          Queue snapshot
+        </h2>
+        <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <Stat label="New waitlist" value={stats.buyNew} href="/ops/waitlist" />
+          <Stat label="Open waitlist" value={stats.buyOpen} href="/ops/waitlist" />
+          <Stat label="New sellers" value={stats.sellNew} href="/ops/sellers" />
+          <Stat label="Open sellers" value={stats.sellOpen} href="/ops/sellers" />
         </div>
-        {newest.length === 0 ? (
-          <p className="mt-3 text-xs text-zinc-500">No /go leads yet — share mcgilltickets.party/go.</p>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-1.5">
-            {newest.map((lead) => (
-              <li
-                key={lead.id}
-                className="flex items-center justify-between gap-3 rounded-lg bg-zinc-900/60 px-3.5 py-2.5 transition-colors hover:bg-zinc-900/90"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-zinc-200">
-                    {lead.intent === "buy" ? "Need" : "Sell"} · {lead.eventName}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-zinc-400 truncate">
-                    ×{lead.quantity}
-                    {lead.acquisitionChannel
-                      ? ` · ${formatAcquisitionSource(lead.acquisitionChannel)}`
-                      : " · untagged"}
-                    {lead.contactInstagram
-                      ? ` · @${lead.contactInstagram}`
-                      : lead.contactPhone
-                        ? ` · ${lead.contactPhone}`
-                        : ""}
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-[10px] uppercase font-semibold px-2 py-0.5">
-                  {lead.status}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        )}
+        <p className="mt-3 text-[11px] text-zinc-600">
+          Matching controls and unit allocation live on{" "}
+          <Link href="/ops/offers" className="text-zinc-400 underline underline-offset-2">
+            Offers
+          </Link>
+          .
+        </p>
       </section>
     </OpsChrome>
   );

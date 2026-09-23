@@ -1,20 +1,29 @@
 import Link from "next/link";
 import type { ProfilePrefillData } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
-import { SaveProfileCard } from "./save-profile";
+import { SECONDARY_BUTTON_CLASS } from "./event-pieces";
 import { AppFlowShell } from "./shell";
+import { GoogleContinueButton } from "./google-continue-button";
+import { CafeCampusTransferCard } from "./cafe-campus-transfer-card";
+
+function setupHref(intent: "buy" | "sell", returnTo: string): string {
+  const params = new URLSearchParams({ intent, next: returnTo });
+  return `/setup?${params.toString()}`;
+}
 
 /**
- * Terminal screen for both flows, and the only place the app asks anyone to
- * create a profile. Nothing is gated on having one: the contact cookie
- * already carries this device, so the pitch is portability and alerts, not
- * access.
+ * Terminal screen for both flows, and the entry point into optional account
+ * setup. Nothing is gated on having a profile: the contact cookie already
+ * carries this device, so the pitch is portability and alerts, not access.
  */
 export function DoneScreen({
   intent,
   prefill,
   hasProfile,
   offerId,
+  cafeTransfer,
+  sellLeadId,
+  sellerTicketSentAt,
 }: {
   intent: "buy" | "sell";
   /** Null when they already have a profile, or when there's nothing to build on. */
@@ -22,15 +31,26 @@ export function DoneScreen({
   hasProfile: boolean;
   /** When set, a ticket is already held — jump to pay. */
   offerId?: string | null;
+  /** Café Campus custody destination when this was a café sell. */
+  cafeTransfer?: { name: string; email: string } | null;
+  sellLeadId?: string | null;
+  sellerTicketSentAt?: string | null;
 }) {
   if (intent === "sell") {
     return (
       <AppFlowShell>
-        <SellConfirmation />
+        <SellConfirmation
+          showSetup={!hasProfile && Boolean(prefill)}
+          cafeTransfer={cafeTransfer ?? undefined}
+          sellLeadId={sellLeadId}
+          sellerTicketSentAt={sellerTicketSentAt}
+        />
       </AppFlowShell>
     );
   }
 
+  const returnTo = offerId ? `/offer/${offerId}` : "/";
+  const setupPath = setupHref("buy", returnTo);
   const headline = offerId ? "A ticket is ready for you" : "You're on the waitlist";
   const sub = offerId
     ? "This ticket is held exclusively for you. Claim it and send Interac payment to complete the purchase."
@@ -49,21 +69,6 @@ export function DoneScreen({
             : "Your place in line is on your home page. You can update quantity or contact details anytime."}
         </p>
 
-        {prefill && (
-          <div className="mt-8">
-            <SaveProfileCard
-              prefill={{
-                name: prefill.name,
-                email: prefill.email,
-                phone: prefill.phone,
-                intent: prefill.intent ?? intent,
-                eventName: prefill.eventName,
-                referralSource: prefill.referralSource,
-              }}
-            />
-          </div>
-        )}
-
         {offerId ? (
           <Link href={`/offer/${offerId}`} className={`${BUTTON_CLASS} mt-8 w-full`}>
             Claim &amp; pay
@@ -74,8 +79,27 @@ export function DoneScreen({
           </Link>
         )}
 
+        {!hasProfile && prefill && (
+          <section className="mt-10 border-t border-white/10 pt-8">
+            <h2 className="text-[15px] font-semibold text-ink">Finish your account</h2>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+              Optional — save your details so matches follow you across devices, and add Interac
+              payout info for when you sell.
+            </p>
+            <div className="mt-5 flex flex-col gap-3">
+              <GoogleContinueButton nextPath={setupPath} />
+              <Link
+                href={setupPath}
+                className={`${SECONDARY_BUTTON_CLASS} min-h-[52px] w-full text-[15px]`}
+              >
+                Continue with email
+              </Link>
+            </div>
+          </section>
+        )}
+
         {hasProfile && (
-          <p className="mt-4 text-center text-[13px] text-muted">
+          <p className="mt-6 text-center text-[13px] text-muted">
             Alerts go out fast when a match comes up —{" "}
             <Link
               href="/settings"
@@ -92,7 +116,18 @@ export function DoneScreen({
 }
 
 /** Shared sell success — also rendered inline so submit doesn't wait on a second page load. */
-export function SellConfirmation() {
+export function SellConfirmation({
+  showSetup = false,
+  cafeTransfer,
+  sellLeadId,
+  sellerTicketSentAt,
+}: {
+  showSetup?: boolean;
+  cafeTransfer?: { name: string; email: string };
+  sellLeadId?: string | null;
+  sellerTicketSentAt?: string | null;
+}) {
+  const setupPath = setupHref("sell", "/");
   return (
     <div className="flex flex-1 flex-col">
       <p className="text-[17px] font-semibold tracking-tight text-[#ffe500]">mcgill.tickets</p>
@@ -106,9 +141,39 @@ export function SellConfirmation() {
       <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
         Your listing remains on your home page until it sells or you remove it.
       </p>
+
+      {cafeTransfer && (
+        <div className="mt-8">
+          <CafeCampusTransferCard
+            name={cafeTransfer.name}
+            email={cafeTransfer.email}
+            sellLeadId={sellLeadId}
+            alreadyDeclared={Boolean(sellerTicketSentAt)}
+          />
+        </div>
+      )}
+
       <Link href="/" className={`${BUTTON_CLASS} mt-10 w-full`}>
         Go back home
       </Link>
+
+      {showSetup && (
+        <section className="mt-10 border-t border-white/10 pt-8">
+          <h2 className="text-[15px] font-semibold text-ink">Finish your account</h2>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+            Optional — save your details so listings follow you across devices.
+          </p>
+          <div className="mt-5 flex flex-col gap-3">
+            <GoogleContinueButton nextPath={setupPath} />
+            <Link
+              href={setupPath}
+              className={`${SECONDARY_BUTTON_CLASS} min-h-[52px] w-full text-[15px]`}
+            >
+              Continue with email
+            </Link>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

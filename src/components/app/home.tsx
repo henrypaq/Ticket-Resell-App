@@ -25,6 +25,7 @@ import { COUNTRY_CODES } from "@/lib/country-codes";
 import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./flow-fields";
 import { EventIntentView, EventPoster, SECONDARY_BUTTON_CLASS } from "./event-pieces";
 import { EventRequestSection } from "./event-request";
+import { CafeCampusTransferCard } from "./cafe-campus-transfer-card";
 
 function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
   if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
@@ -49,11 +50,13 @@ export function AppHome({
   tonightDay,
   waitlist,
   activity,
+  cafeTransfer,
 }: {
   tonight: BetaEvent[];
   tonightDay: BetaWeekday;
   waitlist: QuickWaitlistEntry[];
   activity: GoActivityEntry[];
+  cafeTransfer?: { name: string; email: string } | null;
 }) {
   const [selected, setSelected] = useState<{ event: BetaEvent; day: BetaWeekday } | null>(null);
   const [editing, setEditing] = useState<QuickWaitlistEntry | null>(null);
@@ -155,7 +158,11 @@ export function AppHome({
               <p className="section-header text-[11px] text-muted">Your tickets for sale</p>
               <ul className="mt-3 flex flex-col gap-2">
                 {activeSells.map((entry) => (
-                  <SellListingRow key={entry.leadId} entry={entry} />
+                  <SellListingRow
+                    key={entry.leadId}
+                    entry={entry}
+                    cafeTransfer={cafeTransfer}
+                  />
                 ))}
               </ul>
             </>
@@ -283,11 +290,22 @@ function ReactivateSeatButton({ seatKey }: { seatKey: string }) {
   );
 }
 
-function SellListingRow({ entry }: { entry: GoActivityEntry }) {
+function SellListingRow({
+  entry,
+  cafeTransfer,
+}: {
+  entry: GoActivityEntry;
+  cafeTransfer?: { name: string; email: string } | null;
+}) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const showCustody =
+    Boolean(cafeTransfer) &&
+    entry.eventSlug === "cafe-campus" &&
+    entry.status !== "cancelled" &&
+    entry.status !== "done";
 
   function onRemove() {
     const ok = window.confirm(
@@ -311,6 +329,21 @@ function SellListingRow({ entry }: { entry: GoActivityEntry }) {
     });
   }
 
+  const statusLine =
+    entry.saleStage === "payout_released"
+      ? " · sold · payment released"
+      : entry.saleStage === "awaiting_transfer"
+        ? " · sold — transfer the ticket"
+        : entry.ticketReceivedAt
+          ? " · ticket received by us"
+          : entry.sellerTicketSentAt
+            ? " · transfer confirmed — waiting on us"
+            : entry.status === "done"
+              ? " · sold"
+              : entry.status === "matched"
+                ? " · matched"
+                : " · listed";
+
   return (
     <li className="relative rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -319,15 +352,7 @@ function SellListingRow({ entry }: { entry: GoActivityEntry }) {
           <p className="mt-0.5 text-[12.5px] text-muted">
             ×{entry.quantity}
             {entry.askEach != null ? ` · $${entry.askEach.toFixed(0)} each` : ""}
-            {entry.saleStage === "payout_released"
-              ? " · sold · payment released"
-              : entry.saleStage === "awaiting_transfer"
-                ? " · sold — transfer the ticket"
-                : entry.status === "done"
-                  ? " · sold"
-                  : entry.status === "matched"
-                    ? " · matched"
-                    : " · listed"}
+            {statusLine}
           </p>
         </div>
         <div className="flex shrink-0 items-start gap-2">
@@ -385,6 +410,16 @@ function SellListingRow({ entry }: { entry: GoActivityEntry }) {
         <p role="alert" className="mt-2 text-[12.5px] text-urgency">
           {error}
         </p>
+      )}
+      {showCustody && cafeTransfer && !entry.sellerTicketSentAt && (
+        <div className="mt-3 border-t border-white/10 pt-3">
+          <CafeCampusTransferCard
+            name={cafeTransfer.name}
+            email={cafeTransfer.email}
+            compact
+            sellLeadId={entry.leadId}
+          />
+        </div>
       )}
     </li>
   );

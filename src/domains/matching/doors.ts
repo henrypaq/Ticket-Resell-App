@@ -7,9 +7,8 @@
  * Tuesday–Saturday), so "the doors time" is really "the next
  * occurrence of this event's nearest upcoming night".
  *
- * Pure, and built entirely on the existing date helpers in `lib/beta-events` —
- * the pre-6am nightlife rule (a Saturday event is still tonight at 2am Sunday)
- * lives there and is not reimplemented here.
+ * Pure helpers take a `BetaEvent`; slug helpers load the live catalog (DB +
+ * static seeds) so ops-created nights get the right clocks.
  */
 
 import {
@@ -18,6 +17,7 @@ import {
   eventDayDateKey,
   montrealDateParts,
   nightlifeDateKey,
+  type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
 
@@ -50,24 +50,28 @@ export function montrealInstant(dateKey: string, hour: number): Date {
   return new Date(guess);
 }
 
+export function doorsHourFor(event: BetaEvent | undefined): number {
+  return event?.doorsHour ?? DEFAULT_DOORS_HOUR;
+}
+
+/** Sync fallback for static seeds / tests. Prefer `resolveDoorsHourForEvent`. */
 export function doorsHourForEvent(eventSlug: string): number {
-  return betaEventBySlug(eventSlug)?.doorsHour ?? DEFAULT_DOORS_HOUR;
+  return doorsHourFor(betaEventBySlug(eventSlug));
+}
+
+export async function resolveDoorsHourForEvent(eventSlug: string): Promise<number> {
+  const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
+  return doorsHourFor((await getBetaEventBySlug(eventSlug)) ?? betaEventBySlug(eventSlug));
 }
 
 /**
  * Doors for the nearest upcoming night of this event, or null when the event
- * has no scheduled nights at all (interest-only options like `stereo`, which
- * are demand signal rather than something with a date).
- *
- * A night that has already passed rolls forward a week rather than returning a
- * time in the past — a doors time behind `now` would read as "inside the open
- * window" and suppress exclusivity for an event that is actually days away.
+ * has no scheduled nights at all.
  */
-export function doorsAtForEvent(eventSlug: string, now: Date = new Date()): Date | null {
-  const event = betaEventBySlug(eventSlug);
+export function doorsAtFor(event: BetaEvent | undefined, now: Date = new Date()): Date | null {
   if (!event) return null;
 
-  const hour = doorsHourForEvent(eventSlug);
+  const hour = doorsHourFor(event);
   const currentKey = nightlifeDateKey(now);
   const fromDays = (event.days ?? []).map((day: BetaWeekday) => {
     const s = eventDayDateKey(day, now);
@@ -86,22 +90,28 @@ export function doorsAtForEvent(eventSlug: string, now: Date = new Date()): Date
 
   if (upcoming.length > 0) {
     const next = upcoming[0]!;
-    const doors = montrealInstant(next.dateKey, hour);
-    // Tonight's doors may already be behind us (it's 1am and the event started
-    // at 22:00). The night is still live — nightlife dates run to 6am — but the
-    // exclusivity window is over, so report doors as-is and let the policy
-    // treat it as the open regime.
-    return doors;
+    return montrealInstant(next.dateKey, hour);
   }
 
-  // Every night in this weekend cycle is behind us: next week's earliest.
   const earliest = [...schedules].sort((a, b) => a.dateKey.localeCompare(b.dateKey))[0]!;
   const base = montrealInstant(earliest.dateKey, hour);
   if (Number.isNaN(base.getTime())) return null;
-  // Re-resolve through the date key so the result stays correct across a DST
-  // boundary inside that week rather than drifting by an hour.
   const rolled = new Date(base.getTime() + 7 * DAY_MS);
   const parts = montrealDateParts(rolled);
   const rolledKey = `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
   return montrealInstant(rolledKey, hour);
+}
+
+/** Sync fallback using static seeds. Prefer `resolveDoorsAtForEvent` in matching. */
+export function doorsAtForEvent(eventSlug: string, now: Date = new Date()): Date | null {
+  return doorsAtFor(betaEventBySlug(eventSlug), now);
+}
+
+export async function resolveDoorsAtForEvent(
+  eventSlug: string,
+  now: Date = new Date(),
+): Promise<Date | null> {
+  const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
+  const event = (await getBetaEventBySlug(eventSlug)) ?? betaEventBySlug(eventSlug);
+  return doorsAtFor(event, now);
 }

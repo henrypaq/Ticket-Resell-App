@@ -280,6 +280,24 @@ export function goSelectableEvents(from: Date = new Date()): BetaEvent[] {
 }
 
 /**
+ * Unique supported events that appear on the public board for any upcoming
+ * nightlife day (same set as /upcoming). Use for buy/sell pickers so deep
+ * links and "I need a ticket" never surface unlisted venues.
+ */
+export function boardSelectableEvents(from: Date = new Date()): BetaEvent[] {
+  const seen = new Set<string>();
+  const out: BetaEvent[] = [];
+  for (const [, events] of groupEventsByUpcomingDays(supportedBetaEvents(), from)) {
+    for (const event of events) {
+      if (seen.has(event.slug)) continue;
+      seen.add(event.slug);
+      out.push(event);
+    }
+  }
+  return out;
+}
+
+/**
  * Dropdown options for the given night — only events running tonight.
  */
 export function tonightEventOptions(from: Date = new Date()): UpcomingEventOption[] {

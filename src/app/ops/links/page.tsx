@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
 import { LinksGenerator } from "@/components/beta-ops/links-generator";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
-import { supportedBetaEvents } from "@/lib/beta-events";
+import { getSupportedBetaEvents } from "@/domains/beta-events/catalog";
 
 export const metadata: Metadata = {
   title: "Links · Ops · mcgill.tickets",
@@ -23,7 +23,7 @@ function siteOrigin(): string {
 export default async function OpsLinksPage() {
   if (!(await getBetaOpsSession())) redirect("/ops/login");
 
-  const events = supportedBetaEvents().map((e) => ({ slug: e.slug, name: e.name }));
+  const events = (await getSupportedBetaEvents()).map((e) => ({ slug: e.slug, name: e.name }));
 
   return (
     <OpsChrome active="links">

@@ -262,10 +262,10 @@ per event, sorted by `created_at` with the seat key as tiebreaker.
 **Rank is `created_at`, forever** — being skipped, declining, or going dormant
 never costs you your place. Only *eligibility* changes.
 
-**Fake-front padding** (`beta-queue/padding.ts`): displayed positions are
-offset by a per-event number (Café Campus 6, others 2) so an empty queue
-doesn't read as dead. Critically, `rankOfSeat()` operates on the *real* seat
-list only — marketing padding can never steal rank 1 from a real person. That
+**Fake-front padding** (`beta-queue/padding.ts`): displayed positions can be
+offset by a per-event number set in `/ops/waitlist` (default **0** — real
+ranks only). Critically, `rankOfSeat()` operates on the *real* seat list only
+— marketing padding can never steal rank 1 from a real person. That
 separation is deliberate and worth saying out loud.
 
 ### 6.4 The clocks — `domains/beta-matching/policy.ts`
@@ -277,7 +277,7 @@ Pure functions, no I/O, no clock of their own. Every entry point takes `now`.
 MATCHING_DEFAULTS
   responseMs            45 min   offered → accept/decline
   paymentMs              2 h     accepted → paid
-  shortResponseMs       15 min   both clocks, inside the short window
+  shortResponseMs       20 min   both clocks, inside the short window
   shortWindowMs          6 h     to doors → short clocks
   openWindowMs           2 h     to doors → no exclusivity at all
   exclusivityMaxRanks    3       ranks tried before the unit opens up
@@ -289,7 +289,7 @@ MATCHING_DEFAULTS
 **Three modes, chosen by distance to doors** (`matchingModeAt`):
 
 - `exclusive` — full clocks, one holder at a time.
-- `short_window` (≤6 h) — clocks compress to 15 minutes.
+- `short_window` (≤6 h) — clocks compress to 20 minutes.
 - `open` (≤2 h) — exclusivity is suspended entirely. `acceptOffer` refuses:
   *"Too close to doors — claim only when payment is confirmed."* First money
   wins, because parking a ticket on an unpaid promise an hour before doors

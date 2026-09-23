@@ -35,17 +35,12 @@ function splitPhone(e164: string | null | undefined): { iso2: string; national: 
 }
 
 /**
- * Offered after a buy/sell flow, never before one. Everything we already know
- * is prefilled from what they typed during the flow, so the ask is usually
- * just a name and an email.
- *
- * Saving is genuinely optional: the contact cookie already carries their
- * details on this device. What a profile buys them is the same history on a
- * second device, and alerts by email.
+ * Compact save-profile form for Settings when this device has no member yet.
+ * The post-flow path uses `/setup` instead (account + Interac).
  */
 export function SaveProfileCard({
   prefill,
-  heading = "Save your profile?",
+  heading = "Save your profile",
   blurb = "So your tickets and waitlist spots follow you to your other devices — and we can reach you when there's a match.",
   onSaved,
 }: {
@@ -71,7 +66,7 @@ export function SaveProfileCard({
 
   if (state.ok) {
     return (
-      <section className="rounded-[20px] border border-[#6ee1ff]/30 bg-[#6ee1ff]/[0.07] px-5 py-5">
+      <section className="rounded-[16px] border border-white/10 bg-white/[0.03] px-5 py-5">
         <div className="flex items-center gap-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#6ee1ff]/25 text-[14px] font-bold text-[#6ee1ff]">
             ✓
@@ -94,10 +89,8 @@ export function SaveProfileCard({
   }
 
   return (
-    <section className="rounded-[20px] border border-[#ffe500]/25 bg-[#ffe500]/[0.06] px-5 py-5">
-      <h2 className="headline text-[20px] uppercase leading-[1.15] tracking-tight text-ink">
-        {heading}
-      </h2>
+    <section className="rounded-[16px] border border-white/10 bg-white/[0.03] px-5 py-5">
+      <h2 className="text-[16px] font-semibold leading-snug text-ink">{heading}</h2>
       <p className="mt-2 text-[13.5px] leading-relaxed text-muted">{blurb}</p>
 
       <form action={formAction} className="mt-4 flex flex-col gap-3">
@@ -120,7 +113,7 @@ export function SaveProfileCard({
           />
         </Field>
 
-        <Field label="Email" htmlFor="save-email">
+        <Field label="Account email" htmlFor="save-email">
           <input
             id="save-email"
             type="email"

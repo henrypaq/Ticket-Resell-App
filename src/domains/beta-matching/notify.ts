@@ -1,24 +1,22 @@
 /**
  * Notify a waitlist seat or seller about an offer lifecycle event.
  * Soft-fail: never throws into the matching path.
+ *
+ * Email only for now — SMS helpers stay in the codebase but are not called.
  */
 
 import "server-only";
 
 import { sendEmail } from "@/lib/email/resend";
-import { sendSms } from "@/lib/twilio/sms";
+import {
+  eventRequestReceivedEmail,
+  lifecycleEmail,
+  type LifecycleNotifyKind,
+} from "@/lib/email/user-notification-templates";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { betaEventBySlug } from "@/lib/beta-events";
+import type { BetaEvent } from "@/lib/beta-events";
 
-export type OfferNotifyKind =
-  | "offered"
-  | "reminder"
-  | "expired"
-  | "paid"
-  | "next_up"
-  | "reactivate"
-  | "seller_sale_paid"
-  | "seller_payout_released";
+export type OfferNotifyKind = LifecycleNotifyKind;
 
 function siteOrigin(): string {
   return (
@@ -32,63 +30,52 @@ function offerUrl(offerId: string): string {
   return `${siteOrigin()}/offer/${offerId}`;
 }
 
-function copyFor(
-  kind: OfferNotifyKind,
-  args: { eventName: string; price: number; offerId?: string; deadline?: string },
-): { sms: string; subject: string; text: string } {
-  const link = args.offerId ? offerUrl(args.offerId) : siteOrigin();
-  const home = siteOrigin();
-  const price = `$${args.price.toFixed(2)}`;
-  switch (kind) {
-    case "offered":
-      return {
-        sms: `mcgill.tickets: A ticket for ${args.eventName} is yours at ${price} if you claim it${args.deadline ? ` by ${args.deadline}` : ""}. ${link} Reply STOP to opt out.`,
-        subject: `Ticket ready — ${args.eventName}`,
-        text: `A ticket for ${args.eventName} is being held for you at ${price}.${args.deadline ? ` Respond by ${args.deadline}.` : ""}\n\nClaim it, then you'll get Interac details on the next screen: ${link}\n\n— mcgill.tickets`,
-      };
-    case "reminder":
-      return {
-        sms: `mcgill.tickets: Reminder — your ${args.eventName} ticket hold is still open (${price}). ${link}`,
-        subject: `Reminder: ${args.eventName} ticket hold`,
-        text: `Your hold for ${args.eventName} at ${price} is still open.\n\n${link}\n\n— mcgill.tickets`,
-      };
-    case "expired":
-      return {
-        sms: `mcgill.tickets: Your hold for ${args.eventName} expired. You're still on the waitlist for a better match.`,
-        subject: `Hold expired — ${args.eventName}`,
-        text: `Your hold for ${args.eventName} expired. You're still on the waitlist — we'll ping you if another ticket fits.\n\n— mcgill.tickets`,
-      };
-    case "paid":
-      return {
-        sms: `mcgill.tickets: Payment confirmed for ${args.eventName}. We'll transfer the ticket shortly.`,
-        subject: `Payment confirmed — ${args.eventName}`,
-        text: `We confirmed your payment for ${args.eventName}. We'll transfer the ticket shortly.\n\nReceipt: ${link}\n\n— mcgill.tickets`,
-      };
-    case "next_up":
-      return {
-        sms: `mcgill.tickets: You're next for ${args.eventName} if the current hold falls through. Stay ready.`,
-        subject: `You're next — ${args.eventName}`,
-        text: `You're next in line for ${args.eventName} if the current hold falls through. No action needed yet.\n\n— mcgill.tickets`,
-      };
-    case "reactivate":
-      return {
-        sms: `mcgill.tickets: Welcome back — we'll hold tickets for you again on ${args.eventName}.`,
-        subject: `Waitlist reactivated — ${args.eventName}`,
-        text: `You're active on the ${args.eventName} waitlist again. We'll hold matching tickets for you.\n\n— mcgill.tickets`,
-      };
-    case "seller_sale_paid":
-      return {
-        sms: `mcgill.tickets: Your ${args.eventName} ticket sold at ${price}. Transfer it within 30 minutes — then we release your payout. ${home}`,
-        subject: `Sold — transfer your ${args.eventName} ticket`,
-        text: `A buyer paid ${price} for your ${args.eventName} ticket.\n\nPlease transfer the ticket within 30 minutes. Once we confirm the transfer, we release your Interac payout.\n\n${home}\n\n— mcgill.tickets`,
-      };
-    case "seller_payout_released":
-      return {
-        sms: `mcgill.tickets: Payment released for your ${args.eventName} sale (${price}). Check your Interac — payout is on the way.`,
-        subject: `Payment released — ${args.eventName}`,
-        text: `Your ${args.eventName} ticket transfer is confirmed. We've released your payout of ${price} via Interac to the details on your listing.\n\n${home}\n\n— mcgill.tickets`,
-      };
+function payoutConfirmUrl(offerId: string): string {
+  return `${siteOrigin()}/payout/confirm?offer=${encodeURIComponent(offerId)}`;
+}
+
+const DAY_ABBR: Record<string, string> = {
+  Monday: "Mon",
+  Tuesday: "Tue",
+  Wednesday: "Wed",
+  Thursday: "Thu",
+  Friday: "Fri",
+  Saturday: "Sat",
+  Sunday: "Sun",
+};
+
+/** Human day/schedule line for email event cards. */
+export function betaEventDayLabel(event: BetaEvent): string {
+  if (event.days.length === 1) return event.days[0]!;
+  if (event.days.length > 1) {
+    const first = DAY_ABBR[event.days[0]!] ?? event.days[0]!;
+    const last = DAY_ABBR[event.days[event.days.length - 1]!] ?? event.days[event.days.length - 1]!;
+    return `${first}–${last}`;
   }
+  if (event.extraDateKeys?.length) {
+    const key = event.extraDateKeys[0]!;
+    const [y, m, d] = key.split("-").map(Number);
+    if (y && m && d) {
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      return dt.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      });
+    }
+  }
+  return event.venue;
+}
+
+export function absoluteFlyerUrl(
+  flyerUrl: string | null | undefined,
+  origin: string = siteOrigin(),
+): string | null {
+  if (!flyerUrl?.trim()) return null;
+  const raw = flyerUrl.trim();
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `${origin}${raw.startsWith("/") ? "" : "/"}${raw}`;
 }
 
 async function resolveContact(seatKey: string): Promise<{
@@ -131,12 +118,12 @@ async function resolveContact(seatKey: string): Promise<{
     }
     const { data: member } = await admin
       .from("beta_members")
-      .select("email, phone, notify_tickets_sms, notify_tickets_email")
+      .select("email, phone, notify_tickets_email")
       .eq("id", data.member_id)
       .maybeSingle();
     return {
-      phone: member?.notify_tickets_sms ? (member.phone ?? null) : null,
-      email: member?.notify_tickets_email ? (member.email ?? null) : null,
+      phone: null,
+      email: member?.notify_tickets_email === false ? null : (member?.email ?? null),
       eventSlug: data.event_slug,
     };
   }
@@ -157,38 +144,62 @@ async function resolveSellLeadContact(sellLeadId: string): Promise<{
   if (!data) return { phone: null, email: null, eventSlug: null };
 
   let email = (data.etransfer_email as string | null) ?? null;
-  let phone =
-    (data.contact_phone as string | null) ||
-    (data.etransfer_phone as string | null) ||
-    null;
-  if ((!email || !phone) && data.contact_id) {
+  if (!email && data.contact_id) {
     const { data: c } = await admin
       .from("beta_go_contacts")
-      .select("etransfer_email, etransfer_phone, contact_phone")
+      .select("etransfer_email")
       .eq("id", data.contact_id)
       .maybeSingle();
-    email = email || c?.etransfer_email || null;
-    phone = phone || c?.contact_phone || c?.etransfer_phone || null;
+    email = c?.etransfer_email || null;
   }
   return {
-    phone,
+    phone: null,
     email,
     eventSlug: (data.event_slug as string | null) ?? null,
   };
 }
 
+async function resolveBuyLeadContact(buyLeadId: string): Promise<{
+  email: string | null;
+  eventSlug: string | null;
+}> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("beta_go_leads")
+    .select("transfer_email, event_slug, contact_id")
+    .eq("id", buyLeadId)
+    .maybeSingle();
+  if (!data) return { email: null, eventSlug: null };
+  let email = (data.transfer_email as string | null) ?? null;
+  if (!email && data.contact_id) {
+    const { data: c } = await admin
+      .from("beta_go_contacts")
+      .select("etransfer_email")
+      .eq("id", data.contact_id)
+      .maybeSingle();
+    email = c?.etransfer_email ?? null;
+  }
+  return { email, eventSlug: (data.event_slug as string | null) ?? null };
+}
+
 async function sendNotify(
   kind: OfferNotifyKind,
-  contact: { phone: string | null; email: string | null; eventSlug: string | null },
+  contact: { email: string | null; eventSlug: string | null },
   args: {
     priceEach: number;
     offerId?: string;
     eventSlug?: string;
     deadlineIso?: string | null;
+    quantity?: number;
   },
 ): Promise<void> {
+  if (!contact.email) return;
+
   const slug = args.eventSlug ?? contact.eventSlug ?? "";
-  const eventName = betaEventBySlug(slug)?.name ?? (slug || "your event");
+  const origin = siteOrigin();
+  const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
+  const event = slug ? await getBetaEventBySlug(slug) : undefined;
+  const eventName = event?.name ?? (slug || "your event");
   const deadline = args.deadlineIso
     ? new Date(args.deadlineIso).toLocaleString("en-CA", {
         timeZone: "America/Toronto",
@@ -198,24 +209,34 @@ async function sendNotify(
         minute: "2-digit",
       })
     : undefined;
-  const copy = copyFor(kind, {
+
+  const { platformTicketTransfer } = await import("@/lib/env");
+  const custody = slug === "cafe-campus" ? platformTicketTransfer() : null;
+
+  const copy = lifecycleEmail(kind, {
     eventName,
     price: args.priceEach,
     offerId: args.offerId,
     deadline,
+    eventSlug: slug,
+    transferName: custody?.name,
+    transferEmail: custody?.email,
+    quantity: args.quantity,
+    appUrl: origin,
+    offerUrl: args.offerId ? offerUrl(args.offerId) : undefined,
+    payoutConfirmUrl: args.offerId ? payoutConfirmUrl(args.offerId) : undefined,
+    flyerUrl: event ? absoluteFlyerUrl(event.flyerUrl, origin) : null,
+    eventDay: event ? betaEventDayLabel(event) : null,
+    eventCity: event?.city ?? null,
   });
 
-  if (contact.phone) {
-    await sendSms(contact.phone, copy.sms);
-  }
-  if (contact.email) {
-    await sendEmail({
-      to: contact.email,
-      subject: copy.subject,
-      text: copy.text,
-      html: `<p>${copy.text.replace(/\n/g, "<br/>")}</p>`,
-    });
-  }
+  // SMS intentionally off until Twilio is productized.
+  await sendEmail({
+    to: contact.email,
+    subject: copy.subject,
+    text: copy.text,
+    html: copy.html,
+  });
 }
 
 export async function notifyOfferSeat(args: {
@@ -243,11 +264,16 @@ export async function notifyOfferSeat(args: {
 }
 
 export async function notifySellLead(args: {
-  kind: "seller_sale_paid" | "seller_payout_released";
+  kind:
+    | "seller_listed"
+    | "seller_sale_paid"
+    | "seller_ticket_received"
+    | "seller_payout_released";
   sellLeadId: string;
   priceEach: number;
   offerId?: string;
   eventSlug?: string;
+  quantity?: number;
 }): Promise<void> {
   try {
     const contact = await resolveSellLeadContact(args.sellLeadId);
@@ -259,6 +285,72 @@ export async function notifySellLead(args: {
         msg: "seller_notify_failed",
         kind: args.kind,
         sellLeadId: args.sellLeadId,
+        error: String(err),
+      }),
+    );
+  }
+}
+
+export async function notifyBuyLead(args: {
+  kind: "waitlist_joined";
+  buyLeadId: string;
+  eventSlug?: string;
+}): Promise<void> {
+  try {
+    const contact = await resolveBuyLeadContact(args.buyLeadId);
+    await sendNotify(args.kind, contact, {
+      priceEach: 0,
+      eventSlug: args.eventSlug ?? contact.eventSlug ?? undefined,
+    });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "buyer_notify_failed",
+        kind: args.kind,
+        buyLeadId: args.buyLeadId,
+        error: String(err),
+      }),
+    );
+  }
+}
+
+/** Soft-fail confirmation when someone requests an unsupported event. */
+export async function notifyUserEventRequestReceived(args: {
+  to: string;
+  eventNameRequested: string;
+  details?: string | null;
+}): Promise<void> {
+  const email = args.to.trim().toLowerCase();
+  if (!email || !email.includes("@")) return;
+
+  try {
+    const origin = siteOrigin();
+    const copy = eventRequestReceivedEmail({
+      eventNameRequested: args.eventNameRequested,
+      details: args.details,
+      appUrl: origin,
+    });
+    const result = await sendEmail({
+      to: email,
+      subject: copy.subject,
+      text: copy.text,
+      html: copy.html,
+    });
+    if (!result.ok && !result.skipped) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "event_request_email_failed",
+          error: result.error,
+        }),
+      );
+    }
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "event_request_email_failed",
         error: String(err),
       }),
     );

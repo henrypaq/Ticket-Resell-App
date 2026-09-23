@@ -169,8 +169,8 @@ export function OfferClaimPanel({
       {stage === "pay" && (
         <>
           <p className="mt-3 text-[15px] leading-relaxed text-muted">
-            Send the money now. We&apos;re matching you with the seller — if the ticket isn&apos;t
-            transferred within 30 minutes of us confirming your payment, you get a full refund.
+            Send payment to mcgill.tickets now. We hold your money until the ticket is transferred —
+            you&apos;re never sending funds directly to another student.
           </p>
           <p className="mt-4 rounded-2xl border border-hairline bg-card px-4 py-3 text-[14px] text-ink">
             Send before{" "}
@@ -185,6 +185,13 @@ export function OfferClaimPanel({
             paymentMemo={paymentMemo}
             etransfer={etransfer}
           />
+
+          <p className="mt-4 rounded-[14px] border border-white/10 bg-white/[0.03] px-4 py-3 text-[12.5px] leading-relaxed text-muted">
+            Please use Interac Autodeposit or complete the transfer promptly. If we haven&apos;t
+            received cleared funds within 2 hours of your confirmation, we cancel the hold and
+            refund any amount that did arrive — so the next buyer isn&apos;t blocked and your money
+            stays protected.
+          </p>
 
           <button
             type="button"

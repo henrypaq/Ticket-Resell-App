@@ -9,13 +9,18 @@ import {
   type AcquisitionChannel,
 } from "@/lib/beta-acquisition";
 import { GO_CONTACT_COOKIE } from "@/domains/beta-go/shared";
-import { adoptGoContactForMember, linkMemberToGoHistory } from "@/domains/beta-go/contacts";
+import {
+  adoptGoContactForMember,
+  linkMemberToGoHistory,
+  upsertGoContact,
+} from "@/domains/beta-go/contacts";
 import {
   QUICK_BUYER_COOKIE,
   QUICK_DRAFT_COOKIE,
   QUICK_SELLER_COOKIE,
 } from "@/domains/beta-quick/shared";
 import { demoLoginEnabled } from "@/lib/env";
+import { z } from "zod";
 import {
   betaSignupSchema,
   contactUpdateSchema,
@@ -170,6 +175,155 @@ export async function saveProfileAction(
   };
 }
 
+const finishAccountSchema = z
+  .object({
+    name: z.string().trim().min(1, "Enter your name.").max(120),
+    email: z
+      .string()
+      .trim()
+      .email("Enter a valid account email.")
+      .max(320)
+      .transform((value) => value.toLowerCase()),
+    phone: z
+      .string()
+      .trim()
+      .max(30)
+      .refine(
+        (value) => value === "" || value.replace(/\D/g, "").length >= 7,
+        "Enter a valid phone number.",
+      )
+      .default(""),
+    intent: z.enum(["buy", "sell", "both"]).default("both"),
+    eventName: z.string().trim().max(160).optional(),
+    referralSource: z.string().trim().max(160).optional(),
+    notifyOptIn: z.boolean().default(false),
+    etransferName: z.string().trim().min(1, "Enter the Interac name.").max(120),
+    etransferEmail: z.union([
+      z.literal(""),
+      z
+        .string()
+        .trim()
+        .email("Enter a valid Interac email.")
+        .max(320)
+        .transform((value) => value.toLowerCase()),
+    ]),
+    etransferPhone: z.string().trim().max(30).optional().default(""),
+    contactInstagram: z.string().trim().max(40).optional().default(""),
+  })
+  .superRefine((value, ctx) => {
+    const etPhoneOk = (value.etransferPhone ?? "").replace(/\D/g, "").length >= 7;
+    const etEmailOk = (value.etransferEmail ?? "").length > 3;
+    if (!etPhoneOk && !etEmailOk) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Add an Interac email or phone so we can pay you.",
+        path: ["etransferEmail"],
+      });
+    }
+    const phoneOk = value.phone.replace(/\D/g, "").length >= 7;
+    const igOk = (value.contactInstagram ?? "").replace(/^@+/, "").length >= 2;
+    if (!phoneOk && !igOk) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Add a phone number so we can save your Interac details.",
+        path: ["phone"],
+      });
+    }
+  });
+
+/**
+ * Multi-step account setup after buy/sell: creates the member profile and
+ * stores Interac payout details on the /go contact (separate from account email).
+ */
+export async function finishAccountSetupAction(
+  _prev: BetaActionState,
+  formData: FormData,
+): Promise<BetaActionState> {
+  const intentRaw = String(formData.get("intent") ?? "");
+  const parsed = finishAccountSchema.safeParse({
+    name: formData.get("name"),
+    email: formData.get("email"),
+    phone: formData.get("phone") || "",
+    intent: intentRaw === "buy" || intentRaw === "sell" ? intentRaw : "both",
+    eventName: formData.get("eventName") || undefined,
+    referralSource: formData.get("referralSource") || undefined,
+    notifyOptIn: formData.get("notifyOptIn") === "on",
+    etransferName: formData.get("etransferName"),
+    etransferEmail: formData.get("etransferEmail") || "",
+    etransferPhone: formData.get("etransferPhone") || "",
+    contactInstagram: formData.get("contactInstagram") || "",
+  });
+
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { error: issue?.message ?? "Check your details and try again." };
+  }
+
+  const data = parsed.data;
+  const existing = await findBetaSignupIdByEmail(data.email);
+  const returning = existing.ok && Boolean(existing.id);
+
+  const result = await submitBetaSignup({
+    name: data.name,
+    email: data.email,
+    phone: data.phone,
+    intent: data.intent,
+    interestedEvents: [],
+    interestedOther: data.eventName,
+    priority: "both",
+    school: undefined,
+    referralSource: data.referralSource,
+    notifyOptIn: data.notifyOptIn,
+    acquisitionChannel: await readAcquisitionChannel(),
+  });
+  if (!result.ok) return { error: result.error };
+
+  await setSignupCookie(result.id);
+
+  const cookieStore = await cookies();
+  const existingContactId = cookieStore.get(GO_CONTACT_COOKIE)?.value;
+  const contactResult = await upsertGoContact({
+    contactPhone: data.phone,
+    contactInstagram: data.contactInstagram,
+    etransferName: data.etransferName,
+    etransferEmail: data.etransferEmail || null,
+    etransferPhone: data.etransferPhone,
+    existingContactId:
+      existingContactId && UUID_RE.test(existingContactId) ? existingContactId : null,
+    memberId: result.id,
+  });
+
+  if (!contactResult.ok) {
+    // Profile is saved; Interac can be completed later in settings / next sell.
+    if (existingContactId && UUID_RE.test(existingContactId)) {
+      await adoptGoContactForMember({
+        contactId: existingContactId,
+        memberId: result.id,
+        force: true,
+      });
+    }
+    revalidatePath("/");
+    revalidatePath("/settings");
+    return {
+      ok: true,
+      message: returning
+        ? "Profile linked. Add Interac details next time you sell."
+        : "Profile saved. Add Interac details next time you sell.",
+    };
+  }
+
+  cookieStore.set(GO_CONTACT_COOKIE, contactResult.contact.id, COOKIE_BASE);
+
+  revalidatePath("/");
+  revalidatePath("/settings");
+  return {
+    ok: true,
+    message: returning
+      ? "Welcome back — account and payout details are saved on this device."
+      : "Account saved. Your tickets and payout details will follow you from now on.",
+  };
+}
+
 const zEmail = betaSignupSchema.shape.email;
 
 /**
@@ -237,6 +391,69 @@ export async function loadBetaProfile(): Promise<BetaSignupProfile | null> {
   const id = await getBetaSignupId();
   if (!id) return null;
   return getBetaSignupProfile(id);
+}
+
+/**
+ * If this browser has a Supabase Google (or other OAuth) session but no beta
+ * profile cookie yet, create/link a `beta_members` row from the session email
+ * and adopt the /go contact. Interac payout is still collected separately.
+ */
+export async function ensureBetaProfileFromSession(input?: {
+  intent?: "buy" | "sell" | "both";
+  eventName?: string | null;
+  referralSource?: string | null;
+}): Promise<{ ok: true; linked: boolean; memberId: string | null } | { ok: false; error: string }> {
+  const existingId = await getBetaSignupId();
+  if (existingId) {
+    return { ok: true, linked: false, memberId: existingId };
+  }
+
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return { ok: true, linked: false, memberId: null };
+  }
+
+  const meta = user.user_metadata ?? {};
+  const name =
+    String(meta.full_name ?? meta.name ?? meta.given_name ?? "").trim() ||
+    user.email.split("@")[0] ||
+    "Member";
+
+  const intent =
+    input?.intent === "buy" || input?.intent === "sell" ? input.intent : "both";
+
+  const result = await submitBetaSignup({
+    name: name.slice(0, 120),
+    email: user.email.toLowerCase(),
+    phone: "",
+    intent,
+    interestedEvents: [],
+    interestedOther: input?.eventName ?? undefined,
+    priority: "both",
+    school: undefined,
+    referralSource: input?.referralSource ?? undefined,
+    notifyOptIn: false,
+    acquisitionChannel: await readAcquisitionChannel(),
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  await setSignupCookie(result.id);
+
+  const cookieStore = await cookies();
+  const contactId = cookieStore.get(GO_CONTACT_COOKIE)?.value;
+  if (contactId && UUID_RE.test(contactId)) {
+    await adoptGoContactForMember({ contactId, memberId: result.id, force: true });
+  }
+
+  revalidatePath("/");
+  revalidatePath("/settings");
+  revalidatePath("/setup");
+  return { ok: true, linked: true, memberId: result.id };
 }
 
 export async function updateBetaContactAction(
