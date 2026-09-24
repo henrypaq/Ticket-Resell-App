@@ -116,13 +116,17 @@ export function FixedPriceEventScreen({
   });
 
   useEffect(() => {
-    if (!state.ok) return;
+    if (!state.ok || !state.leadId) return;
     void logBetaFlowStepAction({ intent: "buy", step: "submit", eventSlug: event.slug });
     logFlowCompleted({ intent: "buy", eventSlug: event.slug });
-    const params = new URLSearchParams({ event: event.slug });
-    if (state.leadId) params.set("lead", state.leadId);
-    router.replace(`/queue?${params.toString()}`);
-  }, [state.ok, state.leadId, router, event.slug]);
+    // Hard navigation so the buyer cookie from the server action is on the
+    // next request — soft replace was racing and dumping people back home.
+    const params = new URLSearchParams({
+      lead: state.leadId,
+      event: event.slug,
+    });
+    window.location.assign(`/queue?${params.toString()}`);
+  }, [state.ok, state.leadId, event.slug]);
 
   function handleBack() {
     if (phase === "checkout") {

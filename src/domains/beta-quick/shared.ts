@@ -24,6 +24,8 @@ export type QuickWaitlistEntry = {
   transferEmail?: string | null;
   /** Ticket transfer recipient name (fixed-price). */
   transferName?: string | null;
+  /** Event flyer for queue / waitlist banners. */
+  flyerUrl?: string | null;
 };
 
 /** Max tickets per /go buy waitlist or sell listing. */

@@ -55,12 +55,15 @@ function FixedPriceQueueView({
   onBack?: () => void;
 }) {
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
 
   // Keep the seat live so ops “ticket transferred” flips this screen without a reload.
   useEffect(() => {
     if (entry.ticketForwardedAt) return;
     const id = window.setInterval(() => {
+      setRefreshing(true);
       router.refresh();
+      window.setTimeout(() => setRefreshing(false), 900);
     }, 8_000);
     return () => window.clearInterval(id);
   }, [entry.ticketForwardedAt, router]);
@@ -77,26 +80,68 @@ function FixedPriceQueueView({
         <button
           type="button"
           onClick={onBack}
-          className="font-ui inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
+          className="font-ui mb-4 inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
         </button>
       ) : (
-        <p className="font-ui text-[13px] font-semibold tracking-[0.04em] text-ink/55">
+        <p className="font-ui mb-4 text-[13px] font-semibold tracking-[0.04em] text-ink/55">
           mcgill.tickets
         </p>
       )}
 
-      <header className={onBack ? "mt-8" : "mt-10"}>
-        <p className="section-header text-muted">Your place in line</p>
-        <h1 className="headline mt-3 text-[42px] leading-[1.05] tracking-tight text-ink sm:text-[48px]">
-          <span className="tabular-nums text-brand">#{entry.position}</span>
-        </h1>
-        <p className="mt-4 text-[17px] font-medium leading-snug tracking-tight text-ink">
-          {entry.eventName}
+      {entry.flyerUrl ? (
+        <div className="relative isolate h-[min(42vh,320px)] w-full shrink-0 overflow-hidden rounded-[20px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={entry.flyerUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-black/10" />
+          <div className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-16">
+            <p className="section-header text-white/70">Your place in line</p>
+            <h1 className="headline mt-1.5 text-[26px] leading-[1.1] tracking-tight text-white sm:text-[28px]">
+              {entry.eventName}
+            </h1>
+          </div>
+        </div>
+      ) : (
+        <header>
+          <p className="section-header text-muted">Your place in line</p>
+          <h1 className="headline mt-2 text-[26px] leading-[1.12] tracking-tight text-ink">
+            {entry.eventName}
+          </h1>
+        </header>
+      )}
+
+      <div className="mt-8 flex flex-col items-center text-center">
+        <div className="relative inline-flex items-center justify-center">
+          <p
+            className="font-ui text-[72px] font-bold leading-none tracking-tight tabular-nums text-brand sm:text-[84px]"
+            aria-label={`Position ${entry.position} in queue`}
+          >
+            #{entry.position}
+          </p>
+          <span
+            className={`absolute -right-7 top-2 flex h-5 w-5 items-center justify-center ${
+              refreshing ? "opacity-100" : "opacity-40"
+            }`}
+            aria-hidden
+          >
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/25 border-t-brand" />
+          </span>
+        </div>
+        <p className="mt-3 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-[0.14em] text-muted">
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
+              refreshing ? "animate-pulse bg-brand" : "bg-brand/50"
+            }`}
+          />
+          Live position
         </p>
-        <p className="mt-1.5 text-[14px] text-muted">
+        <p className="mt-2 text-[14px] text-muted">
           {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
           {entry.paymentAmount != null ? (
             <>
@@ -105,9 +150,9 @@ function FixedPriceQueueView({
             </>
           ) : null}
         </p>
-      </header>
+      </div>
 
-      <div className="mt-10 flex-1">
+      <div className="mt-8 flex-1">
         {atFront ? (
           <FrontOfQueuePanel entry={entry} />
         ) : (
@@ -131,15 +176,23 @@ function FixedPriceQueueView({
 }
 
 function WaitingPanel({ position }: { position: number }) {
+  const ahead = Math.max(0, position - 1);
+  const aheadLine =
+    ahead === 1
+      ? "There is 1 person ahead of you"
+      : ahead === 2
+        ? "There are a couple of people ahead of you"
+        : `There are ${ahead} people ahead of you`;
+
   return (
     <div className="rounded-[20px] bg-white/[0.04] px-5 py-5">
       <p className="text-[15px] leading-relaxed text-ink/90">
-        You’re in the queue. When you reach the front, we’ll start a short delivery window and
-        send your ticket to the email you gave us — no claim step, nothing to hold.
+        You’re in the queue. {aheadLine}, but we’ll start the delivery window shortly and send
+        your ticket to the email you gave us.
       </p>
       <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
         Stay on this page — your place (#{position}) updates here as people ahead of you leave
-        the line.
+        the queue.
       </p>
     </div>
   );
@@ -217,18 +270,35 @@ function TransferredBody({
         <button
           type="button"
           onClick={onBack}
-          className="font-ui inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
+          className="font-ui mb-4 inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
         </button>
       ) : (
-        <p className="font-ui text-[13px] font-semibold tracking-[0.04em] text-ink/55">
+        <p className="font-ui mb-4 text-[13px] font-semibold tracking-[0.04em] text-ink/55">
           mcgill.tickets
         </p>
       )}
 
-      <header className={onBack ? "mt-10" : "mt-14"}>
+      {entry.flyerUrl && (
+        <div className="relative isolate h-[min(28vh,200px)] w-full shrink-0 overflow-hidden rounded-[20px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={entry.flyerUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/20" />
+          <div className="absolute inset-x-0 bottom-0 px-4 pb-4">
+            <p className="headline text-[22px] leading-tight tracking-tight text-white">
+              {entry.eventName}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <header className="mt-8">
         <p className="section-header text-brand">You’re all set</p>
         <h1 className="headline mt-3 text-[34px] leading-[1.1] tracking-tight text-ink sm:text-[38px]">
           Your ticket has been transferred
@@ -250,14 +320,6 @@ function TransferredBody({
           . Look in spam if you don’t see it within a few minutes.
         </p>
       </header>
-
-      <div className="mt-10 rounded-[20px] bg-white/[0.04] px-5 py-4">
-        <p className="text-[12px] font-medium uppercase tracking-[0.12em] text-muted">Event</p>
-        <p className="mt-1.5 text-[16px] font-medium tracking-tight text-ink">{entry.eventName}</p>
-        <p className="mt-1 text-[13.5px] text-muted">
-          {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
-        </p>
-      </div>
 
       <div className="mt-auto pt-12">
         {onBack ? (

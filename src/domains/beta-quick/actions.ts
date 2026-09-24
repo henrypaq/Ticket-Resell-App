@@ -508,10 +508,26 @@ export async function loadQueueSeatForBuyer(
   leadId: string,
 ): Promise<QuickWaitlistEntry | null> {
   if (!/^[0-9a-f-]{36}$/i.test(leadId)) return null;
-  const [fromCookie, identity] = await Promise.all([readBuyerLeadIds(), currentIdentity()]);
+  const [fromCookie, identity, contactId] = await Promise.all([
+    readBuyerLeadIds(),
+    currentIdentity(),
+    readGoContactId(),
+  ]);
   const fromLookup = await listBuyLeadIds(identity);
   const allowed = new Set([...fromCookie, ...fromLookup]);
-  if (!allowed.has(leadId)) return null;
+  if (!allowed.has(leadId)) {
+    // Cookie race after join: contact ownership still proves this device.
+    if (!contactId) return null;
+    const admin = (await import("@/lib/supabase/admin")).createAdminClient();
+    const { data } = await admin
+      .from("beta_go_leads")
+      .select("id, contact_id")
+      .eq("id", leadId)
+      .eq("intent", "buy")
+      .maybeSingle();
+    if (!data || (data.contact_id as string | null) !== contactId) return null;
+    await appendQuickBuyerCookie(leadId);
+  }
   const entries = await getQuickWaitlistEntries([leadId]);
   return entries[0] ?? null;
 }

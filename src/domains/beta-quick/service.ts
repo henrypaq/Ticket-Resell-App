@@ -758,6 +758,7 @@ export async function getQuickWaitlistEntries(
         .filter((p) => typeof p === "string" && p.trim())
         .join(" ")
         .trim() || null,
+      flyerUrl: event?.flyerUrl ?? null,
     });
   }
 
