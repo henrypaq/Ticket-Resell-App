@@ -427,6 +427,12 @@ function DetailsPhase({
   );
 }
 
+/** Fixed-price Interac destination — manual ops inbox for predetermined events. */
+const FIXED_PRICE_ETRANSFER = {
+  name: "Gaspar Billerault",
+  email: "gasparbillerault@gmail.com",
+} as const;
+
 function CheckoutPhase({
   event,
   day,
@@ -462,7 +468,10 @@ function CheckoutPhase({
   state: QuickActionState;
   onBack: () => void;
 }) {
+  const [paymentSent, setPaymentSent] = useState(false);
   const transferName = `${transferFirstName.trim()} ${transferLastName.trim()}`.trim();
+  const paymentMemo = `MT-${event.slug}`.slice(0, 32).toUpperCase();
+  const canJoin = paymentSent && !pending && !state.ok;
 
   return (
     <form
@@ -494,11 +503,11 @@ function CheckoutPhase({
       <header className="mt-6">
         <p className="section-header">Checkout</p>
         <h1 className="headline mt-2 text-[26px] leading-[1.12] tracking-tight text-ink">
-          Confirm your spot
+          Send Interac payment
         </h1>
         <p className="mt-2 text-[14px] leading-relaxed text-muted">
-          You&apos;ll join the queue at this fixed price. Tickets are delivered manually to the
-          transfer email below.
+          Pay the total below by Interac e-Transfer, confirm you&apos;ve sent it, then join the
+          queue. Your ticket goes to {transferEmail.trim()} once you leave the line.
         </p>
       </header>
 
@@ -510,10 +519,7 @@ function CheckoutPhase({
         <p className="mt-0.5 text-[13px] text-muted">
           {formatBetaEventWhen(day)} · {event.venue}
         </p>
-      </section>
-
-      <section className="mt-3 rounded-2xl bg-white/[0.04] px-3.5 py-3.5">
-        <div className="space-y-1.5">
+        <div className="mt-3 space-y-1 border-t border-hairline pt-3">
           <div className="flex items-center justify-between text-[13px]">
             <span className="text-muted">
               Ticket{quantity > 1 ? ` × ${quantity}` : ""}
@@ -527,9 +533,9 @@ function CheckoutPhase({
             </span>
             <span className="tabular-nums text-ink">{formatCad(feesTotal)}</span>
           </div>
-          <div className="flex items-center justify-between border-t border-hairline pt-2.5">
+          <div className="flex items-center justify-between pt-1">
             <span className="font-ui text-[13px] font-semibold tracking-tight text-ink">
-              Total
+              Total due
             </span>
             <span className="font-ui text-[17px] font-bold tabular-nums tracking-tight text-amber-300">
               {formatCad(grandTotal)}
@@ -538,15 +544,40 @@ function CheckoutPhase({
         </div>
       </section>
 
+      <section className="mt-3 rounded-2xl border border-hairline bg-card px-4 py-4">
+        <p className="font-ui text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
+          Interac e-Transfer
+        </p>
+        <dl className="mt-3 flex flex-col gap-2.5 text-[14px]">
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Amount</dt>
+            <dd className="font-semibold tabular-nums text-ink">{formatCad(grandTotal)}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Send to</dt>
+            <dd className="text-right font-semibold text-ink">{FIXED_PRICE_ETRANSFER.email}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Name</dt>
+            <dd className="text-right text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Message / memo</dt>
+            <dd className="font-mono text-[12px] text-ink">{paymentMemo}</dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-[12.5px] leading-relaxed text-muted">
+          Use the memo exactly so we can match your transfer. Autodeposit may not ask for a
+          security question.
+        </p>
+      </section>
+
       <section className="mt-3 rounded-2xl bg-white/[0.04] px-3.5 py-3.5">
         <p className="font-ui text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
           Ticket transfer
         </p>
         <p className="mt-1.5 text-[15px] font-medium text-ink">{transferName}</p>
         <p className="mt-0.5 text-[13px] text-muted">{transferEmail.trim()}</p>
-        <p className="mt-2 text-[12px] leading-relaxed text-muted">
-          Your ticket will be sent here once you leave the queue.
-        </p>
       </section>
 
       {state.error && (
@@ -555,13 +586,28 @@ function CheckoutPhase({
         </p>
       )}
 
-      <div className="mt-auto pt-8">
+      <div className="mt-auto flex flex-col gap-2.5 pt-8">
+        <button
+          type="button"
+          onClick={() => setPaymentSent((v) => !v)}
+          className={`font-ui flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[14px] border px-6 text-[14px] font-semibold tracking-tight transition-colors ${
+            paymentSent
+              ? "border-[#ffe500]/50 bg-[#ffe500]/15 text-[#ffe500]"
+              : "border-hairline bg-white/[0.04] text-ink hover:bg-white/[0.07]"
+          }`}
+          aria-pressed={paymentSent}
+        >
+          {paymentSent ? "Payment confirmed" : "I've sent the money"}
+        </button>
+
         <button
           type="submit"
-          disabled={pending || Boolean(state.ok)}
-          className={BUTTON_CLASS + " w-full"}
+          disabled={!canJoin}
+          className={`${BUTTON_CLASS} w-full ${
+            canJoin ? "" : "!bg-[#ffe500]/30 !text-black/40"
+          }`}
         >
-          {pending || state.ok ? "Joining queue…" : `Join queue · ${formatCad(grandTotal)}`}
+          {pending || state.ok ? "Joining queue…" : "Join queue"}
         </button>
       </div>
     </form>
