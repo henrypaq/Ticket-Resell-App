@@ -490,6 +490,8 @@ function CheckoutPhase({
       <input type="hidden" name="transferFirstName" value={transferFirstName.trim()} />
       <input type="hidden" name="transferLastName" value={transferLastName.trim()} />
       <input type="hidden" name="transferEmail" value={transferEmail.trim()} />
+      <input type="hidden" name="paymentDeclared" value={paymentSent ? "1" : ""} />
+      <input type="hidden" name="paymentAmount" value={String(grandTotal)} />
 
       <button
         type="button"

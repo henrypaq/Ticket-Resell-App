@@ -12,6 +12,14 @@ export type QuickWaitlistEntry = {
   dormant: boolean;
   /** Live exclusive offer for this seat, if any. */
   activeOfferId: string | null;
+  /** Fixed-price: buyer declared Interac sent. */
+  buyerDeclaredSentAt?: string | null;
+  /** Fixed-price: ops confirmed Interac received. */
+  paymentRecordedAt?: string | null;
+  /** Fixed-price: ops confirmed ticket emailed/transferred to buyer. */
+  ticketForwardedAt?: string | null;
+  /** Fixed-price checkout total the buyer said they sent. */
+  paymentAmount?: number | null;
 };
 
 /** Max tickets per /go buy waitlist or sell listing. */

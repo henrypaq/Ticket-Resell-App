@@ -100,6 +100,8 @@ export function AppHome({
   const doneSells = sellActivity.filter((a) => a.status === "done");
   const totalProceeds = doneSells.reduce((sum, a) => sum + (a.proceedsCad ?? 0), 0);
   const totalNet = doneSells.reduce((sum, a) => sum + (a.netVsPaidCad ?? 0), 0);
+  const transferredTickets = waitlist.filter((e) => Boolean(e.ticketForwardedAt));
+  const openWaitlist = waitlist.filter((e) => !e.ticketForwardedAt);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -114,11 +116,42 @@ export function AppHome({
       </header>
 
       <div className="relative mt-5 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {waitlist.length > 0 && (
+        {transferredTickets.length > 0 && (
+          <section className="relative shrink-0">
+            <p className="section-header">Ticket transferred</p>
+            <ul className="mt-2.5 flex flex-col gap-2">
+              {transferredTickets.map((entry) => (
+                <li key={entry.leadId}>
+                  <Link
+                    href={`/queue?lead=${entry.leadId}&event=${encodeURIComponent(entry.eventSlug)}`}
+                    className="flex w-full items-center gap-3.5 rounded-[16px] border border-[#ffe500]/25 bg-[#ffe500]/10 px-3.5 py-3 text-left transition-colors hover:bg-[#ffe500]/15"
+                  >
+                    <div className="font-ui flex h-[56px] min-w-[56px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-[#ffe500] px-2.5 text-black">
+                      <span className="text-[11px] font-bold uppercase tracking-[0.08em]">Sent</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-ui truncate text-[15px] font-semibold tracking-tight text-ink">
+                        Ticket transferred
+                      </p>
+                      <p className="mt-0.5 truncate text-[12.5px] leading-snug text-muted">
+                        {entry.eventName}
+                        {" · "}
+                        {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {openWaitlist.length > 0 && (
           <section className="relative shrink-0">
             <p className="section-header">Your waitlist</p>
             <ul className="mt-2.5 flex flex-col gap-2">
-              {waitlist.map((entry) => (
+              {openWaitlist.map((entry) => (
                 <li key={entry.leadId} className="flex flex-col gap-2">
                   <button
                     type="button"
@@ -141,11 +174,15 @@ export function AppHome({
                           ? " · paused"
                           : entry.activeOfferId
                             ? " · ticket held — claim / pay"
-                            : entry.status === "matched"
-                              ? " · matched"
-                              : entry.status === "done"
-                                ? " · completed"
-                                : null}
+                            : entry.paymentRecordedAt
+                              ? " · payment confirmed"
+                              : entry.buyerDeclaredSentAt
+                                ? " · Interac sent"
+                                : entry.status === "matched"
+                                  ? " · matched"
+                                  : entry.status === "done"
+                                    ? " · completed"
+                                    : null}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />

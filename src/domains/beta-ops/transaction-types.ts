@@ -72,11 +72,29 @@ export type OpsCompletedItem = {
   sellerName: string | null;
 };
 
+export type OpsFixedPriceTxnItem = {
+  kind: "fixed_price";
+  leadId: string;
+  eventSlug: string;
+  eventName: string;
+  quantity: number;
+  amount: number;
+  memoHint: string;
+  buyerDeclaredSentAt: string;
+  paymentRecordedAt: string | null;
+  ticketForwardedAt: string | null;
+  /** Ticket transfer destination (name + email on the lead). */
+  buyer: OpsPerson;
+  status: "awaiting_payment" | "awaiting_ticket" | "done";
+};
+
 export type OpsTransactionsBoard = {
   paymentsToVerify: OpsPaymentQueueItem[];
   ticketsToVerify: OpsTicketCustodyItem[];
   ticketsToForward: OpsForwardTicketItem[];
   payoutsToSend: OpsPayoutItem[];
+  /** Predetermined-price buys — Interac declare → confirm → forward ticket. */
+  fixedPriceTxns: OpsFixedPriceTxnItem[];
   recentlyCompleted: OpsCompletedItem[];
   attentionCount: number;
 };

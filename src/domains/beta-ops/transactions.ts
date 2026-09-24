@@ -5,6 +5,7 @@ import { getTicketEvidenceSignedUrls } from "@/domains/beta-ops/service";
 import { loadBetaCatalog } from "@/domains/beta-events/catalog";
 import type {
   OpsCompletedItem,
+  OpsFixedPriceTxnItem,
   OpsForwardTicketItem,
   OpsPaymentQueueItem,
   OpsPayoutItem,
@@ -15,6 +16,7 @@ import type {
 
 export type {
   OpsCompletedItem,
+  OpsFixedPriceTxnItem,
   OpsForwardTicketItem,
   OpsPaymentQueueItem,
   OpsPayoutItem,
@@ -79,7 +81,8 @@ export async function listOpsTransactions(): Promise<OpsTransactionsBoard> {
   const catalog = await loadBetaCatalog();
   const nameFor = (slug: string) => catalog.find((e) => e.slug === slug)?.name ?? slug;
 
-  const [{ data: paymentOffers }, { data: custodyLeads }, { data: paidOffers }] = await Promise.all([
+  const [{ data: paymentOffers }, { data: custodyLeads }, { data: paidOffers }, { data: fixedPriceLeads }] =
+    await Promise.all([
     admin
       .from("beta_offers")
       .select(
@@ -108,6 +111,16 @@ export async function listOpsTransactions(): Promise<OpsTransactionsBoard> {
       .eq("status", "paid")
       .order("payment_recorded_at", { ascending: true })
       .limit(80),
+    admin
+      .from("beta_go_leads")
+      .select(
+        "id, event_slug, quantity, status, max_price_each, payment_amount, buyer_declared_sent_at, payment_recorded_at, ticket_forwarded_at, contact_phone, contact_instagram, transfer_first_name, transfer_last_name, transfer_email, contact_id",
+      )
+      .eq("intent", "buy")
+      .neq("status", "cancelled")
+      .not("buyer_declared_sent_at", "is", null)
+      .order("buyer_declared_sent_at", { ascending: true })
+      .limit(80),
   ]);
 
   const unitIds = [
@@ -126,9 +139,10 @@ export async function listOpsTransactions(): Promise<OpsTransactionsBoard> {
   ];
   const contactIds = [
     ...new Set(
-      (custodyLeads ?? [])
-        .map((l) => l.contact_id as string | null)
-        .filter((id): id is string => Boolean(id)),
+      [
+        ...(custodyLeads ?? []).map((l) => l.contact_id as string | null),
+        ...(fixedPriceLeads ?? []).map((l) => l.contact_id as string | null),
+      ].filter((id): id is string => Boolean(id)),
     ),
   ];
 
@@ -317,17 +331,52 @@ export async function listOpsTransactions(): Promise<OpsTransactionsBoard> {
 
   recentlyCompleted.sort((a, b) => b.payoutReleasedAt.localeCompare(a.payoutReleasedAt));
 
+  const fixedPriceTxns: OpsFixedPriceTxnItem[] = (fixedPriceLeads ?? []).map((lead) => {
+    const qty = Math.max(1, Number(lead.quantity) || 1);
+    const amount =
+      lead.payment_amount != null && Number.isFinite(Number(lead.payment_amount))
+        ? Number(lead.payment_amount)
+        : lead.max_price_each != null
+          ? Math.round(Number(lead.max_price_each) * qty * 100) / 100
+          : 0;
+    const paymentRecordedAt = (lead.payment_recorded_at as string | null) ?? null;
+    const ticketForwardedAt = (lead.ticket_forwarded_at as string | null) ?? null;
+    const status: OpsFixedPriceTxnItem["status"] = ticketForwardedAt
+      ? "done"
+      : paymentRecordedAt
+        ? "awaiting_ticket"
+        : "awaiting_payment";
+    return {
+      kind: "fixed_price" as const,
+      leadId: lead.id as string,
+      eventSlug: lead.event_slug as string,
+      eventName: nameFor(lead.event_slug as string),
+      quantity: qty,
+      amount,
+      memoHint: `MT-${String(lead.event_slug).slice(0, 28)}`.toUpperCase(),
+      buyerDeclaredSentAt: lead.buyer_declared_sent_at as string,
+      paymentRecordedAt,
+      ticketForwardedAt,
+      buyer: withContact(lead as Record<string, unknown>),
+      status,
+    };
+  });
+
+  const openFixedPrice = fixedPriceTxns.filter((t) => t.status !== "done");
+
   const attentionCount =
     paymentsToVerify.length +
     ticketsToVerify.length +
     ticketsToForward.length +
-    payoutsToSend.length;
+    payoutsToSend.length +
+    openFixedPrice.length;
 
   return {
     paymentsToVerify,
     ticketsToVerify,
     ticketsToForward,
     payoutsToSend,
+    fixedPriceTxns,
     recentlyCompleted: recentlyCompleted.slice(0, 12),
     attentionCount,
   };
@@ -380,4 +429,72 @@ export async function markSellTicketReceived(
   });
 
   return { ok: true, id: sellLeadId };
+}
+
+/** Ops: confirm fixed-price buyer Interac landed. */
+export async function markFixedPricePaymentReceived(
+  leadId: string,
+  recordedBy = "ops",
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(leadId)) {
+    return { ok: false, error: "Invalid lead." };
+  }
+  const admin = createAdminClient();
+  const { data: lead, error } = await admin
+    .from("beta_go_leads")
+    .select("id, intent, buyer_declared_sent_at, payment_recorded_at, status")
+    .eq("id", leadId)
+    .maybeSingle();
+  if (error || !lead || lead.intent !== "buy") {
+    return { ok: false, error: "Buy lead not found." };
+  }
+  if (!lead.buyer_declared_sent_at) {
+    return { ok: false, error: "Buyer hasn’t declared payment yet." };
+  }
+  if (lead.payment_recorded_at) return { ok: true, id: leadId };
+
+  const { error: updateError } = await admin
+    .from("beta_go_leads")
+    .update({
+      payment_recorded_at: new Date().toISOString(),
+      payment_recorded_by: recordedBy.slice(0, 120),
+      status: lead.status === "new" ? "contacted" : lead.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", leadId);
+  if (updateError) return { ok: false, error: updateError.message };
+  return { ok: true, id: leadId };
+}
+
+/** Ops: confirm fixed-price ticket was sent to the buyer’s transfer email. */
+export async function markFixedPriceTicketForwarded(
+  leadId: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  if (!/^[0-9a-f-]{36}$/i.test(leadId)) {
+    return { ok: false, error: "Invalid lead." };
+  }
+  const admin = createAdminClient();
+  const { data: lead, error } = await admin
+    .from("beta_go_leads")
+    .select("id, intent, payment_recorded_at, ticket_forwarded_at")
+    .eq("id", leadId)
+    .maybeSingle();
+  if (error || !lead || lead.intent !== "buy") {
+    return { ok: false, error: "Buy lead not found." };
+  }
+  if (!lead.payment_recorded_at) {
+    return { ok: false, error: "Confirm Interac received before marking the ticket sent." };
+  }
+  if (lead.ticket_forwarded_at) return { ok: true, id: leadId };
+
+  const { error: updateError } = await admin
+    .from("beta_go_leads")
+    .update({
+      ticket_forwarded_at: new Date().toISOString(),
+      status: "done",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", leadId);
+  if (updateError) return { ok: false, error: updateError.message };
+  return { ok: true, id: leadId };
 }

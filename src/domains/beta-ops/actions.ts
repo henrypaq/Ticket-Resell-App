@@ -26,6 +26,8 @@ import {
   releaseUnitToOpen,
 } from "@/domains/beta-matching/service";
 import {
+  markFixedPricePaymentReceived,
+  markFixedPriceTicketForwarded,
   markSellTicketReceived,
 } from "@/domains/beta-ops/transactions";
 import { markEventRequestResolved } from "@/domains/beta-ops/event-requests";
@@ -301,6 +303,32 @@ export async function markSellTicketReceivedAction(sellLeadId: string): Promise<
   try {
     const session = await requireBetaOpsSession();
     const result = await markSellTicketReceived(sellLeadId, session.email);
+    if (!result.ok) return { error: result.error };
+    return { ok: true };
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+}
+
+export async function markFixedPricePaymentReceivedAction(
+  leadId: string,
+): Promise<OpsActionState> {
+  try {
+    const session = await requireBetaOpsSession();
+    const result = await markFixedPricePaymentReceived(leadId, session.email);
+    if (!result.ok) return { error: result.error };
+    return { ok: true };
+  } catch {
+    return { error: "Session expired. Sign in again." };
+  }
+}
+
+export async function markFixedPriceTicketForwardedAction(
+  leadId: string,
+): Promise<OpsActionState> {
+  try {
+    await requireBetaOpsSession();
+    const result = await markFixedPriceTicketForwarded(leadId);
     if (!result.ok) return { error: result.error };
     return { ok: true };
   } catch {

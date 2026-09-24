@@ -64,6 +64,17 @@ export const quickBuySchema = z
       const n = typeof v === "number" ? v : Number(v);
       return Number.isFinite(n) ? n : undefined;
     }, z.number().min(0).max(5000).optional()),
+    /** Fixed-price checkout: buyer confirmed Interac was sent. */
+    paymentDeclared: z.preprocess(
+      (v) => v === true || v === "1" || v === "on" || v === "true",
+      z.boolean().optional().default(false),
+    ),
+    /** Fixed-price checkout: Interac amount the buyer says they sent. */
+    paymentAmount: z.preprocess((v) => {
+      if (v === "" || v === null || v === undefined) return undefined;
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    }, z.number().min(0).max(20000).optional()),
     acquisitionChannel: z.enum(ACQUISITION_CHANNELS).optional(),
     /**
      * Last-touch tag from the link that produced this lead (story, campaign).
@@ -272,6 +283,24 @@ export async function submitQuickBuy(
 
   // Fixed-price inventory is fulfilled manually for now — never auto-hold.
   const manualQueueOnly = listed.fixedPriceEach != null;
+  if (manualQueueOnly && !input.paymentDeclared) {
+    return {
+      ok: false,
+      error: "Confirm you’ve sent the Interac payment before joining the queue.",
+    };
+  }
+  const paymentAmount =
+    manualQueueOnly &&
+    input.paymentDeclared &&
+    typeof input.paymentAmount === "number" &&
+    Number.isFinite(input.paymentAmount) &&
+    input.paymentAmount > 0
+      ? Math.round(input.paymentAmount * 100) / 100
+      : manualQueueOnly && listed.fixedPriceEach != null
+        ? Math.round(listed.fixedPriceEach * input.quantity * 100) / 100
+        : null;
+  const declaredAt =
+    manualQueueOnly && input.paymentDeclared ? new Date().toISOString() : null;
 
   if (existing?.id) {
     const { error: updateError } = await admin
@@ -285,6 +314,12 @@ export async function submitQuickBuy(
         transfer_email: transferEmail || null,
         max_price_each: input.maxPriceEach ?? null,
         member_id: memberId,
+        ...(declaredAt
+          ? {
+              buyer_declared_sent_at: declaredAt,
+              payment_amount: paymentAmount,
+            }
+          : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id);
@@ -318,6 +353,12 @@ export async function submitQuickBuy(
       acquisition_channel: leadSource(input),
       contact_id: contactId,
       member_id: memberId,
+      ...(declaredAt
+        ? {
+            buyer_declared_sent_at: declaredAt,
+            payment_amount: paymentAmount,
+          }
+        : {}),
     })
     .select("id")
     .single();
@@ -640,7 +681,9 @@ export async function getQuickWaitlistEntries(
   const [{ data: mine, error }, fakeFronts] = await Promise.all([
     admin
       .from("beta_go_leads")
-      .select("id, event_slug, quantity, status, created_at, contact_phone, contact_instagram")
+      .select(
+        "id, event_slug, quantity, status, created_at, contact_phone, contact_instagram, buyer_declared_sent_at, payment_recorded_at, ticket_forwarded_at, payment_amount",
+      )
       .eq("intent", "buy")
       .in("id", ids)
       .order("created_at", { ascending: true }),
@@ -698,6 +741,13 @@ export async function getQuickWaitlistEntries(
       contactInstagram: (row.contact_instagram as string | null) ?? null,
       dormant: dormantBySeat.get(seatKey) ?? false,
       activeOfferId: offerByLead.get(row.id) ?? null,
+      buyerDeclaredSentAt: (row.buyer_declared_sent_at as string | null) ?? null,
+      paymentRecordedAt: (row.payment_recorded_at as string | null) ?? null,
+      ticketForwardedAt: (row.ticket_forwarded_at as string | null) ?? null,
+      paymentAmount:
+        row.payment_amount != null && Number.isFinite(Number(row.payment_amount))
+          ? Number(row.payment_amount)
+          : null,
     });
   }
 

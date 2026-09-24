@@ -4,12 +4,43 @@ import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import { AppFlowShell } from "./shell";
 
 /**
- * Post-checkout screen for fixed-price events — shows queue position while
- * ops delivers tickets manually.
+ * Post-checkout screen for fixed-price events — queue position while ops
+ * delivers, or ticket-transferred once ops finishes both confirmations.
  */
 export function QueueScreen({ entry }: { entry: QuickWaitlistEntry }) {
   const ticketLabel =
     entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`;
+
+  if (entry.ticketForwardedAt) {
+    return (
+      <AppFlowShell>
+        <div className="flex flex-1 flex-col">
+          <p className="font-ui text-[15px] font-semibold tracking-tight text-[#ffe500]">
+            mcgill.tickets
+          </p>
+          <header className="mt-8">
+            <p className="section-header">All set</p>
+            <h1 className="headline mt-2 text-[28px] leading-[1.12] tracking-tight">
+              Ticket transferred
+            </h1>
+            <p className="mt-3 text-[15px] leading-relaxed text-muted">
+              Your ticket for <span className="text-ink">{entry.eventName}</span> has been
+              sent to the transfer email you gave us. Check that inbox (and spam) for the
+              ticket.
+            </p>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-muted">{ticketLabel}</p>
+          </header>
+          <Link href="/" className={`${BUTTON_CLASS} mt-10 w-full`}>
+            Back to home
+          </Link>
+        </div>
+      </AppFlowShell>
+    );
+  }
+
+  const statusHint = entry.paymentRecordedAt
+    ? "Payment confirmed — we’re transferring your ticket next."
+    : "You’re in the queue. We’ll email you your tickets once you leave the queue.";
 
   return (
     <AppFlowShell>
@@ -34,9 +65,7 @@ export function QueueScreen({ entry }: { entry: QuickWaitlistEntry }) {
           </div>
         </div>
 
-        <p className="mt-8 text-[15px] leading-relaxed text-ink">
-          You&apos;re in the queue. We&apos;ll email you your tickets once you leave the queue.
-        </p>
+        <p className="mt-8 text-[15px] leading-relaxed text-ink">{statusHint}</p>
         <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
           Tickets for this event are delivered manually — keep an eye on the transfer email you
           gave us. You can check your position anytime from home.

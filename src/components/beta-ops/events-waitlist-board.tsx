@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 import {
   createCatalogEventAction,
   toggleCatalogEventAction,
@@ -16,14 +16,89 @@ import {
   type LeadStatus,
   type OpsWaitlistEntry,
 } from "@/domains/beta-ops/shared";
-import { BETA_WEEKDAYS, type BetaEvent, type BetaWeekday } from "@/lib/beta-events";
+import {
+  BETA_WEEKDAYS,
+  eventDayDateKey,
+  nightlifeDateKey,
+  type BetaEvent,
+  type BetaWeekday,
+} from "@/lib/beta-events";
 import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type CatalogRow = BetaEvent & { source: "db" | "static"; flyerPath: string | null };
 
 const initial: CreateEventState = {};
+
+type DayGroup = {
+  dateKey: string;
+  label: string;
+  events: CatalogRow[];
+};
+
+function partitionCatalogForBoard(events: CatalogRow[]): {
+  upcomingGroups: DayGroup[];
+  past: CatalogRow[];
+} {
+  const now = new Date();
+  const currentKey = nightlifeDateKey(now);
+  const byUpcoming = new Map<string, DayGroup>();
+  const past: CatalogRow[] = [];
+
+  for (const event of events) {
+    const slots: { dateKey: string; label: string }[] = [];
+
+    if (event.extraDateKeys?.length) {
+      for (const dateKey of event.extraDateKeys) {
+        const [y, m, d] = dateKey.split("-").map(Number);
+        if (!y || !m || !d) continue;
+        const label = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          timeZone: "UTC",
+        });
+        slots.push({ dateKey, label });
+      }
+    } else if (event.days.length) {
+      for (const day of event.days as BetaWeekday[]) {
+        const schedule = eventDayDateKey(day, now);
+        slots.push({ dateKey: schedule.dateKey, label: schedule.label });
+      }
+    }
+
+    const upcomingSlots = slots
+      .filter((s) => s.dateKey >= currentKey)
+      .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+
+    if (upcomingSlots.length > 0) {
+      const first = upcomingSlots[0]!;
+      const group = byUpcoming.get(first.dateKey) ?? {
+        dateKey: first.dateKey,
+        label: first.label,
+        events: [],
+      };
+      group.events.push(event);
+      byUpcoming.set(first.dateKey, group);
+    } else {
+      past.push(event);
+    }
+  }
+
+  const upcomingGroups = [...byUpcoming.values()].sort((a, b) =>
+    a.dateKey.localeCompare(b.dateKey),
+  );
+  past.sort((a, b) => a.name.localeCompare(b.name));
+  return { upcomingGroups, past };
+}
 
 /**
  * Combined Events + Waitlist: catalog create/list, click an event to see its queue.
@@ -37,66 +112,126 @@ export function EventsWaitlistBoard({
   waitlistBySlug: Record<string, OpsWaitlistEntry[]>;
   fakeFrontSlot?: React.ReactNode;
 }) {
-  // Include waitlist-only slugs that aren't in the catalog yet.
+  const [createOpen, setCreateOpen] = useState(false);
+  const { upcomingGroups, past } = useMemo(() => partitionCatalogForBoard(events), [events]);
+
   const waitlistOnly = Object.keys(waitlistBySlug).filter(
     (slug) => !events.some((e) => e.slug === slug) && waitlistBySlug[slug]!.length > 0,
   );
 
   return (
-    <div className="flex flex-col gap-10">
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-8">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Events</h1>
           <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
-            Create nights, then tap an event to see who’s on the waitlist.
+            Upcoming nights first — tap a row for the waitlist. Past nights sit below.
           </p>
         </div>
-        {fakeFrontSlot}
+        <div className="flex shrink-0 items-center gap-2">
+          {fakeFrontSlot}
+          <Button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="h-9 gap-1.5 bg-amber-400 px-3 text-[12px] font-semibold text-zinc-950 hover:bg-amber-300"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add event
+          </Button>
+        </div>
       </div>
 
-      <CreateEventForm />
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-xl border-zinc-700 bg-zinc-900 p-5">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-zinc-100">
+              Add an event
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
+              Title, date, flyer — then post it live on home, upcoming, and buy/sell.
+            </DialogDescription>
+          </DialogHeader>
+          <CreateEventForm
+            onCreated={() => {
+              setCreateOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
-      <section>
-        <h2 className="text-sm font-semibold text-zinc-100">Board + waitlists</h2>
-        <p className="mt-1 text-[11px] text-zinc-500">
-          Tap a row to expand the live waitlist for that event.
+      {upcomingGroups.length === 0 && past.length === 0 && waitlistOnly.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-zinc-700/80 bg-zinc-900/40 px-4 py-8 text-center text-sm text-zinc-500">
+          No events yet — tap Add event to create one.
         </p>
-        {events.length === 0 && waitlistOnly.length === 0 ? (
-          <p className="mt-3 text-xs text-zinc-500">No events yet — create one above.</p>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-2">
-            {events.map((event) => (
-              <EventWaitlistRow
-                key={`${event.source}-${event.slug}`}
-                event={event}
-                waitlist={waitlistBySlug[event.slug] ?? []}
-              />
-            ))}
-            {waitlistOnly.map((slug) => {
-              const entries = waitlistBySlug[slug] ?? [];
-              return (
-                <EventWaitlistRow
-                  key={`waitlist-only-${slug}`}
-                  event={{
-                    slug,
-                    name: entries[0]?.eventName ?? slug,
-                    venue: "",
-                    city: "Montreal",
-                    blurb: "",
-                    flyerUrl: "",
-                    days: [],
-                    supported: false,
-                    source: "static",
-                    flyerPath: null,
-                  }}
-                  waitlist={entries}
-                  waitlistOnly
-                />
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      ) : (
+        <>
+          {upcomingGroups.map((group) => (
+            <section key={group.dateKey}>
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                {group.label}
+              </h2>
+              <ul className="mt-2.5 flex flex-col gap-2">
+                {group.events.map((event) => (
+                  <EventWaitlistRow
+                    key={`${event.source}-${event.slug}`}
+                    event={event}
+                    waitlist={waitlistBySlug[event.slug] ?? []}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+
+          {waitlistOnly.length > 0 && (
+            <section>
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Waitlist only
+              </h2>
+              <ul className="mt-2.5 flex flex-col gap-2">
+                {waitlistOnly.map((slug) => {
+                  const entries = waitlistBySlug[slug] ?? [];
+                  return (
+                    <EventWaitlistRow
+                      key={`waitlist-only-${slug}`}
+                      event={{
+                        slug,
+                        name: entries[0]?.eventName ?? slug,
+                        venue: "",
+                        city: "Montreal",
+                        blurb: "",
+                        flyerUrl: "",
+                        days: [],
+                        supported: false,
+                        source: "static",
+                        flyerPath: null,
+                      }}
+                      waitlist={entries}
+                      waitlistOnly
+                    />
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+
+          {past.length > 0 && (
+            <section>
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Past events
+              </h2>
+              <ul className="mt-2.5 flex flex-col gap-2">
+                {past.map((event) => (
+                  <EventWaitlistRow
+                    key={`past-${event.source}-${event.slug}`}
+                    event={event}
+                    waitlist={waitlistBySlug[event.slug] ?? []}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -515,7 +650,7 @@ function contactHref(entry: OpsWaitlistEntry) {
   return null;
 }
 
-function CreateEventForm() {
+function CreateEventForm({ onCreated }: { onCreated?: () => void }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(createCatalogEventAction, initial);
   const [mode, setMode] = useState<"one_off" | "recurring">("one_off");
@@ -533,7 +668,7 @@ function CreateEventForm() {
 
   if (state.ok) {
     return (
-      <section className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
         <p className="text-sm font-semibold text-emerald-200">Event saved</p>
         <p className="mt-1 text-xs text-emerald-200/80">
           {state.message}{" "}
@@ -545,140 +680,131 @@ function CreateEventForm() {
           variant="outline"
           className="mt-3 h-8 text-[11px]"
           onClick={() => {
-            // Full reload rather than router.push: this board lives on
-            // /ops/events, and the point is to clear the submitted action
-            // state so the form comes back blank.
+            onCreated?.();
             router.refresh();
             window.location.reload();
           }}
         >
-          Create another
+          Done
         </Button>
-      </section>
+      </div>
     );
   }
 
   return (
-    <section className="rounded-xl border border-zinc-700/80 bg-zinc-900/50 p-4">
-      <h2 className="text-sm font-semibold text-zinc-100">Create event</h2>
-      <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">
-        Title, date, flyer — then post it. Posted events show on home, upcoming, and buy/sell.
+    <form action={formAction} className="mt-1 flex flex-col gap-3">
+      <Field label="Title">
+        <input
+          name="name"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Niska @ Bell Centre"
+          className={inputClass}
+        />
+      </Field>
+      <Field label="Venue">
+        <input name="venue" required placeholder="Bell Centre" className={inputClass} />
+      </Field>
+      <Field label="City">
+        <input name="city" defaultValue="Montreal" className={inputClass} />
+      </Field>
+      <Field label="Short blurb">
+        <textarea
+          name="blurb"
+          rows={2}
+          placeholder="One or two sentences for the poster."
+          className={`${inputClass} resize-none`}
+        />
+      </Field>
+      <Field label="Entry note (optional)">
+        <input name="entryNote" placeholder="e.g. Doors close at midnight" className={inputClass} />
+      </Field>
+      <Field label="Doors hour (0–23, optional — default 22)">
+        <input
+          name="doorsHour"
+          type="number"
+          min={0}
+          max={23}
+          placeholder="22"
+          className={inputClass}
+        />
+      </Field>
+
+      <FixedPriceFields />
+
+      <div>
+        <p className="text-[11px] font-medium text-zinc-400">Schedule</p>
+        <div className="mt-1.5 flex gap-2">
+          <ModeChip
+            active={mode === "one_off"}
+            onClick={() => setMode("one_off")}
+            label="One night"
+          />
+          <ModeChip
+            active={mode === "recurring"}
+            onClick={() => setMode("recurring")}
+            label="Recurring weekdays"
+          />
+        </div>
+        <input type="hidden" name="scheduleMode" value={mode} />
+        {mode === "one_off" ? (
+          <input name="oneOffDate" type="date" required className={`${inputClass} mt-2`} />
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {BETA_WEEKDAYS.map((day) => (
+              <label
+                key={day}
+                className="inline-flex items-center gap-1.5 rounded-md bg-zinc-950/70 px-2 py-1.5 text-[11px] text-zinc-300"
+              >
+                <input type="checkbox" name="days" value={day} className="accent-amber-400" />
+                {day.slice(0, 3)}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Field label="Flyer image">
+        <input
+          name="flyer"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          required
+          className="block w-full text-xs text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-zinc-100"
+        />
+      </Field>
+
+      <label className="flex items-center gap-2 text-xs text-zinc-300">
+        <input
+          type="checkbox"
+          name="supported"
+          value="1"
+          defaultChecked
+          className="accent-amber-400"
+        />
+        Post to the app now (live on buy / sell / upcoming)
+      </label>
+
+      <p className="text-[10px] text-zinc-600">
+        Slug preview: <span className="font-mono text-zinc-400">{slugPreview}</span>
+        {mode === "one_off" ? "-YYYY-MM-DD" : ""}
       </p>
 
-      <form action={formAction} className="mt-4 flex flex-col gap-3">
-        <Field label="Title">
-          <input
-            name="name"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Niska @ Bell Centre"
-            className={inputClass}
-          />
-        </Field>
-        <Field label="Venue">
-          <input name="venue" required placeholder="Bell Centre" className={inputClass} />
-        </Field>
-        <Field label="City">
-          <input name="city" defaultValue="Montreal" className={inputClass} />
-        </Field>
-        <Field label="Short blurb">
-          <textarea
-            name="blurb"
-            rows={2}
-            placeholder="One or two sentences for the poster."
-            className={`${inputClass} resize-none`}
-          />
-        </Field>
-        <Field label="Entry note (optional)">
-          <input name="entryNote" placeholder="e.g. Doors close at midnight" className={inputClass} />
-        </Field>
-        <Field label="Doors hour (0–23, optional — default 22)">
-          <input
-            name="doorsHour"
-            type="number"
-            min={0}
-            max={23}
-            placeholder="22"
-            className={inputClass}
-          />
-        </Field>
-
-        <FixedPriceFields />
-
-        <div>
-          <p className="text-[11px] font-medium text-zinc-400">Schedule</p>
-          <div className="mt-1.5 flex gap-2">
-            <ModeChip
-              active={mode === "one_off"}
-              onClick={() => setMode("one_off")}
-              label="One night"
-            />
-            <ModeChip
-              active={mode === "recurring"}
-              onClick={() => setMode("recurring")}
-              label="Recurring weekdays"
-            />
-          </div>
-          <input type="hidden" name="scheduleMode" value={mode} />
-          {mode === "one_off" ? (
-            <input name="oneOffDate" type="date" required className={`${inputClass} mt-2`} />
-          ) : (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {BETA_WEEKDAYS.map((day) => (
-                <label
-                  key={day}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-zinc-950/70 px-2 py-1.5 text-[11px] text-zinc-300"
-                >
-                  <input type="checkbox" name="days" value={day} className="accent-amber-400" />
-                  {day.slice(0, 3)}
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <Field label="Flyer image">
-          <input
-            name="flyer"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            required
-            className="block w-full text-xs text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-zinc-100"
-          />
-        </Field>
-
-        <label className="flex items-center gap-2 text-xs text-zinc-300">
-          <input
-            type="checkbox"
-            name="supported"
-            value="1"
-            defaultChecked
-            className="accent-amber-400"
-          />
-          Post to the app now (live on buy / sell / upcoming)
-        </label>
-
-        <p className="text-[10px] text-zinc-600">
-          Slug preview: <span className="font-mono text-zinc-400">{slugPreview}</span>
-          {mode === "one_off" ? "-YYYY-MM-DD" : ""}
+      {state.error && (
+        <p className="text-xs text-red-300" role="alert">
+          {state.error}
         </p>
+      )}
 
-        {state.error && (
-          <p className="text-xs text-red-300" role="alert">
-            {state.error}
-          </p>
-        )}
-
-        <Button
-          type="submit"
-          disabled={pending}
-          className="h-10 bg-amber-400 font-semibold text-zinc-950 hover:bg-amber-300"
-        >
-          {pending ? "Saving…" : "Create & post"}
-        </Button>
-      </form>
-    </section>
+      <Button
+        type="submit"
+        disabled={pending}
+        className="h-10 bg-amber-400 font-semibold text-zinc-950 hover:bg-amber-300"
+      >
+        {pending ? "Saving…" : "Create & post"}
+      </Button>
+    </form>
   );
 }
 
