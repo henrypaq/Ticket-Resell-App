@@ -25,7 +25,7 @@ export function AppHeader({
       <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
         <Link
           href="/"
-          className="font-ui text-[17px] font-semibold tracking-tight text-[#ffe500] transition-opacity hover:opacity-85"
+          className="font-ui text-[17px] font-semibold tracking-tight text-brand transition-opacity hover:opacity-85"
         >
           mcgill.tickets
         </Link>

@@ -34,7 +34,7 @@ export type BrandedSellPivot = {
   cta: BrandedEmailCta;
 };
 
-const YELLOW = "#F7CD19";
+const YELLOW = "#fbbf24";
 const INK = "#0B0B0C";
 const BODY = "#46464A";
 const MUTED_ON_BLACK = "#9A9A9E";

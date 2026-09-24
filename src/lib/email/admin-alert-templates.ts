@@ -98,7 +98,7 @@ export function betaInterestEmailHtml(data: BetaInterestEmailData): string {
 <html>
 <body style="margin:0;padding:0;background:#0b0b0c;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:32px 20px;">
-    <p style="margin:0 0 8px;color:#ffe500;font-size:14px;font-weight:700;">mcgill.tickets</p>
+    <p style="margin:0 0 8px;color:#fbbf24;font-size:14px;font-weight:700;">mcgill.tickets</p>
     <div style="margin:16px 0 8px;">${badge}</div>
     <h1 style="margin:0 0 24px;color:#f5f5f5;font-size:22px;line-height:1.25;font-weight:600;">${headline}</h1>
     <table style="width:100%;border-collapse:collapse;">${rowHtml}</table>
@@ -215,7 +215,7 @@ export function quickLeadEmailHtml(data: QuickLeadEmailData): string {
 <html>
 <body style="margin:0;padding:0;background:#0b0b0c;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:32px 20px;">
-    <p style="margin:0 0 8px;color:#ffe500;font-size:14px;font-weight:700;">mcgill.tickets</p>
+    <p style="margin:0 0 8px;color:#fbbf24;font-size:14px;font-weight:700;">mcgill.tickets</p>
     <div style="margin:16px 0 8px;">${badge}</div>
     <h1 style="margin:0 0 24px;color:#f5f5f5;font-size:22px;line-height:1.25;font-weight:600;">Quick /go lead</h1>
     <table style="width:100%;border-collapse:collapse;">${rowHtml}</table>

@@ -12,7 +12,8 @@
   --color-ink: #f5f5f5;
   --color-muted: #9a9a9e;
   --color-urgency: #f5a623;
-  --color-brand: #ffe500;
+  /* Muted amber — same family as ops CTAs (amber-400), not neon brand */
+  --color-brand: #fbbf24;
 
   --radius-hero: 26px;
   --radius-card: 16px;

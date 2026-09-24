@@ -106,7 +106,7 @@ export function OfferClaimPanel({
           </p>
           <p className="mt-4 rounded-2xl border border-hairline bg-card px-4 py-3 text-[14px] text-ink">
             Respond in{" "}
-            <span className="font-semibold tabular-nums text-[#ffe500]">
+            <span className="font-semibold tabular-nums text-brand">
               {mins}:{String(secs).padStart(2, "0")}
             </span>
           </p>
@@ -174,7 +174,7 @@ export function OfferClaimPanel({
           </p>
           <p className="mt-4 rounded-2xl border border-hairline bg-card px-4 py-3 text-[14px] text-ink">
             Send before{" "}
-            <span className="font-semibold tabular-nums text-[#ffe500]">
+            <span className="font-semibold tabular-nums text-brand">
               {mins}:{String(secs).padStart(2, "0")}
             </span>{" "}
             or this hold goes to the next person in line.

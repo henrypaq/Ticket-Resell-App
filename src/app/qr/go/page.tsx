@@ -28,7 +28,7 @@ export default function GoQrDisplayPage() {
       />
 
       <div className="relative flex w-full max-w-lg flex-col items-center">
-        <p className="text-[17px] font-semibold text-[#ffe500]">mcgill.tickets</p>
+        <p className="text-[17px] font-semibold text-brand">mcgill.tickets</p>
         <h1 className="headline mt-4 text-[34px] leading-[1.12] tracking-tight sm:text-[44px]">
           DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
@@ -45,7 +45,7 @@ export default function GoQrDisplayPage() {
           />
         </div>
 
-        <p className="mt-6 text-[14px] font-semibold text-[#ffe500]">www.mcgilltickets.party</p>
+        <p className="mt-6 text-[14px] font-semibold text-brand">www.mcgilltickets.party</p>
       </div>
 
       <p className="sr-only">{ACQUISITION_LANDING.go_qr_share}</p>

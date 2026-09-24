@@ -44,7 +44,7 @@ function SetupStepTracker({
           <div
             key={labels[i]}
             className={`h-1 flex-1 rounded-full transition-colors ${
-              i <= step ? "bg-[#ffe500]" : "bg-white/10"
+              i <= step ? "bg-brand" : "bg-white/10"
             }`}
             aria-hidden
           />
@@ -144,7 +144,7 @@ export function FinishAccountSetup({
     return (
       <AppFlowShell>
         <div className="flex flex-1 flex-col">
-          <p className="font-ui text-[15px] font-semibold tracking-tight text-[#ffe500]">
+          <p className="font-ui text-[15px] font-semibold tracking-tight text-brand">
             mcgill.tickets
           </p>
           <h1 className="headline mt-8 text-[28px] leading-[1.15] tracking-tight">

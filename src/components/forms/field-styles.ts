@@ -16,13 +16,13 @@ export const FIELD_GROUP_CLASS =
   `flex items-center ${FIELD_RADIUS} border-0 bg-[#1a1a1d] transition-colors focus-within:bg-[#222226]`;
 
 /**
- * Primary CTA — solid brand yellow, no border. UI face.
+ * Primary CTA — muted brand amber, no border. UI face.
  */
 export const BUTTON_CLASS =
-  `font-ui flex min-h-[52px] items-center justify-center gap-2 ${FIELD_RADIUS} border-0 bg-[#ffe500] px-8 py-4 text-[15px] font-semibold tracking-tight text-black transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-35`;
+  `font-ui flex min-h-[52px] items-center justify-center gap-2 ${FIELD_RADIUS} border-0 bg-brand px-8 py-4 text-[15px] font-semibold tracking-tight text-zinc-950 transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35`;
 
 export const BUTTON_CLASS_COMPACT =
-  `font-ui flex min-h-[48px] items-center justify-center self-end ${FIELD_RADIUS} border-0 bg-[#ffe500] px-8 text-[14px] font-semibold tracking-tight text-black transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-35`;
+  `font-ui flex min-h-[48px] items-center justify-center self-end ${FIELD_RADIUS} border-0 bg-brand px-8 text-[14px] font-semibold tracking-tight text-zinc-950 transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35`;
 
 /**
  * Secondary CTA — solid elevated surface, no outline border.

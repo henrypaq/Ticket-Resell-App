@@ -59,7 +59,7 @@ export function DoneScreen({
   return (
     <AppFlowShell>
       <div className="flex flex-1 flex-col">
-        <p className="font-ui text-[15px] font-semibold tracking-tight text-[#ffe500]">
+        <p className="font-ui text-[15px] font-semibold tracking-tight text-brand">
           mcgill.tickets
         </p>
 
@@ -129,7 +129,7 @@ export function SellConfirmation({
   const setupPath = setupHref("sell", "/");
   return (
     <div className="flex flex-1 flex-col">
-      <p className="font-ui text-[15px] font-semibold tracking-tight text-[#ffe500]">
+      <p className="font-ui text-[15px] font-semibold tracking-tight text-brand">
         mcgill.tickets
       </p>
 

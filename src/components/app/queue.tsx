@@ -15,7 +15,7 @@ export function QueueScreen({ entry }: { entry: QuickWaitlistEntry }) {
     return (
       <AppFlowShell>
         <div className="flex flex-1 flex-col">
-          <p className="font-ui text-[15px] font-semibold tracking-tight text-[#ffe500]">
+          <p className="font-ui text-[15px] font-semibold tracking-tight text-brand">
             mcgill.tickets
           </p>
           <header className="mt-8">
@@ -45,13 +45,13 @@ export function QueueScreen({ entry }: { entry: QuickWaitlistEntry }) {
   return (
     <AppFlowShell>
       <div className="flex flex-1 flex-col">
-        <p className="font-ui text-[15px] font-semibold tracking-tight text-[#ffe500]">
+        <p className="font-ui text-[15px] font-semibold tracking-tight text-brand">
           mcgill.tickets
         </p>
 
         <div className="mt-8 flex items-start gap-4">
           <p
-            className="font-ui shrink-0 text-[56px] font-bold leading-none tracking-tight tabular-nums text-[#ffe500] sm:text-[64px]"
+            className="font-ui shrink-0 text-[56px] font-bold leading-none tracking-tight tabular-nums text-brand sm:text-[64px]"
             aria-label={`Position ${entry.position} in queue`}
           >
             {entry.position}
@@ -83,7 +83,7 @@ export function QueueUnavailable() {
   return (
     <AppFlowShell>
       <div className="flex flex-1 flex-col">
-        <p className="font-ui text-[15px] font-semibold tracking-tight text-[#ffe500]">
+        <p className="font-ui text-[15px] font-semibold tracking-tight text-brand">
           mcgill.tickets
         </p>
         <h1 className="headline mt-7 text-[28px] leading-[1.15] tracking-tight">

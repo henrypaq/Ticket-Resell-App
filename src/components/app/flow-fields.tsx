@@ -54,7 +54,7 @@ export function EventPicker({
             onClick={() => onChange(event.slug)}
             className={`flex items-center gap-3 rounded-[16px] border p-2.5 text-left transition-colors ${
               selected
-                ? "border-[#ffe500]/50 bg-[#ffe500]/10"
+                ? "border-brand/50 bg-brand/10"
                 : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
             }`}
           >
@@ -66,7 +66,7 @@ export function EventPicker({
               <span className="block text-[15px] font-semibold text-ink">{event.name}</span>
               <span className="mt-0.5 block text-[12.5px] text-muted">{event.venue}</span>
               {event.entryNote && (
-                <span className="mt-0.5 block text-[12px] font-medium text-[#ffe500]/90">
+                <span className="mt-0.5 block text-[12px] font-medium text-brand/90">
                   {event.entryNote}
                 </span>
               )}

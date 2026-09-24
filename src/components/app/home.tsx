@@ -124,9 +124,9 @@ export function AppHome({
                 <li key={entry.leadId}>
                   <Link
                     href={`/queue?lead=${entry.leadId}&event=${encodeURIComponent(entry.eventSlug)}`}
-                    className="flex w-full items-center gap-3.5 rounded-[16px] border border-[#ffe500]/25 bg-[#ffe500]/10 px-3.5 py-3 text-left transition-colors hover:bg-[#ffe500]/15"
+                    className="flex w-full items-center gap-3.5 rounded-[16px] border border-brand/25 bg-brand/10 px-3.5 py-3 text-left transition-colors hover:bg-brand/15"
                   >
-                    <div className="font-ui flex h-[56px] min-w-[56px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-[#ffe500] px-2.5 text-black">
+                    <div className="font-ui flex h-[56px] min-w-[56px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-brand px-2.5 text-black">
                       <span className="text-[11px] font-bold uppercase tracking-[0.08em]">Sent</span>
                     </div>
                     <div className="min-w-0 flex-1">
@@ -257,7 +257,7 @@ export function AppHome({
             </p>
             <Link
               href="/upcoming"
-              className="font-ui inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
+              className="font-ui inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-brand transition-opacity hover:opacity-80"
             >
               See all events
               <ChevronRight className="h-3.5 w-3.5" />
@@ -342,8 +342,8 @@ function WaitlistPositionBadge({
     <div
       className={`font-ui flex shrink-0 flex-col items-center justify-center ${dim} ${
         highlight
-          ? "bg-[#ffe500] text-black"
-          : "border border-white/20 bg-transparent text-[#ffe500]"
+          ? "bg-brand text-black"
+          : "border border-white/20 bg-transparent text-brand"
       }`}
       aria-label={`Position ${position} in waitlist`}
     >
@@ -750,7 +750,7 @@ function WaitlistEditView({
 
       <div className="flex items-start gap-4">
         <p
-          className="font-ui shrink-0 text-[52px] font-bold leading-none tracking-tight tabular-nums text-[#ffe500] sm:text-[56px]"
+          className="font-ui shrink-0 text-[52px] font-bold leading-none tracking-tight tabular-nums text-brand sm:text-[56px]"
           aria-label={`Position ${entry.position} in waitlist`}
         >
           {entry.position}
@@ -804,8 +804,8 @@ function WaitlistEditView({
           disabled={!canSave || !dirty || pending || leavePending}
           className={`font-ui flex min-h-[52px] w-full items-center justify-center rounded-[14px] border-0 px-8 text-[15px] font-semibold tracking-tight transition-opacity ${
             canSave && dirty && !pending && !leavePending
-              ? "bg-[#ffe500] text-black hover:opacity-90"
-              : "cursor-not-allowed bg-[#ffe500]/30 text-black/40"
+              ? "bg-brand text-black hover:opacity-90"
+              : "cursor-not-allowed bg-brand/30 text-black/40"
           }`}
         >
           {pending ? "Saving…" : "Save changes"}

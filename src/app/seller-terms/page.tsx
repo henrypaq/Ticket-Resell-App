@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function SellerTermsPage() {
   return (
     <main className="relative mx-auto min-h-dvh w-full max-w-lg px-5 py-10 sm:px-6">
-      <p className="text-[17px] font-semibold tracking-tight text-[#ffe500]">mcgill.tickets</p>
+      <p className="text-[17px] font-semibold tracking-tight text-brand">mcgill.tickets</p>
       <h1 className="headline mt-6 text-[28px] leading-tight tracking-tight">{SELLER_TERMS.title}</h1>
       <p className="mt-3 text-[14px] leading-relaxed text-muted">{SELLER_TERMS.intro}</p>
 

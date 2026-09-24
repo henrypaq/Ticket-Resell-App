@@ -52,7 +52,7 @@ export function opsPaymentDeclaredText(data: OpsPaymentDeclaredEmailData): strin
 export function opsPaymentDeclaredHtml(data: OpsPaymentDeclaredEmailData): string {
   return opsAlertShell({
     badge: "PAYMENT",
-    badgeColor: "#ffe500",
+    badgeColor: "#fbbf24",
     headline: "Buyer says Interac is sent",
     rows: [
       { label: "Event", value: data.eventName },
@@ -140,14 +140,14 @@ function opsAlertShell(args: {
 <html>
 <body style="margin:0;padding:0;background:#0b0b0c;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:32px 20px;">
-    <p style="margin:0 0 8px;color:#ffe500;font-size:14px;font-weight:700;">mcgill.tickets ops</p>
+    <p style="margin:0 0 8px;color:#fbbf24;font-size:14px;font-weight:700;">mcgill.tickets ops</p>
     <div style="margin:16px 0 8px;">
       <span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${args.badgeColor};color:#111;font-size:12px;font-weight:700;letter-spacing:0.02em;">${escapeHtml(args.badge)}</span>
     </div>
     <h1 style="margin:0 0 24px;color:#f5f5f5;font-size:22px;line-height:1.25;font-weight:600;">${escapeHtml(args.headline)}</h1>
     <table style="width:100%;border-collapse:collapse;">${rowHtml}</table>
     <p style="margin:28px 0 0;">
-      <a href="${escapeHtml(args.ctaUrl)}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#ffe500;color:#111;font-size:14px;font-weight:700;text-decoration:none;">${escapeHtml(args.ctaLabel)}</a>
+      <a href="${escapeHtml(args.ctaUrl)}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#fbbf24;color:#111;font-size:14px;font-weight:700;text-decoration:none;">${escapeHtml(args.ctaLabel)}</a>
     </p>
     <p style="margin:20px 0 0;color:#9a9a9e;font-size:12px;">Ref ${escapeHtml(args.footerId)}</p>
   </div>

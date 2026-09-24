@@ -144,7 +144,7 @@ export function TicketUploadZone({
         onDrop={onDrop}
         className={`flex w-full flex-col items-center justify-center gap-1.5 rounded-[16px] border px-5 py-7 text-center transition-colors ${
           dragging
-            ? "border-[#ffe500]/50 bg-[#ffe500]/[0.06]"
+            ? "border-brand/50 bg-brand/[0.06]"
             : complete
               ? "border-white/10 bg-transparent"
               : "border-dashed border-white/20 bg-transparent hover:border-white/35"

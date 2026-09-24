@@ -50,7 +50,7 @@ export function EventIntentView({
           <h1 className="headline text-[28px] leading-[1.12] tracking-tight">{event.name}</h1>
           <p className="mt-2 text-[15px] text-muted">{formatBetaEventWhenShort(day)}</p>
           {event.entryNote && (
-            <p className="mt-2 text-[13px] font-semibold text-[#ffe500]">{event.entryNote}</p>
+            <p className="mt-2 text-[13px] font-semibold text-brand">{event.entryNote}</p>
           )}
         </div>
       </div>
@@ -94,7 +94,7 @@ export function EventPoster({
       type="button"
       onClick={onSelect}
       aria-label={`${event.name} — choose buy or sell`}
-      className="relative w-[34vw] max-w-[132px] shrink-0 rounded-[16px] bg-[#17171a] outline-none ring-2 ring-transparent transition-[box-shadow,transform,ring-color] hover:ring-[#ffe500]/55 focus-visible:ring-[#ffe500] active:scale-[0.98] active:ring-[#ffe500]"
+      className="relative w-[34vw] max-w-[132px] shrink-0 rounded-[16px] bg-[#17171a] outline-none ring-2 ring-transparent transition-[box-shadow,transform,ring-color] hover:ring-brand/55 focus-visible:ring-brand active:scale-[0.98] active:ring-brand"
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[16px]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -107,7 +107,7 @@ export function EventPoster({
           <p className="headline text-[12.5px] leading-tight text-ink">{event.name}</p>
           <p className="mt-0.5 text-[10px] text-muted">{formatBetaEventWhenShort(day)}</p>
           {event.entryNote && (
-            <p className="mt-0.5 text-[9.5px] font-semibold leading-snug text-[#ffe500]">
+            <p className="mt-0.5 text-[9.5px] font-semibold leading-snug text-brand">
               {event.entryNote}
             </p>
           )}
@@ -148,7 +148,7 @@ export function EventPosterCard({
         <div className="absolute inset-x-0 top-0 p-3.5">
           <h2 className="headline text-[16px] leading-[1.15] text-ink">{event.name}</h2>
           {event.entryNote && (
-            <p className="mt-1.5 text-[10.5px] font-semibold leading-snug text-[#ffe500]">
+            <p className="mt-1.5 text-[10.5px] font-semibold leading-snug text-brand">
               {event.entryNote}
             </p>
           )}

@@ -18,7 +18,7 @@ export default function FlyerQrIndexPage() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col gap-6 px-5 py-12">
       <div>
-        <p className="text-[13px] font-semibold text-[#ffe500]">mcgill.tickets</p>
+        <p className="text-[13px] font-semibold text-brand">mcgill.tickets</p>
         <h1 className="mt-2 text-[28px] font-semibold tracking-tight text-ink">
           Flyer QR codes
         </h1>
@@ -41,7 +41,7 @@ export default function FlyerQrIndexPage() {
                 </span>
                 <span className="mt-0.5 block font-mono text-[12px] text-muted">{channel}</span>
               </span>
-              <span className="text-[13px] font-semibold text-[#ffe500]">Open →</span>
+              <span className="text-[13px] font-semibold text-brand">Open →</span>
             </Link>
             <p className="mt-1.5 px-1 font-mono text-[11px] text-muted/80">
               {flyerLandingUrl(channel)}

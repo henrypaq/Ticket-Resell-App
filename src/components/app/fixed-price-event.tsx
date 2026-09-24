@@ -28,11 +28,11 @@ import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
 
 const initial: QuickActionState = {};
 
-/** Ops amber CTAs — darker orange than the consumer yellow. */
-const FP_BUTTON_CLASS = `font-ui flex min-h-[52px] items-center justify-center gap-2 ${FIELD_RADIUS} border-0 bg-amber-400 px-8 py-4 text-[15px] font-semibold tracking-tight text-zinc-950 transition-opacity duration-200 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-35`;
-const FP_BUTTON_MUTED = `${FP_BUTTON_CLASS} !bg-amber-400/25 !text-amber-200/40 hover:!bg-amber-400/25`;
-const FP_BUTTON_CONFIRM = `font-ui flex min-h-[52px] w-full items-center justify-center gap-2 ${FIELD_RADIUS} border border-amber-400/40 bg-amber-400/10 px-6 text-[14px] font-semibold tracking-tight text-amber-200 transition-colors hover:bg-amber-400/15`;
-const FP_BUTTON_CONFIRM_ON = `font-ui flex min-h-[52px] w-full items-center justify-center gap-2 ${FIELD_RADIUS} border border-amber-400 bg-amber-400/20 px-6 text-[14px] font-semibold tracking-tight text-amber-300`;
+/** Ops/muted brand amber CTAs — shared with --color-brand. */
+const FP_BUTTON_CLASS = `font-ui flex min-h-[52px] items-center justify-center gap-2 ${FIELD_RADIUS} border-0 bg-brand px-8 py-4 text-[15px] font-semibold tracking-tight text-zinc-950 transition-opacity duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-35`;
+const FP_BUTTON_MUTED = `${FP_BUTTON_CLASS} !bg-brand/25 !text-brand/40 hover:!bg-brand/25`;
+const FP_BUTTON_CONFIRM = `font-ui flex min-h-[52px] w-full items-center justify-center gap-2 ${FIELD_RADIUS} border border-brand/40 bg-brand/10 px-6 text-[14px] font-semibold tracking-tight text-brand transition-colors hover:bg-brand/15`;
+const FP_BUTTON_CONFIRM_ON = `font-ui flex min-h-[52px] w-full items-center justify-center gap-2 ${FIELD_RADIUS} border border-brand bg-brand/20 px-6 text-[14px] font-semibold tracking-tight text-brand`;
 
 type Phase = "details" | "checkout";
 
@@ -318,7 +318,7 @@ function DetailsPhase({
             Back
           </button>
           <div className="mt-auto pb-5">
-            <span className="font-ui inline-block rounded-md bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-950">
+            <span className="font-ui inline-block rounded-md bg-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-950">
               Fixed · {formatCad(priceEach)}
             </span>
             <h1 className="headline mt-2 text-[26px] leading-[1.1] tracking-tight text-ink">
@@ -339,7 +339,7 @@ function DetailsPhase({
         {(event.entryNote || blurb) && (
           <div className="space-y-1">
             {event.entryNote && (
-              <p className="font-ui text-[13px] font-semibold tracking-tight text-amber-300">
+              <p className="font-ui text-[13px] font-semibold tracking-tight text-brand">
                 {event.entryNote}
               </p>
             )}
@@ -606,7 +606,7 @@ function CheckoutPhase({
                   onClick={() => {
                     void copyMemo();
                   }}
-                  className="font-ui flex w-full items-center justify-between gap-3 rounded-xl bg-white/[0.06] px-3 py-2.5 text-left transition-colors active:bg-white/[0.1]"
+                  className="font-ui flex w-full items-center justify-between gap-3 rounded-xl bg-white/[0.04] px-3 py-2.5 text-left transition-colors active:bg-white/[0.07]"
                   aria-label={`Copy memo ${paymentMemo}`}
                 >
                   <span className="min-w-0 break-all font-mono text-[13px] font-medium tracking-tight text-ink">

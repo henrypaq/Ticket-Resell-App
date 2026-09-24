@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export default function SmsOptInPage() {
   return (
     <main className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 py-10 sm:px-6">
-      <p className="text-[17px] font-semibold tracking-tight text-[#ffe500]">mcgill.tickets</p>
+      <p className="text-[17px] font-semibold tracking-tight text-brand">mcgill.tickets</p>
 
       <p className="mt-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
         After you request or list a ticket
