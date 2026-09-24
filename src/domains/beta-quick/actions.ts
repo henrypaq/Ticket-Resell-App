@@ -392,7 +392,7 @@ export async function submitQuickBuyAction(
   if (!result.ok) return { error: result.error };
   await appendQuickBuyerCookie(result.id);
   if (result.contactId) await setGoContactCookie(result.contactId);
-  return { ok: true, offerId: result.offerId };
+  return { ok: true, offerId: result.offerId, leadId: result.id };
 }
 
 export async function submitQuickSellAction(
@@ -497,4 +497,19 @@ export async function declareSellerTicketSentAction(
   if (!result.ok) return { error: result.error };
   // notifyOpsSellerTicketDeclared is intentionally not called yet (unwired).
   return { ok: true, message: "Thanks — we'll confirm once we see the ticket." };
+}
+
+/**
+ * Fixed-price post-checkout queue card — only if this device/member owns the lead.
+ */
+export async function loadQueueSeatForBuyer(
+  leadId: string,
+): Promise<QuickWaitlistEntry | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(leadId)) return null;
+  const [fromCookie, identity] = await Promise.all([readBuyerLeadIds(), currentIdentity()]);
+  const fromLookup = await listBuyLeadIds(identity);
+  const allowed = new Set([...fromCookie, ...fromLookup]);
+  if (!allowed.has(leadId)) return null;
+  const entries = await getQuickWaitlistEntries([leadId]);
+  return entries[0] ?? null;
 }

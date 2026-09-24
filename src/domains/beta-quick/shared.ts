@@ -46,6 +46,8 @@ export type QuickActionState = {
   message?: string;
   /** When a ticket is already held for this buyer, redirect to claim/pay. */
   offerId?: string;
+  /** Buy lead id — used for the fixed-price queue confirmation screen. */
+  leadId?: string;
   /** Sell lead id — used for Café custody confirm on the done screen. */
   sellLeadId?: string;
 };

@@ -48,7 +48,7 @@ export const quickBuySchema = z
       .transform((v) => v.replace(/^@+/, "").replace(/\s+/g, ""))
       .optional()
       .default(""),
-    /** Café Campus ticket-transfer recipient — required only for that event. */
+    /** Ticket-transfer recipient — required for Café Campus and fixed-price events. */
     transferFirstName: z.string().trim().max(80).optional().default(""),
     transferLastName: z.string().trim().max(80).optional().default(""),
     transferEmail: z
@@ -248,12 +248,30 @@ export async function submitQuickBuy(
     .limit(1)
     .maybeSingle();
 
-  const transferFirstName =
-    input.eventSlug === "cafe-campus" ? input.transferFirstName.trim() : "";
-  const transferLastName =
-    input.eventSlug === "cafe-campus" ? input.transferLastName.trim() : "";
-  const transferEmail =
-    input.eventSlug === "cafe-campus" ? input.transferEmail.trim().toLowerCase() : "";
+  // Café Campus + fixed-price events need a named transfer recipient — ops
+  // delivers those tickets manually to that inbox.
+  const needsTransfer =
+    input.eventSlug === "cafe-campus" || listed.fixedPriceEach != null;
+  if (needsTransfer) {
+    if (!input.transferFirstName.trim()) {
+      return { ok: false, error: "Enter your first name for the ticket transfer." };
+    }
+    if (!input.transferLastName.trim()) {
+      return { ok: false, error: "Enter your last name for the ticket transfer." };
+    }
+    if (!input.transferEmail.trim()) {
+      return { ok: false, error: "Enter your email for the ticket transfer." };
+    }
+  }
+
+  const transferFirstName = needsTransfer ? input.transferFirstName.trim() : "";
+  const transferLastName = needsTransfer ? input.transferLastName.trim() : "";
+  const transferEmail = needsTransfer
+    ? input.transferEmail.trim().toLowerCase()
+    : "";
+
+  // Fixed-price inventory is fulfilled manually for now — never auto-hold.
+  const manualQueueOnly = listed.fixedPriceEach != null;
 
   if (existing?.id) {
     const { error: updateError } = await admin
@@ -276,8 +294,12 @@ export async function submitQuickBuy(
       );
       return { ok: false, error: "Couldn't update your waitlist. Try again in a moment." };
     }
-    await allocateAvailableUnitsForEvent(input.eventSlug);
-    const offerId = (await getLiveOfferIdForBuyLead(existing.id)) ?? undefined;
+    if (!manualQueueOnly) {
+      await allocateAvailableUnitsForEvent(input.eventSlug);
+    }
+    const offerId = manualQueueOnly
+      ? undefined
+      : ((await getLiveOfferIdForBuyLead(existing.id)) ?? undefined);
     return { ok: true, id: existing.id, contactId, offerId };
   }
 
@@ -313,9 +335,13 @@ export async function submitQuickBuy(
   });
 
   // If inventory exists and this seat is next in the real queue, allocate now
-  // so the buyer can jump straight to pay.
-  await allocateAvailableUnitsForEvent(input.eventSlug);
-  const offerId = (await getLiveOfferIdForBuyLead(data.id)) ?? undefined;
+  // so the buyer can jump straight to pay (skipped for fixed-price / manual).
+  if (!manualQueueOnly) {
+    await allocateAvailableUnitsForEvent(input.eventSlug);
+  }
+  const offerId = manualQueueOnly
+    ? undefined
+    : ((await getLiveOfferIdForBuyLead(data.id)) ?? undefined);
 
   return { ok: true, id: data.id, contactId, offerId };
 }
