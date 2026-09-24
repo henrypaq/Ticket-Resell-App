@@ -102,177 +102,184 @@ export function AppHome({
   const totalNet = doneSells.reduce((sum, a) => sum + (a.netVsPaidCad ?? 0), 0);
 
   return (
-    <>
-      <header className="relative pt-2">
-        <h1 className="headline text-[30px] leading-[1.1] tracking-tight sm:text-[34px]">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <header className="relative shrink-0 pt-1">
+        <h1 className="headline text-[26px] leading-[1.1] tracking-tight sm:text-[30px]">
           DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
-        <p className="mt-3 max-w-[34ch] text-[15px] leading-relaxed text-muted">
+        <p className="mt-2 max-w-[34ch] text-[13.5px] leading-snug text-muted">
           Buy and sell sold-out tickets fast. Secure matching between buyers and sellers — we
           refund you if something goes wrong.
         </p>
       </header>
 
-      {waitlist.length > 0 && (
-        <section className="relative mt-9">
-          <p className="section-header">Your waitlist</p>
-          <ul className="mt-3.5 flex flex-col gap-2.5">
-            {waitlist.map((entry) => (
-              <li key={entry.leadId} className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditing(entry)}
-                  className="flex w-full items-center gap-3.5 rounded-[16px] bg-card px-3.5 py-3 text-left transition-colors hover:bg-[#1c1c20] active:bg-[#1c1c20]"
-                >
-                  <WaitlistPositionBadge
-                    position={entry.position}
-                    highlight={Boolean(entry.activeOfferId)}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-ui truncate text-[15px] font-semibold tracking-tight text-ink">
-                      Waitlist position #{entry.position}
-                    </p>
-                    <p className="mt-0.5 truncate text-[12.5px] leading-snug text-muted">
-                      {entry.eventName}
-                      {" · "}
-                      {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
-                      {entry.dormant
-                        ? " · paused"
-                        : entry.activeOfferId
-                          ? " · ticket held — claim / pay"
-                          : entry.status === "matched"
-                            ? " · matched"
-                            : entry.status === "done"
-                              ? " · completed"
-                              : null}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
-                </button>
-                {entry.activeOfferId && (
-                  <Link
-                    href={`/offer/${entry.activeOfferId}`}
-                    className={`${BUTTON_CLASS} min-h-[48px] text-[14px]`}
+      <div className="relative mt-5 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {waitlist.length > 0 && (
+          <section className="relative shrink-0">
+            <p className="section-header">Your waitlist</p>
+            <ul className="mt-2.5 flex flex-col gap-2">
+              {waitlist.map((entry) => (
+                <li key={entry.leadId} className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(entry)}
+                    className="flex w-full items-center gap-3.5 rounded-[16px] bg-card px-3.5 py-3 text-left transition-colors hover:bg-[#1c1c20] active:bg-[#1c1c20]"
                   >
-                    Open payment / claim
-                  </Link>
-                )}
-                {entry.dormant && !entry.activeOfferId && (
-                  <ReactivateSeatButton seatKey={`go:${entry.leadId}`} />
-                )}
-              </li>
-            ))}
-          </ul>
+                    <WaitlistPositionBadge
+                      position={entry.position}
+                      highlight={Boolean(entry.activeOfferId)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-ui truncate text-[15px] font-semibold tracking-tight text-ink">
+                        Waitlist position #{entry.position}
+                      </p>
+                      <p className="mt-0.5 truncate text-[12.5px] leading-snug text-muted">
+                        {entry.eventName}
+                        {" · "}
+                        {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
+                        {entry.dormant
+                          ? " · paused"
+                          : entry.activeOfferId
+                            ? " · ticket held — claim / pay"
+                            : entry.status === "matched"
+                              ? " · matched"
+                              : entry.status === "done"
+                                ? " · completed"
+                                : null}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
+                  </button>
+                  {entry.activeOfferId && (
+                    <Link
+                      href={`/offer/${entry.activeOfferId}`}
+                      className={`${BUTTON_CLASS} min-h-[48px] text-[14px]`}
+                    >
+                      Open payment / claim
+                    </Link>
+                  )}
+                  {entry.dormant && !entry.activeOfferId && (
+                    <ReactivateSeatButton seatKey={`go:${entry.leadId}`} />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {(activeSells.length > 0 || pastUnsoldSells.length > 0 || doneSells.length > 0) && (
+          <section className="relative shrink-0">
+            {activeSells.length > 0 && (
+              <>
+                <p className="section-header">Your tickets for sale</p>
+                <ul className="mt-2.5 flex flex-col gap-2">
+                  {activeSells.map((entry) => (
+                    <SellListingRow
+                      key={entry.leadId}
+                      entry={entry}
+                      cafeTransfer={cafeTransfer}
+                    />
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {pastUnsoldSells.length > 0 && (
+              <div className={activeSells.length > 0 ? "mt-3" : ""}>
+                <PastUnsoldSellNotice pastUnsoldSells={pastUnsoldSells} />
+              </div>
+            )}
+
+            {doneSells.length > 0 && (
+              <p className="mt-2 text-[12.5px] text-muted">
+                Sold so far: ${totalProceeds.toFixed(0)} received
+                {totalNet !== 0
+                  ? ` (${totalNet > 0 ? "+" : ""}$${totalNet.toFixed(0)} vs what you paid)`
+                  : ""}
+                .
+              </p>
+            )}
+          </section>
+        )}
+
+        <section className="relative flex shrink-0 flex-col gap-2">
+          <p className="section-header">What do you need?</p>
+          <Link href="/buy" className={`${BUTTON_CLASS} min-h-[52px] text-[15px]`}>
+            I need a ticket
+          </Link>
+          <Link href="/sell" className={`${STARRY_SELL_BUTTON_CLASS} min-h-[52px] text-[15px]`}>
+            <StarryButtonStars />
+            <span className="relative z-10">I have a ticket to sell</span>
+          </Link>
         </section>
-      )}
 
-      {(activeSells.length > 0 || pastUnsoldSells.length > 0 || doneSells.length > 0) && (
-        <section className="relative mt-8">
-          {activeSells.length > 0 && (
-            <>
-              <p className="section-header">Your tickets for sale</p>
-              <ul className="mt-3.5 flex flex-col gap-2">
-                {activeSells.map((entry) => (
-                  <SellListingRow
-                    key={entry.leadId}
-                    entry={entry}
-                    cafeTransfer={cafeTransfer}
-                  />
-                ))}
-              </ul>
-            </>
-          )}
+        <section className="relative min-h-0 shrink">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="section-header">
+              {hasTonight ? `Tonight · ${formatBetaEventWhenShort(tonightDay)}` : "Tonight"}
+            </p>
+            <Link
+              href="/upcoming"
+              className="font-ui inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
+            >
+              See all events
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
 
-          {pastUnsoldSells.length > 0 && (
-            <div className={activeSells.length > 0 ? "mt-3" : ""}>
-              <PastUnsoldSellNotice pastUnsoldSells={pastUnsoldSells} />
+          {hasTonight ? (
+            <div className="-mx-5 mt-2 flex gap-2.5 overflow-x-auto px-5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6">
+              {tonight.map((event) => (
+                <EventPoster
+                  key={event.slug}
+                  event={event}
+                  day={tonightDay}
+                  onSelect={() => setSelected({ event, day: tonightDay })}
+                />
+              ))}
             </div>
-          )}
-
-          {doneSells.length > 0 && (
-            <p className="mt-3 text-[12.5px] text-muted">
-              Sold so far: ${totalProceeds.toFixed(0)} received
-              {totalNet !== 0
-                ? ` (${totalNet > 0 ? "+" : ""}$${totalNet.toFixed(0)} vs what you paid)`
-                : ""}
+          ) : (
+            <p className="mt-2 text-[13px] leading-relaxed text-muted">
+              Nothing running tonight.{" "}
+              <Link
+                href="/upcoming"
+                className="font-semibold text-ink underline decoration-dotted underline-offset-4"
+              >
+                See what&apos;s coming up
+              </Link>
               .
             </p>
           )}
         </section>
-      )}
+      </div>
 
-      <section className="relative mt-10 flex flex-col gap-2.5">
-        <p className="section-header">What do you need?</p>
-        <Link href="/buy" className={`${BUTTON_CLASS} min-h-[58px] text-[16px]`}>
-          I need a ticket
-        </Link>
-        <Link href="/sell" className={STARRY_SELL_BUTTON_CLASS}>
-          <StarryButtonStars />
-          <span className="relative z-10">I have a ticket to sell</span>
-        </Link>
-      </section>
-
-      <section className="relative mt-8">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="section-header">
-            {hasTonight ? `Tonight · ${formatBetaEventWhenShort(tonightDay)}` : "Tonight"}
-          </p>
-          <Link
-            href="/upcoming"
-            className="font-ui inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
+      {/* iOS-style bottom chrome — request + socials on one row */}
+      <footer className="relative mt-3 flex shrink-0 items-center gap-3 border-t border-white/[0.06] pt-3">
+        <div className="min-w-0 flex-1">
+          <EventRequestSection compact />
+        </div>
+        <div className="flex shrink-0 items-center gap-2.5 pr-0.5">
+          <a
+            href={BETA_SOCIALS.instagram}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+            className="transition-transform hover:scale-105"
           >
-            See all events
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Link>
+            <InstagramIcon className="h-6 w-6" />
+          </a>
+          <a
+            href={BETA_SOCIALS.snapchat}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Snapchat"
+            className="transition-transform hover:scale-105"
+          >
+            <SnapchatIcon className="h-6 w-6" />
+          </a>
         </div>
-
-        {hasTonight ? (
-          <div className="-mx-5 mt-3 flex gap-3 overflow-x-auto px-5 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6">
-            {tonight.map((event) => (
-              <EventPoster
-                key={event.slug}
-                event={event}
-                day={tonightDay}
-                onSelect={() => setSelected({ event, day: tonightDay })}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
-            Nothing running tonight.{" "}
-            <Link href="/upcoming" className="font-semibold text-ink underline decoration-dotted underline-offset-4">
-              See what&apos;s coming up
-            </Link>
-            .
-          </p>
-        )}
-
-        <div className="mt-4">
-          <EventRequestSection />
-        </div>
-      </section>
-
-      <footer className="relative mt-auto flex items-center justify-center gap-3 pt-12">
-        <a
-          href={BETA_SOCIALS.instagram}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Instagram"
-          className="transition-transform hover:scale-105"
-        >
-          <InstagramIcon className="h-8 w-8" />
-        </a>
-        <a
-          href={BETA_SOCIALS.snapchat}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Snapchat"
-          className="transition-transform hover:scale-105"
-        >
-          <SnapchatIcon className="h-8 w-8" />
-        </a>
       </footer>
-    </>
+    </div>
   );
 }
 

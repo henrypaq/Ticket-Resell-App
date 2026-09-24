@@ -79,7 +79,7 @@ export function EventIntentView({
   );
 }
 
-/** Poster in the home page's horizontal "tonight" rail. */
+/** Poster in the home page's horizontal "tonight" rail — sized to fit one screen. */
 export function EventPoster({
   event,
   day,
@@ -94,20 +94,20 @@ export function EventPoster({
       type="button"
       onClick={onSelect}
       aria-label={`${event.name} — choose buy or sell`}
-      className="relative w-[42vw] max-w-[180px] shrink-0 rounded-[20px] bg-[#17171a] outline-none ring-2 ring-transparent transition-[box-shadow,transform,ring-color] hover:ring-[#ffe500]/55 focus-visible:ring-[#ffe500] active:scale-[0.98] active:ring-[#ffe500]"
+      className="relative w-[34vw] max-w-[132px] shrink-0 rounded-[16px] bg-[#17171a] outline-none ring-2 ring-transparent transition-[box-shadow,transform,ring-color] hover:ring-[#ffe500]/55 focus-visible:ring-[#ffe500] active:scale-[0.98] active:ring-[#ffe500]"
     >
-      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[20px]">
+      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[16px]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={event.flyerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
         <div
           aria-hidden
           className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent"
         />
-        <div className="absolute inset-x-0 bottom-0 p-3 text-left">
-          <p className="headline text-[15px] leading-tight text-ink">{event.name}</p>
-          <p className="mt-1 text-[11px] text-muted">{formatBetaEventWhenShort(day)}</p>
+        <div className="absolute inset-x-0 bottom-0 p-2 text-left">
+          <p className="headline text-[12.5px] leading-tight text-ink">{event.name}</p>
+          <p className="mt-0.5 text-[10px] text-muted">{formatBetaEventWhenShort(day)}</p>
           {event.entryNote && (
-            <p className="mt-1 text-[10.5px] font-semibold leading-snug text-[#ffe500]">
+            <p className="mt-0.5 text-[9.5px] font-semibold leading-snug text-[#ffe500]">
               {event.entryNote}
             </p>
           )}

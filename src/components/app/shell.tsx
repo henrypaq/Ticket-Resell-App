@@ -18,7 +18,7 @@ export function AppShell({
     <div className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-col">
       <Starfield />
       <AppHeader initials={initials} />
-      <div className="relative flex flex-1 flex-col px-5 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6">
+      <div className="relative flex min-h-0 flex-1 flex-col px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
         {children}
       </div>
     </div>

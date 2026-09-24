@@ -14,7 +14,7 @@ import { BUTTON_CLASS, FIELD_CLASS } from "@/components/forms/field-styles";
  * Visually quiet on purpose — text-forward, almost no surface, so it never
  * competes with Need a ticket / Have a ticket.
  */
-export function EventRequestSection() {
+export function EventRequestSection({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     submitQuickEventRequestAction,
@@ -22,21 +22,34 @@ export function EventRequestSection() {
   );
 
   return (
-    <div className="relative">
+    <div className={`relative ${compact && open ? "absolute bottom-full left-0 right-0 z-20 mb-2" : ""}`}>
       {!open ? (
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="font-ui flex w-full items-center justify-between gap-3 rounded-[12px] border-0 bg-transparent px-1 py-2.5 text-left transition-opacity hover:opacity-80"
+          className={`font-ui flex w-full items-center gap-2 border-0 bg-transparent text-left transition-opacity hover:opacity-80 ${
+            compact
+              ? "justify-start px-0 py-1"
+              : "justify-between gap-3 rounded-[12px] px-1 py-2.5"
+          }`}
         >
-          <span className="truncate text-[13px] text-muted/70">Going somewhere else?</span>
-          <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium tracking-tight text-muted">
-            Request an event
-            <span aria-hidden>→</span>
-          </span>
+          {compact ? (
+            <span className="inline-flex items-center gap-1 truncate text-[12px] font-medium tracking-tight text-muted">
+              Request an event
+              <span aria-hidden>→</span>
+            </span>
+          ) : (
+            <>
+              <span className="truncate text-[13px] text-muted/70">Going somewhere else?</span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium tracking-tight text-muted">
+                Request an event
+                <span aria-hidden>→</span>
+              </span>
+            </>
+          )}
         </button>
       ) : (
-        <div className="rounded-[14px] border border-white/8 bg-white/[0.03] p-4">
+        <div className="rounded-[14px] border border-white/8 bg-[#121214] p-4 shadow-[0_-8px_32px_rgba(0,0,0,0.45)]">
           {state.ok ? (
             <div className="flex flex-col gap-2">
               <p className="font-ui text-[14px] font-semibold tracking-tight text-ink">
