@@ -53,8 +53,7 @@ export default async function LoginPage({
       <p className="mt-8 flex items-start gap-2.5 text-[13px] leading-relaxed text-muted">
         <ShieldIcon className="mt-0.5 h-4 w-4 shrink-0" />
         <span>
-          No passwords. We email you a one-time code to confirm the address is real — that&apos;s the
-          whole signup.
+          Sign in with the email and password from account setup, Google, or a one-time email code.
         </span>
       </p>
     </main>

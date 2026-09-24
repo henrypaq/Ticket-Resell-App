@@ -16,20 +16,25 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 /**
- * Optional post-flow account setup: profile + Interac payout, then return via
- * `?next=` to home, an offer claim, or wherever they came from.
- *
- * Google OAuth lands here after `/auth/callback`; we link the session to a
- * beta profile and continue with Interac if payout details are still missing.
+ * Optional post-flow account setup: password + contact + Interac, then return
+ * via `?next=`. Google OAuth lands here after `/auth/callback`.
  */
 export default async function SetupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ intent?: string; next?: string }>;
+  searchParams: Promise<{
+    intent?: string;
+    next?: string;
+    name?: string;
+    email?: string;
+  }>;
 }) {
   const params = await searchParams;
   const intent = params.intent === "sell" ? "sell" : "buy";
   const returnTo = safeReturnPath(params.next, "/");
+  const queryName = typeof params.name === "string" ? params.name.trim().slice(0, 120) : "";
+  const queryEmail =
+    typeof params.email === "string" ? params.email.trim().toLowerCase().slice(0, 320) : "";
 
   let prefill = await loadProfilePrefill();
 
@@ -51,26 +56,27 @@ export default async function SetupPage({
   }
 
   if (!prefill) {
-    if (!profile) redirect(returnTo);
+    if (!profile && !queryName && !queryEmail) redirect(returnTo);
     prefill = {
-      name: profile.name,
-      email: profile.email,
-      phone: profile.phone || contact?.contactPhone || null,
+      name: profile?.name || queryName || null,
+      email: profile?.email || queryEmail || null,
+      phone: profile?.phone || contact?.contactPhone || null,
       intent,
       eventName: null,
       referralSource: null,
       contactInstagram: contact?.contactInstagram ?? null,
-      etransferName: contact?.etransferName ?? profile.name,
+      etransferName: contact?.etransferName || profile?.name || queryName || null,
       etransferEmail: contact?.etransferEmail ?? null,
       etransferPhone: contact?.etransferPhone ?? null,
     };
-  } else if (profile) {
+  } else {
     prefill = {
       ...prefill,
-      name: profile.name || prefill.name,
-      email: profile.email || prefill.email,
-      phone: profile.phone || prefill.phone,
-      etransferName: contact?.etransferName ?? prefill.etransferName ?? profile.name,
+      name: queryName || profile?.name || prefill.name,
+      email: queryEmail || profile?.email || prefill.email,
+      phone: profile?.phone || prefill.phone,
+      etransferName:
+        contact?.etransferName || prefill.etransferName || profile?.name || queryName || null,
       etransferEmail: contact?.etransferEmail ?? prefill.etransferEmail,
       etransferPhone: contact?.etransferPhone ?? prefill.etransferPhone,
       contactInstagram: contact?.contactInstagram ?? prefill.contactInstagram,

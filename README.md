@@ -177,6 +177,15 @@ applying, confirm both policies exist:
 `select policyname from pg_policies where tablename = 'objects';` should list
 `ticket_evidence_read_own` and `ticket_evidence_read_admin`.
 
+**Pending on the linked project as of 2026-09-23.** `supabase migration list
+--linked` reports `0028` (seller payout confirmation) and `0029` (event-request
+ops inbox) as applied locally but **not** on the remote, while application code
+already reads `beta_offers.seller_payout_confirmed_at` and
+`beta_member_event_requests.seen_at`. The `0030` fixed-price column and the six
+`20260923*` data-capture migrations are also unapplied. Run `supabase db push`
+(which applies them in filename order: 0028, 0029, 0030, then the data-capture
+set) before relying on either code path.
+
 The connection string is in the Supabase dashboard under
 **Project Settings → Database → Connection string (URI)**. Alternatively, paste
 each file into the dashboard's SQL editor.
@@ -435,6 +444,7 @@ src/
     events/ listings/ waitlist/ notifications/ users/ payments/ admin/ social/
     beta-signup/  saved profiles (cookie → beta_members.id)
     beta-quick/   buy/sell leads · beta-go/ the contact rows those leads hang off
+    data-capture/ lifecycle log, integrity checks, analytics views (§ Data capture)
   _legacy/        retired Supabase (app) routes, out of the route tree — see its README
   lib/
     compliance/   price cap, fees, disclosure — pure and unit tested
@@ -444,8 +454,110 @@ src/
     next-path.ts  validates a post-login redirect target (same-origin only)
 supabase/migrations/   versioned SQL
 docs/adr/              architecture decision records
-vercel.json            Vercel Cron schedule for the auto-release sweep
+vercel.json            Vercel Cron schedules (auto-release, offer sweep, integrity check)
 ```
+
+## Data capture
+
+`CLAUDE_SPECS/DATA_CAPTURE.md` asks for three things the current-state tables
+couldn't give on their own: history with provenance, bad states that are
+findable by query, and an analytics surface the organizer product can be built
+on later. Migrations `20260923090000`–`20260923090500` add them. The design
+reasoning — and what was rejected — is in
+[ADR 0006](docs/adr/0006-lifecycle-log-integrity-checks-and-analytics-views.md).
+
+### History: `lifecycle_events`
+
+One append-only row per state change, written by **database triggers** on
+`beta_ticket_units`, `beta_offers`, `beta_go_leads`, `beta_deals`,
+`beta_go_contacts`, `beta_member_interests`, `listings` and `transactions`. The
+app is not the only writer of those tables — cron sweeps and `allocate_offer`
+are too — so the log lives where every writer has to pass.
+
+Each row carries a semantic name (`buyer_payment_confirmed`, not "offer
+updated"), the previous and new state, which columns changed, the actor
+(`ops` + their email, `buyer`, `seller`, `system`, `cron`), the source, an
+amount when money is involved, and **redacted** before/after snapshots — PII
+values are replaced with `"[redacted]"`, while the field names stay, so "their
+phone changed at 8pm" is answerable without the log holding a phone number.
+
+Rows produced by one action share a `correlation_id`: confirming a payment
+writes an offer event, the unit-sold event its trigger cascade produces, and the
+lead-closed event, all under one id.
+
+This does **not** replace `analytics_events` (§ Analytics below). That one is
+best-effort behavioural telemetry from the app; this one is state history that
+no code path can skip.
+
+### Provenance: RPCs on the money paths
+
+Every transition that moves money or ticket ownership now goes through a
+`security definer` function that takes `for update` on the row, re-checks the
+guard under that lock, and stamps the actor for the trigger to record:
+`claim_offer`, `decline_offer_claim`, `declare_offer_payment_sent`,
+`confirm_offer_payment`, `forward_offer_ticket`, `release_offer_payout`,
+`confirm_offer_payout_received`, `declare_seller_ticket_sent`,
+`confirm_ticket_received`. They write through the same tables the app always
+did, so the Bill 10 price-cap and offer-guard triggers still fire — an RPC that
+bypassed them would be exactly the extra uncapped write path
+`CLAUDE_SPECS/CLAUDE.md` § hard constraints forbids.
+
+`record_manual_event` covers the half of the beta that happens in a DM or at a
+door: ops can attach a first-class event to any record without inventing a
+status.
+
+### Finding problems: `integrity_findings`
+
+A view of ~25 named bad states — a ticket sold with no paid offer, a ticket
+forwarded on an unpaid one, a seller unpaid 72h after the buyer paid, a price
+above face value, a deal stage that contradicts its offer, an event name the
+catalog doesn't know. Each row is `check_name` + severity + subject + detail.
+
+- `/ops/data` shows them with plain-language guidance per check and a **Run
+  checks** button.
+- `/api/v1/cron/integrity-check` (nightly, `CRON_SECRET`) snapshots them into
+  `integrity_findings_log` via `run_integrity_checks()` and emails the team if
+  anything is critical.
+- Adding a check is one `UNION ALL` block plus a `FINDING_GUIDE` entry in
+  `domains/data-capture/shared.ts` — a unit test fails if those two drift apart.
+
+### Analytics surface
+
+Ten views, all service-role only: `v_ticket_ledger` (one row per ticket with its
+whole life flattened — the usual starting point), `v_event_sales_summary`,
+`v_event_sales_daily`, `v_event_demand`, `v_offer_funnel`,
+`v_seller_performance`, `v_buyer_behaviour`, `v_sales_velocity`,
+`v_platform_daily`, `v_lifecycle_timeline`. Dates roll up in `America/Toronto`.
+Plain views, not materialized — at a few hundred rows freshness beats
+milliseconds; `v_event_sales_daily` and `v_sales_velocity` are the two to
+materialize first when volume justifies it.
+
+### Access
+
+Every new table, view and function is **service-role only**: RLS enabled with no
+policies *and* grants revoked from `anon`/`authenticated`. Both, because this
+project's default-privileges rule grants new tables to those roles automatically
+(the trap 0009 documents). Reads happen through the ops console, behind its own
+password gate.
+
+Buyers and sellers in the beta have no `auth.users` row — identity is a cookie
+holding a lead/contact id and the boundary is server code (`ownsLead`,
+`getGoActivity`). The per-user RLS that does exist is on the Phase 1 card-payment
+tables and is unchanged.
+
+### Known gaps
+
+- **`beta_members` has no lifecycle trigger.** A classic member editing their
+  profile or notification preferences leaves no history row; their *seats*
+  (`beta_member_interests`) and purchases do. Add a trigger there if member
+  profile edits ever need an audit trail.
+- **Backfilled history is inferred, not observed.** Rows written before these
+  migrations are reconstructed from their timestamp columns and tagged
+  `source = 'backfill'`. A status that was overwritten before the triggers
+  existed is gone.
+- **Allocation is logged as `system`.** `allocate_offer` (0021) is untouched, so
+  `offer_created` carries no actor beyond the source. Every *later* step in the
+  offer's life does.
 
 ## Analytics
 

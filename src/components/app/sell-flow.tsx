@@ -87,8 +87,14 @@ export function QuickSellFlow({
     : (events[0]?.slug ?? "");
   const [eventSlug, setEventSlug] = useState(preset);
   const lockedEvent = events.find((e) => e.slug === eventSlug) ?? null;
+  const fixedAsk =
+    lockedEvent?.fixedPriceEach != null ? String(lockedEvent.fixedPriceEach) : null;
   const [quantity, setQuantity] = useState(1);
-  const [askEach, setAskEach] = useState("");
+  const [askEach, setAskEach] = useState(fixedAsk ?? "");
+
+  useEffect(() => {
+    if (fixedAsk != null) setAskEach(fixedAsk);
+  }, [fixedAsk]);
   const savedPhone = splitSavedPhone(savedContact?.contactPhone);
   const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);
   const [phoneNational, setPhoneNational] = useState(savedPhone.national);
@@ -304,8 +310,12 @@ export function QuickSellFlow({
             <>
               <StepHeading
                 eyebrow={stepLabel}
-                title="Listing price"
-                hint="Enter the price per ticket. It must not exceed face value (what you paid)."
+                title={fixedAsk != null ? "Listing price" : "Listing price"}
+                hint={
+                  fixedAsk != null
+                    ? "This event has a predetermined price. Your listing is locked to that amount."
+                    : "Enter the price per ticket. It must not exceed face value (what you paid)."
+                }
               />
               <Field label="Price per ticket" htmlFor="askEach">
                 <div className="relative">
@@ -317,11 +327,21 @@ export function QuickSellFlow({
                     inputMode="decimal"
                     placeholder="45"
                     value={askEach}
-                    onChange={(e) => setAskEach(e.target.value.replace(/[^\d.]/g, ""))}
-                    className={`${FIELD_CLASS} pl-8`}
+                    readOnly={fixedAsk != null}
+                    onChange={(e) => {
+                      if (fixedAsk != null) return;
+                      setAskEach(e.target.value.replace(/[^\d.]/g, ""));
+                    }}
+                    className={`${FIELD_CLASS} pl-8 ${fixedAsk != null ? "opacity-90" : ""}`}
                   />
                 </div>
               </Field>
+              {fixedAsk != null && (
+                <p className="text-[12.5px] text-muted">
+                  Buyers see this exact price with fees itemized — you can’t change it for this
+                  event.
+                </p>
+              )}
             </>
           )}
 

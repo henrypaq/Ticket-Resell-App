@@ -25,7 +25,7 @@ export function AppHeader({
       <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
         <Link
           href="/"
-          className="text-[17px] font-semibold tracking-tight text-[#ffe500] transition-opacity hover:opacity-85"
+          className="font-ui text-[17px] font-semibold tracking-tight text-[#ffe500] transition-opacity hover:opacity-85"
         >
           mcgill.tickets
         </Link>
@@ -33,7 +33,7 @@ export function AppHeader({
         <Link
           href={accountHref}
           aria-label="Account and settings"
-          className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-[13px] font-bold text-ink transition-colors hover:bg-white/[0.12]"
+          className="font-ui flex h-[38px] w-[38px] items-center justify-center rounded-[12px] border-0 bg-[#1f1f23] text-[13px] font-bold tracking-tight text-ink transition-colors hover:bg-[#2a2a2e]"
         >
           {initials ? initials : <UserIcon className="h-[19px] w-[19px]" />}
         </Link>

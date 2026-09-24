@@ -7,6 +7,7 @@ import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
 import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
+import { nextListedWeekdayForEvent } from "@/lib/beta-events";
 import { ArrowLeft } from "@/components/icons";
 import { Field } from "@/components/forms/field";
 import { BUTTON_CLASS, FIELD_CLASS } from "@/components/forms/field-styles";
@@ -20,6 +21,7 @@ import {
   StepHeading,
   composeQuickPhone,
 } from "./flow-fields";
+import { FixedPriceEventScreen } from "./fixed-price-event";
 import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
 
 const initial: QuickActionState = {};
@@ -99,6 +101,36 @@ export function QuickBuyFlow({
     };
   }, [eventSlug, quantity]);
 
+  const showFixedPrice =
+    lockedEvent?.fixedPriceEach != null && (eventLocked || step > 0);
+
+  useBetaFlowStepLog({
+    intent: "buy",
+    stepKey: showFixedPrice
+      ? "fixed_price"
+      : (BUY_STEP_KEYS[Math.min(step, BUY_STEP_KEYS.length - 1)] ?? "event"),
+    eventSlug,
+    enabled: !state.ok && !showFixedPrice,
+  });
+
+  if (showFixedPrice && lockedEvent) {
+    return (
+      <FixedPriceEventScreen
+        event={lockedEvent}
+        day={nextListedWeekdayForEvent(lockedEvent)}
+        savedContact={savedContact}
+        backHref={backHref}
+        onBack={
+          eventLocked
+            ? undefined
+            : () => {
+                setStep(0);
+              }
+        }
+      />
+    );
+  }
+
   // While redirecting to /done, keep the form — no interim success page.
   const redirecting = Boolean(state.ok);
 
@@ -122,14 +154,6 @@ export function QuickBuyFlow({
   const isLast = safeStep === lastStep;
   const stepIndex = safeStep - firstStep + 1;
   const stepLabel = `Need a ticket · ${stepIndex} of ${totalSteps}`;
-  const stepKey = BUY_STEP_KEYS[Math.min(safeStep, BUY_STEP_KEYS.length - 1)] ?? "event";
-
-  useBetaFlowStepLog({
-    intent: "buy",
-    stepKey,
-    eventSlug,
-    enabled: !redirecting,
-  });
 
   const stepReady =
     (safeStep === 0 && Boolean(eventSlug)) ||

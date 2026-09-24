@@ -7,7 +7,10 @@ changes:
   constraints. Treat those constraints as acceptance criteria, not background.
 - `CLAUDE_SPECS/SECURITY.md` — security requirements, applied from Phase 0.
 - `CLAUDE_SPECS/ARCHITECTURE.md` — layering, testing, data integrity.
-- `CLAUDE_SPECS/DATA_CAPTURE.md` — analytics taxonomy and privacy constraints.
+- `CLAUDE_SPECS/DATA_CAPTURE.md` — the data-capture requirements: ticket/
+  transaction history, provenance, integrity checks, analytics readiness.
+  Implemented in `supabase/migrations/20260923*` and `src/domains/data-capture/`
+  (see `docs/adr/0006-*` and README § Data capture).
 - `CLAUDE_SPECS/STYLE.md` — the visual design system, read alongside the images
   in `CLAUDE_SPECS/design-references/`.
 

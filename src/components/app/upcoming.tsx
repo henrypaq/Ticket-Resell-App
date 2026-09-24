@@ -8,6 +8,7 @@ import {
   type BetaWeekday,
 } from "@/lib/beta-events";
 import { EventIntentView, EventPosterCard } from "./event-pieces";
+import { FixedPriceEventScreen } from "./fixed-price-event";
 import { EventRequestSection } from "./event-request";
 
 /**
@@ -25,6 +26,15 @@ export function AppUpcoming({ events }: { events: BetaEvent[] }) {
   const [selected, setSelected] = useState<{ event: BetaEvent; day: BetaWeekday } | null>(null);
 
   if (selected) {
+    if (selected.event.fixedPriceEach != null) {
+      return (
+        <FixedPriceEventScreen
+          event={selected.event}
+          day={selected.day}
+          onBack={() => setSelected(null)}
+        />
+      );
+    }
     return (
       <EventIntentView
         event={selected.event}
@@ -52,13 +62,13 @@ export function AppUpcoming({ events }: { events: BetaEvent[] }) {
           </p>
         )}
 
-        {groups.map(([day, events], index) => (
+        {groups.map(([day, dayEvents], index) => (
           <section key={day} className={index > 0 ? "border-t border-white/10 pt-9" : undefined}>
             <p className="section-header mb-5 text-[13px] tracking-[0.08em] text-ink">
               {betaDaySectionLabel(day)}
             </p>
             <div className="grid grid-cols-2 gap-x-3 gap-y-5">
-              {events.map((event, eventIndex) => (
+              {dayEvents.map((event, eventIndex) => (
                 <EventPosterCard
                   key={`${event.slug}-${day}`}
                   event={event}

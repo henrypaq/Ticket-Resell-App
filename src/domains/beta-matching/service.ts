@@ -516,17 +516,17 @@ export async function acceptOffer(offerId: string, doorsAt?: Date | null): Promi
   }
 
   const due = paymentDeadline({ now, mode });
-  const { error: updateError } = await admin
-    .from("beta_offers")
-    .update({
-      status: "accepted",
-      responded_at: now.toISOString(),
-      payment_due_at: due?.toISOString() ?? null,
-    })
-    .eq("id", offerId)
-    .eq("status", "offered");
 
-  if (updateError) return { ok: false, error: updateError.message };
+  // The deadline is policy (above); the claim itself is a locked transaction,
+  // so a buyer tapping "claim" as the sweep expires the offer can't both win
+  // (migration 20260923090200).
+  const { data: claimed, error: rpcError } = await admin.rpc("claim_offer", {
+    p_offer_id: offerId,
+    p_payment_due_at: due?.toISOString() ?? null,
+  });
+  if (rpcError) return { ok: false, error: rpcError.message };
+  const outcome = (claimed ?? {}) as { ok?: boolean; error?: string };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not claim the ticket." };
 
   void logEvent({
     type: "waitlist_offer_accepted",
@@ -540,7 +540,6 @@ export async function declineOffer(
   offerId: string,
   reason: DeclineReason,
 ): Promise<MatchingResult> {
-  const now = new Date();
   const admin = createAdminClient();
 
   const { data: offer, error } = await admin
@@ -553,36 +552,16 @@ export async function declineOffer(
     return { ok: false, error: `Offer is ${offer.status}.` };
   }
 
-  const { error: updateError } = await admin
-    .from("beta_offers")
-    .update({
-      status: "declined",
-      decline_reason: reason,
-      responded_at: now.toISOString(),
-    })
-    .eq("id", offerId)
-    .in("status", ["offered", "accepted"]);
-
-  if (updateError) return { ok: false, error: updateError.message };
-
-  if (reason === "price" && offer.buy_lead_id) {
-    // Capture ceiling so the allocator skips this price next time.
-    await admin
-      .from("beta_go_leads")
-      .update({
-        max_price_each: Number(offer.price_each) - 0.01 > 0 ? Number(offer.price_each) - 0.01 : 0,
-        updated_at: now.toISOString(),
-      })
-      .eq("id", offer.buy_lead_id)
-      .is("max_price_each", null);
-  }
-
-  if (reason === "not_going" && offer.buy_lead_id) {
-    await admin
-      .from("beta_go_leads")
-      .update({ status: "cancelled", updated_at: now.toISOString() })
-      .eq("id", offer.buy_lead_id);
-  }
+  // Declining and its two consequences — remembering the price ceiling, or
+  // taking the seat out of the queue — happen in one locked transaction, so a
+  // decline can never half-apply (migration 20260923090200).
+  const { data: declined, error: rpcError } = await admin.rpc("decline_offer_claim", {
+    p_offer_id: offerId,
+    p_reason: reason,
+  });
+  if (rpcError) return { ok: false, error: rpcError.message };
+  const outcome = (declined ?? {}) as { ok?: boolean; error?: string };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not decline the offer." };
 
   void logEvent({
     type: "waitlist_offer_declined",
@@ -603,40 +582,29 @@ export async function markOfferPaid(
   offerId: string,
   payment?: { amount?: number; reference?: string; recordedBy?: string },
 ): Promise<MatchingResult> {
-  const now = new Date();
   const admin = createAdminClient();
 
   const { data: offer, error } = await admin
     .from("beta_offers")
-    .select("*")
+    .select("id, status, unit_id, seat_key, event_slug, price_each, buy_lead_id")
     .eq("id", offerId)
     .maybeSingle();
   if (error || !offer) return { ok: false, error: "Offer not found." };
 
-  if (!["offered", "accepted", "needs_review"].includes(offer.status)) {
-    return { ok: false, error: `Offer is ${offer.status}.` };
-  }
-
-  const { error: updateError } = await admin
-    .from("beta_offers")
-    .update({
-      status: "paid",
-      responded_at: offer.responded_at ?? now.toISOString(),
-      payment_amount: payment?.amount ?? Number(offer.price_each),
-      payment_reference: payment?.reference ?? null,
-      payment_recorded_at: now.toISOString(),
-      payment_recorded_by: payment?.recordedBy ?? "ops",
-    })
-    .eq("id", offerId);
-
-  if (updateError) return { ok: false, error: updateError.message };
-
-  if (offer.buy_lead_id) {
-    await admin
-      .from("beta_go_leads")
-      .update({ status: "done", updated_at: now.toISOString() })
-      .eq("id", offer.buy_lead_id);
-  }
+  // One transaction: locks the offer, re-checks the status under that lock,
+  // marks it paid, closes the buy lead, and leaves an audited lifecycle event
+  // with the operator's name on it (migration 20260923090200).
+  const { data: result, error: rpcError } = await admin.rpc("confirm_offer_payment", {
+    p_offer_id: offerId,
+    p_amount: payment?.amount ?? null,
+    p_reference: payment?.reference ?? null,
+    p_actor_label: payment?.recordedBy ?? "ops",
+    p_actor_kind: "ops",
+    p_source: "ops_console",
+  });
+  if (rpcError) return { ok: false, error: rpcError.message };
+  const outcome = (result ?? {}) as { ok?: boolean; error?: string };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not record the payment." };
 
   const { data: unit } = await admin
     .from("beta_ticket_units")
@@ -674,8 +642,10 @@ export async function markOfferPaid(
  * Ops confirmed the ticket left platform custody and reached the buyer.
  * Independent of payout — use `releaseSellerPayout` when Interac to the seller clears.
  */
-export async function markTicketForwardedToBuyer(offerId: string): Promise<MatchingResult> {
-  const now = new Date();
+export async function markTicketForwardedToBuyer(
+  offerId: string,
+  actorLabel = "ops",
+): Promise<MatchingResult> {
   const admin = createAdminClient();
   const { data: offer, error } = await admin
     .from("beta_offers")
@@ -683,17 +653,15 @@ export async function markTicketForwardedToBuyer(offerId: string): Promise<Match
     .eq("id", offerId)
     .maybeSingle();
   if (error || !offer) return { ok: false, error: "Offer not found." };
-  if (offer.status !== "paid") {
-    return { ok: false, error: `Offer is ${offer.status}, not paid.` };
-  }
-  if (offer.ticket_transferred_at) return { ok: true, id: offerId };
 
-  const { error: updateError } = await admin
-    .from("beta_offers")
-    .update({ ticket_transferred_at: now.toISOString() })
-    .eq("id", offerId)
-    .eq("status", "paid");
-  if (updateError) return { ok: false, error: updateError.message };
+  const { data: result, error: rpcError } = await admin.rpc("forward_offer_ticket", {
+    p_offer_id: offerId,
+    p_actor_label: actorLabel,
+  });
+  if (rpcError) return { ok: false, error: rpcError.message };
+  const outcome = (result ?? {}) as { ok?: boolean; error?: string; already?: boolean };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not mark the ticket sent." };
+  if (outcome.already) return { ok: true, id: offerId };
 
   void logEvent({
     type: "waitlist_offer_ticket_forwarded",
@@ -715,49 +683,39 @@ export async function markTicketForwardedToBuyer(offerId: string): Promise<Match
  * Ops released (or recorded) the Interac payout to the seller.
  * Does not stamp ticket_transferred_at — call `markTicketForwardedToBuyer` separately.
  */
-export async function releaseSellerPayout(offerId: string): Promise<MatchingResult> {
-  const now = new Date();
+export async function releaseSellerPayout(
+  offerId: string,
+  actorLabel = "ops",
+): Promise<MatchingResult> {
   const admin = createAdminClient();
   const { data: offer, error } = await admin
     .from("beta_offers")
-    .select("*")
+    .select("id, status, payout_released_at, unit_id, event_slug, price_each, payment_amount")
     .eq("id", offerId)
     .maybeSingle();
   if (error || !offer) return { ok: false, error: "Offer not found." };
-  if (offer.status !== "paid") {
-    return { ok: false, error: `Offer is ${offer.status}, not paid.` };
-  }
-  if (offer.payout_released_at) return { ok: true, id: offerId };
 
-  const { error: updateError } = await admin
-    .from("beta_offers")
-    .update({ payout_released_at: now.toISOString() })
-    .eq("id", offerId)
-    .eq("status", "paid");
-  if (updateError) return { ok: false, error: updateError.message };
+  // Stamps the payout and closes the sell lead when its last unit is off the
+  // market — one locked transaction instead of three round-trips that could
+  // half-finish (migration 20260923090200).
+  const { data: result, error: rpcError } = await admin.rpc("release_offer_payout", {
+    p_offer_id: offerId,
+    p_actor_label: actorLabel,
+  });
+  if (rpcError) return { ok: false, error: rpcError.message };
+  const outcome = (result ?? {}) as {
+    ok?: boolean;
+    error?: string;
+    already?: boolean;
+    sell_lead_id?: string | null;
+  };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not release the payout." };
+  if (outcome.already) return { ok: true, id: offerId };
 
-  const { data: unit } = await admin
-    .from("beta_ticket_units")
-    .select("sell_lead_id")
-    .eq("id", offer.unit_id)
-    .maybeSingle();
-
-  if (unit?.sell_lead_id) {
-    const { data: units } = await admin
-      .from("beta_ticket_units")
-      .select("status")
-      .eq("sell_lead_id", unit.sell_lead_id);
-    const allSold = (units ?? []).every((u) => u.status === "sold" || u.status === "withdrawn");
-    if (allSold) {
-      await admin
-        .from("beta_go_leads")
-        .update({ status: "done", updated_at: now.toISOString() })
-        .eq("id", unit.sell_lead_id);
-    }
-
+  if (outcome.sell_lead_id) {
     void notifySellLead({
       kind: "seller_payout_released",
-      sellLeadId: unit.sell_lead_id,
+      sellLeadId: outcome.sell_lead_id,
       priceEach: Number(offer.payment_amount ?? offer.price_each),
       offerId,
       eventSlug: offer.event_slug,
@@ -877,7 +835,6 @@ export async function previewBuyAvailability(
  * unchanged) and stamp buyer_declared_sent_at so the held screen can render.
  */
 export async function declareOfferPaymentSent(offerId: string): Promise<MatchingResult> {
-  const now = new Date();
   const admin = createAdminClient();
   const { data: offer, error } = await admin
     .from("beta_offers")
@@ -887,17 +844,14 @@ export async function declareOfferPaymentSent(offerId: string): Promise<Matching
     .eq("id", offerId)
     .maybeSingle();
   if (error || !offer) return { ok: false, error: "Offer not found." };
-  if (offer.status !== "accepted") {
-    return { ok: false, error: `Offer is ${offer.status}, not awaiting payment.` };
-  }
-  if (offer.buyer_declared_sent_at) return { ok: true, id: offerId };
 
-  const { error: updateError } = await admin
-    .from("beta_offers")
-    .update({ buyer_declared_sent_at: now.toISOString() })
-    .eq("id", offerId)
-    .eq("status", "accepted");
-  if (updateError) return { ok: false, error: updateError.message };
+  const { data: declared, error: rpcError } = await admin.rpc("declare_offer_payment_sent", {
+    p_offer_id: offerId,
+  });
+  if (rpcError) return { ok: false, error: rpcError.message };
+  const outcome = (declared ?? {}) as { ok?: boolean; error?: string; already?: boolean };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not record that." };
+  if (outcome.already) return { ok: true, id: offerId };
 
   void logEvent({
     type: "waitlist_offer_payment_declared",
@@ -976,31 +930,14 @@ export async function declareOfferPaymentSent(offerId: string): Promise<Matching
 export async function confirmSellerPayoutReceived(
   offerId: string,
 ): Promise<MatchingResult> {
-  const now = new Date();
   const admin = createAdminClient();
-  const { data: offer, error } = await admin
-    .from("beta_offers")
-    .select(
-      "id, status, payout_released_at, seller_payout_confirmed_at, event_slug, payment_amount, price_each",
-    )
-    .eq("id", offerId)
-    .maybeSingle();
-  if (error || !offer) return { ok: false, error: "Offer not found." };
-  if (offer.status !== "paid") {
-    return { ok: false, error: `Offer is ${offer.status}, not paid.` };
-  }
-  if (!offer.payout_released_at) {
-    return { ok: false, error: "Payout hasn’t been released yet." };
-  }
-  if (offer.seller_payout_confirmed_at) return { ok: true, id: offerId };
-
-  const { error: updateError } = await admin
-    .from("beta_offers")
-    .update({ seller_payout_confirmed_at: now.toISOString() })
-    .eq("id", offerId)
-    .eq("status", "paid")
-    .not("payout_released_at", "is", null);
-  if (updateError) return { ok: false, error: updateError.message };
+  const { data: confirmed, error: rpcError } = await admin.rpc("confirm_offer_payout_received", {
+    p_offer_id: offerId,
+  });
+  if (rpcError) return { ok: false, error: rpcError.message };
+  const outcome = (confirmed ?? {}) as { ok?: boolean; error?: string; already?: boolean };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not record that." };
+  if (outcome.already) return { ok: true, id: offerId };
 
   void logEvent({
     type: "waitlist_offer_seller_payout_confirmed",
@@ -1167,6 +1104,19 @@ export async function listAvailableUnits(eventSlug?: string): Promise<UnitRow[]>
     .order("created_at", { ascending: true });
   if (eventSlug) q = q.eq("event_slug", eventSlug);
   const { data } = await q;
+  return (data ?? []) as UnitRow[];
+}
+
+/** All units for the given sell leads (any status) — for ops seller → offers drill-down. */
+export async function listUnitsForSellLeads(sellLeadIds: string[]): Promise<UnitRow[]> {
+  const ids = [...new Set(sellLeadIds.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))];
+  if (ids.length === 0) return [];
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("beta_ticket_units")
+    .select("id, sell_lead_id, event_slug, unit_index, price_each, status")
+    .in("sell_lead_id", ids)
+    .order("unit_index", { ascending: true });
   return (data ?? []) as UnitRow[];
 }
 

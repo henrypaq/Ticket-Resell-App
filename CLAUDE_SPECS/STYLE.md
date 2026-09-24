@@ -34,12 +34,13 @@ Since there's no shadow doing visual separation on a black background, borders a
 
 ## Typography
 
-- **Headlines: Fraunces** (variable, self-hosted via `next/font`) — page titles ("Search," "Post a ticket") and event/listing titles, via the `.headline` utility. This is a deliberate deviation from the original "no custom typeface needed" — a serif display face on the title layer is what now separates a headline from a label. An app-wide version of this (Fraunces on everything, tuned small via its `opsz` axis) was tried and reverted; the scope is headlines only.
-- Everything else stays on the **system sans stack** (SF Pro / Inter / equivalent) — metadata, body copy, buttons, form labels, and the section-header labels below. Fraunces' display forms don't hold up at small uppercase-tracked or dense UI sizes, so the swap stops at the title layer.
-- **Section headers:** bold, uppercase, tight letter-spacing, relatively small point size relative to their visual weight (e.g., "FOR YOU THIS WEEK," "TODAY"). Sans, not Fraunces — see above.
+- **Headlines: Fraunces** (variable, self-hosted via `next/font`) — page titles and event/listing titles, via the `.headline` utility. Scope is headlines only; Fraunces' display forms don't hold up at small uppercase-tracked or dense UI sizes.
+- **UI chrome: Space Grotesk** (via `next/font`, `--font-ui` / `.font-ui`) — buttons, section labels, wordmark, nav, compact controls, and other product UI labels. Gives the software layer a custom, slightly geometric face without touching body copy.
+- **Body / supporting copy** stays on the **system sans stack** (SF Pro / Inter / equivalent) — metadata, paragraphs, hints. Not Space Grotesk.
+- **Section headers:** Space Grotesk via `.section-header` — bold, uppercase, tight letter-spacing, relatively small point size (e.g., "YOUR WAITLIST," "TONIGHT").
 - **Titles** (event names, display names): Fraunces via `.headline`, medium weight, sentence case, `text/primary`.
 - **Metadata:** regular weight, `text/secondary`, small size. Metadata lives on the event detail page, not on browse surfaces — see § Event tile below.
-- Discipline matters more than variety here: no more than two typefaces, two weights within each, and two text colors on any single card.
+- Discipline matters more than variety here: no more than two custom typefaces (Fraunces + Space Grotesk) plus the system body stack, two weights within each UI face, and two text colors on any single card.
 
 ## Layout & spacing
 

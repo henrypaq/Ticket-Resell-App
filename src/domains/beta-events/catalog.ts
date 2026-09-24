@@ -26,6 +26,7 @@ type CatalogRow = {
   supported: boolean;
   entry_note: string | null;
   doors_hour: number | null;
+  fixed_price_each: number | string | null;
 };
 
 function isWeekday(value: string): value is BetaWeekday {
@@ -35,6 +36,10 @@ function isWeekday(value: string): value is BetaWeekday {
 function rowToEvent(row: CatalogRow): BetaEvent {
   const days = (row.days ?? []).filter(isWeekday);
   const extra = (row.extra_date_keys ?? []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  const fixed =
+    row.fixed_price_each == null || row.fixed_price_each === ""
+      ? undefined
+      : Number(row.fixed_price_each);
   return {
     slug: row.slug,
     name: row.name,
@@ -47,6 +52,8 @@ function rowToEvent(row: CatalogRow): BetaEvent {
     supported: Boolean(row.supported),
     entryNote: row.entry_note || undefined,
     doorsHour: row.doors_hour ?? undefined,
+    fixedPriceEach:
+      fixed != null && Number.isFinite(fixed) && fixed >= 0 ? fixed : undefined,
   };
 }
 
@@ -56,7 +63,7 @@ async function fetchDbCatalog(): Promise<BetaEvent[]> {
     const { data, error } = await admin
       .from("beta_event_catalog")
       .select(
-        "slug, name, venue, city, blurb, flyer_url, flyer_path, days, extra_date_keys, supported, entry_note, doors_hour",
+        "slug, name, venue, city, blurb, flyer_url, flyer_path, days, extra_date_keys, supported, entry_note, doors_hour, fixed_price_each",
       )
       .order("name", { ascending: true });
     if (error) {
@@ -117,7 +124,7 @@ export async function listCatalogRowsForOps(): Promise<
   const { data } = await admin
     .from("beta_event_catalog")
     .select(
-      "slug, name, venue, city, blurb, flyer_url, flyer_path, days, extra_date_keys, supported, entry_note, doors_hour",
+      "slug, name, venue, city, blurb, flyer_url, flyer_path, days, extra_date_keys, supported, entry_note, doors_hour, fixed_price_each",
     )
     .order("updated_at", { ascending: false });
 

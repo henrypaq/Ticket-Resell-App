@@ -1,15 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces } from "next/font/google";
+import { Fraunces, Space_Grotesk } from "next/font/google";
 import { ServiceWorkerRegistrar } from "@/components/service-worker";
 import "./globals.css";
 
-// Self-hosted via next/font — no runtime request to Google. Scoped to
-// headlines only (the .headline utility in globals.css); everything else
-// stays on the system sans stack — see STYLE.md § typography.
+// Headlines only — .headline in globals.css.
 const fraunces = Fraunces({
   subsets: ["latin"],
   variable: "--font-fraunces",
   axes: ["opsz", "SOFT", "WONK"],
+  display: "swap",
+});
+
+// UI chrome — buttons, section labels, nav, compact controls (.font-ui).
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
   display: "swap",
 });
 
@@ -39,7 +44,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={fraunces.variable}>
+    <html lang="en" className={`${fraunces.variable} ${spaceGrotesk.variable}`}>
       <body className="min-h-dvh bg-base text-ink antialiased">
         {children}
         <ServiceWorkerRegistrar />

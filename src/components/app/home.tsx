@@ -19,11 +19,16 @@ import {
 import { buyerReactivateSeatAction } from "@/domains/beta-matching/buyer-actions";
 import type { GoActivityEntry, QuickActionState, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
-import { BUTTON_CLASS } from "@/components/forms/field-styles";
+import { BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/forms/field-styles";
+import {
+  STARRY_SELL_BUTTON_CLASS,
+  StarryButtonStars,
+} from "@/components/forms/starry-button";
 import { ArrowLeft, ChevronRight, InstagramIcon, MoreVerticalIcon, SnapchatIcon } from "@/components/icons";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./flow-fields";
-import { EventIntentView, EventPoster, SECONDARY_BUTTON_CLASS } from "./event-pieces";
+import { EventIntentView, EventPoster } from "./event-pieces";
+import { FixedPriceEventScreen } from "./fixed-price-event";
 import { EventRequestSection } from "./event-request";
 import { CafeCampusTransferCard } from "./cafe-campus-transfer-card";
 
@@ -67,6 +72,15 @@ export function AppHome({
   }
 
   if (selected) {
+    if (selected.event.fixedPriceEach != null) {
+      return (
+        <FixedPriceEventScreen
+          event={selected.event}
+          day={selected.day}
+          onBack={() => setSelected(null)}
+        />
+      );
+    }
     return (
       <EventIntentView
         event={selected.event}
@@ -89,55 +103,54 @@ export function AppHome({
 
   return (
     <>
-      <header className="relative pt-3">
-        <h1 className="headline text-[32px] leading-[1.12] tracking-tight sm:text-[36px]">
+      <header className="relative pt-2">
+        <h1 className="headline text-[30px] leading-[1.1] tracking-tight sm:text-[34px]">
           DON&apos;T PANIC IF TICKETS ARE SOLD OUT
         </h1>
-        <p className="mt-3 text-[15px] leading-relaxed text-muted">
-          Buy and sell sold-out tickets fast. Secure matching between buyers and sellers, we
-          refund you in case of issues.
+        <p className="mt-3 max-w-[34ch] text-[15px] leading-relaxed text-muted">
+          Buy and sell sold-out tickets fast. Secure matching between buyers and sellers — we
+          refund you if something goes wrong.
         </p>
       </header>
 
       {waitlist.length > 0 && (
-        <section className="relative mt-8">
-          <p className="section-header text-[11px] text-muted">Your waitlist</p>
-          <ul className="mt-4 flex flex-col gap-4">
+        <section className="relative mt-9">
+          <p className="section-header">Your waitlist</p>
+          <ul className="mt-3.5 flex flex-col gap-2.5">
             {waitlist.map((entry) => (
               <li key={entry.leadId} className="flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={() => setEditing(entry)}
-                  className="flex w-full items-center justify-between gap-3 rounded-[16px] bg-[#17171a] px-4 py-3.5 text-left shadow-[0_7px_0_0_#c9b400,0_12px_28px_rgba(255,229,0,0.14)] transition-transform active:scale-[0.99]"
+                  className="flex w-full items-center gap-3.5 rounded-[16px] bg-card px-3.5 py-3 text-left transition-colors hover:bg-[#1c1c20] active:bg-[#1c1c20]"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-[15px] font-semibold text-ink">{entry.eventName}</p>
-                    <p className="mt-0.5 text-[12.5px] text-muted">
+                  <WaitlistPositionBadge
+                    position={entry.position}
+                    highlight={Boolean(entry.activeOfferId)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-ui truncate text-[15px] font-semibold tracking-tight text-ink">
+                      {entry.eventName}
+                    </p>
+                    <p className="mt-0.5 text-[12.5px] leading-snug text-muted">
                       ×{entry.quantity}
                       {entry.dormant
                         ? " · paused — reactivate to get holds again"
                         : entry.activeOfferId
-                          ? " · ticket held for you — claim / pay"
+                          ? " · ticket held — claim / pay"
                           : entry.status === "matched"
-                            ? " · matched — we will notify you"
+                            ? " · matched — we’ll notify you"
                             : entry.status === "done"
                               ? " · completed"
-                              : " · edit details · exclusive hold when available"}
+                              : " · exclusive hold when it’s your turn"}
                     </p>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-[20px] font-bold tabular-nums text-[#ffe500]">
-                      #{entry.position}
-                    </p>
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted">
-                      in line
-                    </p>
-                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
                 </button>
                 {entry.activeOfferId && (
                   <Link
                     href={`/offer/${entry.activeOfferId}`}
-                    className={`${BUTTON_CLASS} min-h-[44px] text-[14px]`}
+                    className={`${BUTTON_CLASS} min-h-[48px] text-[14px]`}
                   >
                     Open payment / claim
                   </Link>
@@ -155,8 +168,8 @@ export function AppHome({
         <section className="relative mt-8">
           {activeSells.length > 0 && (
             <>
-              <p className="section-header text-[11px] text-muted">Your tickets for sale</p>
-              <ul className="mt-3 flex flex-col gap-2">
+              <p className="section-header">Your tickets for sale</p>
+              <ul className="mt-3.5 flex flex-col gap-2">
                 {activeSells.map((entry) => (
                   <SellListingRow
                     key={entry.leadId}
@@ -186,24 +199,25 @@ export function AppHome({
         </section>
       )}
 
-      <section className="relative mt-10 flex flex-col gap-3">
-        <p className="section-header text-[11px] text-muted">What do you need?</p>
-        <Link href="/buy" className={`${BUTTON_CLASS} min-h-[64px] text-[17px]`}>
+      <section className="relative mt-10 flex flex-col gap-2.5">
+        <p className="section-header">What do you need?</p>
+        <Link href="/buy" className={`${BUTTON_CLASS} min-h-[58px] text-[16px]`}>
           I need a ticket
         </Link>
-        <Link href="/sell" className={`${SECONDARY_BUTTON_CLASS} min-h-[64px] text-[17px]`}>
-          I have a ticket to sell
+        <Link href="/sell" className={STARRY_SELL_BUTTON_CLASS}>
+          <StarryButtonStars />
+          <span className="relative z-10">I have a ticket to sell</span>
         </Link>
       </section>
 
       <section className="relative mt-8">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="section-header text-[11px] text-muted">
+          <p className="section-header">
             {hasTonight ? `Tonight · ${formatBetaEventWhenShort(tonightDay)}` : "Tonight"}
           </p>
           <Link
             href="/upcoming"
-            className="inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
+            className="font-ui inline-flex shrink-0 items-center gap-0.5 text-[12.5px] font-semibold text-[#ffe500] transition-opacity hover:opacity-80"
           >
             See all events
             <ChevronRight className="h-3.5 w-3.5" />
@@ -257,6 +271,45 @@ export function AppHome({
         </a>
       </footer>
     </>
+  );
+}
+
+/** Compact position indicator — the number is the visual anchor. */
+function WaitlistPositionBadge({
+  position,
+  highlight = false,
+  size = "md",
+}: {
+  position: number;
+  highlight?: boolean;
+  size?: "md" | "lg";
+}) {
+  const dim =
+    size === "lg"
+      ? "h-[72px] w-[72px] rounded-[18px]"
+      : "h-[48px] w-[48px] rounded-[14px]";
+  const num =
+    size === "lg"
+      ? "text-[28px] leading-none"
+      : "text-[18px] leading-none";
+  return (
+    <div
+      className={`font-ui flex shrink-0 flex-col items-center justify-center ${dim} ${
+        highlight
+          ? "bg-[#ffe500] text-black"
+          : "bg-[#1f1f23] text-[#ffe500]"
+      }`}
+      aria-label={`Position ${position} in waitlist`}
+    >
+      <span className={`${num} font-bold tabular-nums tracking-tight`}>
+        {position}
+      </span>
+      {size === "lg" && (
+        <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] opacity-70">
+          in line
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -345,11 +398,13 @@ function SellListingRow({
                 : " · listed";
 
   return (
-    <li className="relative rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-3">
+    <li className="relative rounded-[14px] bg-card px-3.5 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[14.5px] font-semibold text-ink">{entry.eventName}</p>
-          <p className="mt-0.5 text-[12.5px] text-muted">
+          <p className="font-ui truncate text-[14.5px] font-semibold tracking-tight text-ink">
+            {entry.eventName}
+          </p>
+          <p className="mt-0.5 text-[12.5px] leading-snug text-muted">
             ×{entry.quantity}
             {entry.askEach != null ? ` · $${entry.askEach.toFixed(0)} each` : ""}
             {statusLine}
@@ -357,7 +412,7 @@ function SellListingRow({
         </div>
         <div className="flex shrink-0 items-start gap-2">
           {entry.status === "done" && entry.proceedsCad != null && (
-            <p className="text-right text-[13px] font-semibold tabular-nums text-ink">
+            <p className="font-ui text-right text-[13px] font-semibold tabular-nums tracking-tight text-ink">
               ${entry.proceedsCad.toFixed(0)}
               {entry.netVsPaidCad != null && entry.netVsPaidCad !== 0 && (
                 <span className="mt-0.5 block text-[11px] font-medium text-muted">
@@ -375,7 +430,7 @@ function SellListingRow({
               aria-haspopup="menu"
               disabled={pending}
               onClick={() => setMenuOpen((o) => !o)}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-white/10 hover:text-ink disabled:opacity-50"
+              className="flex h-8 w-8 items-center justify-center rounded-[10px] text-muted transition-colors hover:bg-white/10 hover:text-ink disabled:opacity-50"
             >
               <MoreVerticalIcon className="h-5 w-5" />
             </button>
@@ -389,14 +444,14 @@ function SellListingRow({
                 />
                 <div
                   role="menu"
-                  className="absolute right-0 top-9 z-30 min-w-[148px] overflow-hidden rounded-[12px] border border-white/12 bg-[#1c1c20] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+                  className="absolute right-0 top-9 z-30 min-w-[148px] overflow-hidden rounded-[12px] bg-[#1c1c20] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
                 >
                   <button
                     type="button"
                     role="menuitem"
                     disabled={pending}
                     onClick={onRemove}
-                    className="flex w-full px-3.5 py-2.5 text-left text-[13.5px] font-semibold text-urgency hover:bg-white/[0.06] disabled:opacity-50"
+                    className="font-ui flex w-full px-3.5 py-2.5 text-left text-[13.5px] font-semibold text-urgency hover:bg-white/[0.06] disabled:opacity-50"
                   >
                     {pending ? "Removing…" : "Remove"}
                   </button>
@@ -619,24 +674,40 @@ function WaitlistEditView({
     });
   }
 
+  const statusHint = entry.dormant
+    ? "Paused — reactivate from home to get holds again."
+    : entry.activeOfferId
+      ? "A ticket is held for you — claim or pay from home."
+      : entry.status === "matched"
+        ? "Matched — we’ll notify you."
+        : entry.status === "done"
+          ? "Completed."
+          : "You’ll get an exclusive hold when it’s your turn.";
+
   return (
-    <div className="relative flex flex-col gap-6">
+    <div className="relative flex flex-col gap-7">
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
+        className="font-ui inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
       >
         <ArrowLeft className="h-4 w-4" />
         Back
       </button>
 
-      <div>
-        <p className="section-header text-[11px] text-muted">Your waitlist</p>
-        <h1 className="headline mt-2 text-[28px] leading-[1.12] tracking-tight">{entry.eventName}</h1>
-        <p className="mt-2 text-[14px] text-muted">
-          You’re #{entry.position} in line
-          {entry.status === "matched" ? " · matched" : ""}. Update your details anytime.
-        </p>
+      <div className="flex items-center gap-4">
+        <WaitlistPositionBadge
+          position={entry.position}
+          highlight={Boolean(entry.activeOfferId)}
+          size="lg"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="section-header">Waitlist</p>
+          <h1 className="headline mt-1.5 text-[24px] leading-[1.15] tracking-tight sm:text-[26px]">
+            {entry.eventName}
+          </h1>
+          <p className="mt-1.5 text-[13.5px] leading-snug text-muted">{statusHint}</p>
+        </div>
       </div>
 
       <form action={formAction} className="flex flex-col gap-6">
@@ -646,14 +717,16 @@ function WaitlistEditView({
         <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
 
         <div>
-          <p className="mb-3 text-[13.5px] font-semibold text-ink">
+          <p className="font-ui mb-3 text-[13.5px] font-semibold tracking-tight text-ink">
             Number of tickets (max {QUICK_MAX_TICKETS})
           </p>
           <QuantityStepper value={quantity} onChange={setQuantity} max={QUICK_MAX_TICKETS} />
         </div>
 
         <div>
-          <p className="mb-3 text-[13.5px] font-semibold text-ink">Contact information</p>
+          <p className="font-ui mb-3 text-[13.5px] font-semibold tracking-tight text-ink">
+            Contact information
+          </p>
           <ContactFields
             phoneCountry={phoneCountry}
             phoneNational={phoneNational}
@@ -685,14 +758,14 @@ function WaitlistEditView({
         type="button"
         onClick={onLeave}
         disabled={pending || leavePending}
-        className="text-[14px] font-semibold text-urgency underline decoration-dotted underline-offset-4 disabled:opacity-50"
+        className="font-ui text-[14px] font-semibold text-urgency underline decoration-dotted underline-offset-4 disabled:opacity-50"
       >
         {leavePending ? "Leaving…" : "Leave this waitlist"}
       </button>
 
       <Link
         href={`/buy?event=${encodeURIComponent(entry.eventSlug)}`}
-        className="text-center text-[13px] font-semibold text-muted underline decoration-dotted underline-offset-4"
+        className="font-ui text-center text-[13px] font-semibold text-muted underline decoration-dotted underline-offset-4"
       >
         Or update via “I need a ticket”
       </Link>

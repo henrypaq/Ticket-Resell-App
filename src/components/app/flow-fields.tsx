@@ -94,11 +94,11 @@ export function QuantityStepper({
         aria-label="Fewer"
         disabled={value <= 1}
         onClick={() => onChange(Math.max(1, value - 1))}
-        className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 text-[22px] text-ink disabled:opacity-30"
+        className="font-ui flex h-12 w-12 items-center justify-center rounded-[14px] border-0 bg-[#1f1f23] text-[22px] text-ink transition-colors hover:bg-[#2a2a2e] disabled:opacity-30"
       >
         −
       </button>
-      <span className="min-w-[3ch] text-center text-[28px] font-bold tabular-nums text-ink">
+      <span className="font-ui min-w-[3ch] text-center text-[28px] font-bold tabular-nums tracking-tight text-ink">
         {value}
       </span>
       <button
@@ -106,7 +106,7 @@ export function QuantityStepper({
         aria-label="More"
         disabled={value >= max}
         onClick={() => onChange(Math.min(max, value + 1))}
-        className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 text-[22px] text-ink disabled:opacity-30"
+        className="font-ui flex h-12 w-12 items-center justify-center rounded-[14px] border-0 bg-[#1f1f23] text-[22px] text-ink transition-colors hover:bg-[#2a2a2e] disabled:opacity-30"
       >
         +
       </button>

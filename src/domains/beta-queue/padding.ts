@@ -5,7 +5,7 @@ import { INTEREST_OPTIONS } from "@/lib/beta-events";
 
 /**
  * Default when ops has never set a row. Kept at 0 so public positions are
- * real until someone explicitly pads via /ops/waitlist.
+ * real until someone explicitly pads via /ops/events.
  */
 export function defaultFakeFront(_eventSlug?: string): number {
   return 0;

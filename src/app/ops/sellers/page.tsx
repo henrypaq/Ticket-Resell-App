@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
-import { SellersEventCards, type SellerEventEntry } from "@/components/beta-ops/sellers-board";
+import {
+  SellersOffersBoard,
+  type OpsOfferRow,
+  type OpsUnitRow,
+} from "@/components/beta-ops/sellers-offers-board";
+import type { SellerEventEntry } from "@/components/beta-ops/sellers-board";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { getTicketEvidenceSignedUrls, listQuickLeads } from "@/domains/beta-ops/service";
-import { groupOpsEntriesByEvent, partitionSellerLeads } from "@/domains/beta-ops/shared";
+import { partitionSellerLeads } from "@/domains/beta-ops/shared";
+import {
+  listRecentOffers,
+  listUnitsForSellLeads,
+  reconcileExpiredOffers,
+} from "@/domains/beta-matching/service";
 import { betaEventBySlug } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
@@ -17,6 +27,8 @@ export const dynamic = "force-dynamic";
 export default async function OpsSellersPage() {
   if (!(await getBetaOpsSession())) redirect("/ops/login");
 
+  await reconcileExpiredOffers().catch(() => {});
+
   const leads = await listQuickLeads({ intent: "sell" });
   const evidenceUrlLists = await Promise.all(
     leads.map((lead) => getTicketEvidenceSignedUrls(lead.ticketEvidencePath)),
@@ -28,30 +40,28 @@ export default async function OpsSellersPage() {
     evidenceUrls: evidenceUrlLists[i] ?? [],
   }));
 
-  const { active: activeEntries } = partitionSellerLeads(entries);
+  const { active: tonight, past: previous } = partitionSellerLeads(entries);
+  tonight.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  previous.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  const groups = groupOpsEntriesByEvent(activeEntries, (a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
-  );
+  const allIds = entries.map((e) => e.id);
+  const [units, offers] = await Promise.all([
+    listUnitsForSellLeads(allIds),
+    listRecentOffers(200),
+  ]);
 
-  const totalTickets = activeEntries.reduce((sum, e) => sum + e.quantity, 0);
+  // Only keep offers whose unit belongs to one of these sell leads.
+  const unitIds = new Set(units.map((u) => u.id));
+  const scopedOffers = (offers as OpsOfferRow[]).filter((o) => unitIds.has(o.unit_id));
 
   return (
     <OpsChrome active="sellers">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Sellers</h1>
-        <p className="mt-1 text-xs sm:text-sm text-zinc-400">
-          Active ticket offers for tonight ({activeEntries.length} sellers · {totalTickets} tickets) — verify proof, then match the waitlist.
-        </p>
-      </div>
-
-      {groups.length === 0 ? (
-        <p className="mt-8 text-sm text-zinc-500">No active seller leads for tonight.</p>
-      ) : (
-        <div className="mt-6">
-          <SellersEventCards groups={groups} />
-        </div>
-      )}
+      <SellersOffersBoard
+        tonight={tonight}
+        previous={previous}
+        units={units as OpsUnitRow[]}
+        offers={scopedOffers}
+      />
     </OpsChrome>
   );
 }

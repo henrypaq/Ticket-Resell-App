@@ -27,13 +27,6 @@ export default async function OpsLinksPage() {
 
   return (
     <OpsChrome active="links">
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold text-zinc-100">Campaign links</h1>
-        <p className="mt-1 text-xs text-zinc-400">
-          Generate buyer and seller deep links for Instagram. Each click tags the lead with{" "}
-          <code className="text-zinc-300">src</code> so it shows under Leads by link / QR.
-        </p>
-      </div>
       <LinksGenerator events={events} origin={siteOrigin()} />
     </OpsChrome>
   );

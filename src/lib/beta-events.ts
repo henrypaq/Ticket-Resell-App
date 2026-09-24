@@ -39,6 +39,11 @@ export type BetaEvent = {
    * only for events that aren't late-night, like a Sunday afternoon Piknik.
    */
   doorsHour?: number;
+  /**
+   * Predetermined ticket price in CAD. When set, buyers skip naming a max and
+   * see a fixed itemized breakdown; sell listings are expected at this price.
+   */
+  fixedPriceEach?: number;
 };
 
 /** Club night default. Overridden per event via `BetaEvent.doorsHour`. */
@@ -269,6 +274,18 @@ export function tonightBetaEvents(from: Date = new Date()): BetaEvent[] {
 export function upcomingBetaWeekdays(from: Date = new Date()): BetaWeekday[] {
   const start = CALENDAR_WEEKDAYS.indexOf(currentNightlifeWeekday(from));
   return Array.from({ length: 7 }, (_, i) => CALENDAR_WEEKDAYS[(start + i) % 7]!);
+}
+
+/** Next upcoming nightlife weekday this event is listed on, or tonight as fallback. */
+export function nextListedWeekdayForEvent(
+  event: BetaEvent,
+  from: Date = new Date(),
+): BetaWeekday {
+  for (const day of upcomingBetaWeekdays(from)) {
+    const { dateKey } = eventDayDateKey(day, from);
+    if (eventListedOnNight(event, day, dateKey)) return day;
+  }
+  return currentNightlifeWeekday(from);
 }
 
 /**

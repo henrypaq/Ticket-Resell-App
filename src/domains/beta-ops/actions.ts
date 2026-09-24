@@ -221,15 +221,18 @@ export async function markOfferPaidAction(
   offerId: string,
   payment?: { amount?: number; reference?: string },
 ): Promise<OpsActionState> {
+  let session;
   try {
-    await requireBetaOpsSession();
+    session = await requireBetaOpsSession();
   } catch {
     return { error: "Session expired. Sign in again." };
   }
+  // The operator's email rides along into the lifecycle log, so "who released
+  // this money" is answerable later (DATA_CAPTURE.md § provenance).
   const result = await markOfferPaid(offerId, {
     amount: payment?.amount,
     reference: payment?.reference,
-    recordedBy: "ops",
+    recordedBy: session.email,
   });
   if (!result.ok) return { error: result.error };
   return { ok: true };
@@ -271,23 +274,25 @@ export async function reactivateSeatAction(seatKey: string): Promise<OpsActionSt
 }
 
 export async function releaseSellerPayoutAction(offerId: string): Promise<OpsActionState> {
+  let session;
   try {
-    await requireBetaOpsSession();
+    session = await requireBetaOpsSession();
   } catch {
     return { error: "Session expired. Sign in again." };
   }
-  const result = await releaseSellerPayout(offerId);
+  const result = await releaseSellerPayout(offerId, session.email);
   if (!result.ok) return { error: result.error };
   return { ok: true };
 }
 
 export async function markTicketForwardedAction(offerId: string): Promise<OpsActionState> {
+  let session;
   try {
-    await requireBetaOpsSession();
+    session = await requireBetaOpsSession();
   } catch {
     return { error: "Session expired. Sign in again." };
   }
-  const result = await markTicketForwardedToBuyer(offerId);
+  const result = await markTicketForwardedToBuyer(offerId, session.email);
   if (!result.ok) return { error: result.error };
   return { ok: true };
 }

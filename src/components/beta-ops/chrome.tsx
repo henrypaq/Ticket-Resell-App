@@ -10,14 +10,14 @@ import { Button } from "@/components/ui/button";
 
 const TABS = [
   { href: "/ops", label: "Transactions", key: "transactions" },
-  { href: "/ops/requests", label: "Requests", key: "requests" },
   { href: "/ops/events", label: "Events", key: "events" },
-  { href: "/ops/waitlist", label: "Waitlist", key: "waitlist" },
   { href: "/ops/sellers", label: "Sellers", key: "sellers" },
-  { href: "/ops/offers", label: "Offers", key: "offers" },
+  { href: "/ops/buyers", label: "Buyers", key: "buyers" },
   { href: "/ops/members", label: "Members", key: "members" },
   { href: "/ops/links", label: "Links", key: "links" },
+  { href: "/ops/requests", label: "Requests", key: "requests" },
   { href: "/ops/analytics", label: "Analytics", key: "analytics" },
+  { href: "/ops/data", label: "Data", key: "data" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];

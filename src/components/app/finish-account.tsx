@@ -12,7 +12,6 @@ import { formatPhoneNational } from "@/lib/phone-format";
 import { CountryCodeSelect } from "@/components/forms/country-code-select";
 import { Field } from "@/components/forms/field";
 import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "@/components/forms/field-styles";
-import { StepHeading } from "./flow-fields";
 import { AppFlowShell } from "./shell";
 import { ArrowLeft } from "@/components/icons";
 import { GoogleContinueButton } from "./google-continue-button";
@@ -31,9 +30,37 @@ function splitPhone(e164: string | null | undefined): { iso2: string; national: 
   return { iso2: DEFAULT_COUNTRY_ISO2, national: digits };
 }
 
+function SetupStepTracker({
+  step,
+  labels,
+}: {
+  step: number;
+  labels: string[];
+}) {
+  return (
+    <div className="mb-7">
+      <div className="flex items-center gap-1.5">
+        {labels.map((_, i) => (
+          <div
+            key={labels[i]}
+            className={`h-1 flex-1 rounded-full transition-colors ${
+              i <= step ? "bg-[#ffe500]" : "bg-white/10"
+            }`}
+            aria-hidden
+          />
+        ))}
+      </div>
+      <p className="font-ui mt-2.5 text-[12px] font-medium tracking-tight text-muted">
+        Step {step + 1} of {labels.length}
+        <span className="text-ink/80"> · {labels[step]}</span>
+      </p>
+    </div>
+  );
+}
+
 /**
- * Short signup after buy/sell: account contact, then Interac payout
- * (kept separate from the account / Google email).
+ * Multi-step account setup after buy/sell:
+ * password → contact → Interac payout (or payout-only after Google).
  */
 export function FinishAccountSetup({
   prefill,
@@ -51,12 +78,18 @@ export function FinishAccountSetup({
   googleNextPath?: string;
 }) {
   const next = safeReturnPath(returnTo);
-  const [step, setStep] = useState(mode === "payout" ? 1 : 0);
+  const fullLabels = ["Password", "Contact", "Payout"];
+  const payoutLabels = ["Payout"];
+  const labels = mode === "payout" ? payoutLabels : fullLabels;
+  const [step, setStep] = useState(0);
+
   const savedPhone = splitPhone(prefill.phone);
   const savedEtPhone = splitPhone(prefill.etransferPhone);
 
   const [name, setName] = useState(prefill.name ?? "");
   const [email, setEmail] = useState(prefill.email ?? "");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [country, setCountry] = useState(savedPhone.iso2);
   const [national, setNational] = useState(savedPhone.national);
   const [notifyOptIn, setNotifyOptIn] = useState(false);
@@ -80,15 +113,24 @@ export function FinishAccountSetup({
   const composedEtPhone = etDigits ? `+${etDial}${etDigits}` : "";
 
   const hasIg = (prefill.contactInstagram ?? "").replace(/^@+/, "").length >= 2;
-  const step0Ok =
-    name.trim().length > 0 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
-    (digits.length >= 7 || hasIg);
+  const passwordOk =
+    password.length >= 8 && password === passwordConfirm && !/\s/.test(password);
+  const contactOk = digits.length >= 7 || hasIg;
+  const nameEmailOk =
+    name.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   const etEmailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(etEmail.trim());
   const etPhoneOk = etDigits.length >= 7;
-  const contactOk = digits.length >= 7 || hasIg;
-  const step1Ok = etName.trim().length > 0 && (etEmailOk || etPhoneOk) && contactOk;
+  const payoutOk = etName.trim().length > 0 && (etEmailOk || etPhoneOk) && contactOk;
+
+  const stepReady =
+    mode === "payout"
+      ? payoutOk
+      : step === 0
+        ? nameEmailOk && passwordOk
+        : step === 1
+          ? contactOk
+          : payoutOk;
 
   const returnLabel = next.startsWith("/offer/")
     ? "Continue to claim & pay"
@@ -96,16 +138,21 @@ export function FinishAccountSetup({
       ? "Back to home"
       : "Continue";
 
+  const isLast = mode === "payout" || step === 2;
+
   if (state.ok) {
     return (
       <AppFlowShell>
         <div className="flex flex-1 flex-col">
-          <p className="text-[17px] font-semibold tracking-tight text-[#ffe500]">mcgill.tickets</p>
-          <h1 className="headline mt-8 text-[32px] leading-[1.12] tracking-tight">
+          <p className="font-ui text-[15px] font-semibold tracking-tight text-[#ffe500]">
+            mcgill.tickets
+          </p>
+          <h1 className="headline mt-8 text-[28px] leading-[1.15] tracking-tight">
             Account saved
           </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-muted">
-            {state.message ?? "Your profile and Interac details are saved on this device."}
+          <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
+            {state.message ??
+              "Your profile is ready. Sign in anytime with your email and password."}
           </p>
           <Link href={next} className={`${BUTTON_CLASS} mt-10 w-full`}>
             {returnLabel}
@@ -123,19 +170,21 @@ export function FinishAccountSetup({
           if (mode === "full" && step > 0) setStep(step - 1);
           else window.location.assign(next);
         }}
-        className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
+        className="font-ui inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
       >
         <ArrowLeft className="h-4 w-4" />
         Back
       </button>
 
+      <SetupStepTracker step={step} labels={labels} />
+
       <form
         action={formAction}
-        className="mt-6 flex flex-1 flex-col"
+        className="flex flex-1 flex-col"
         onSubmit={(e) => {
-          if (mode === "full" && step === 0) {
+          if (!isLast) {
             e.preventDefault();
-            if (step0Ok) setStep(1);
+            if (stepReady) setStep((s) => s + 1);
           }
         }}
       >
@@ -146,26 +195,31 @@ export function FinishAccountSetup({
         <input type="hidden" name="name" value={name.trim()} />
         <input type="hidden" name="email" value={email.trim()} />
         <input type="hidden" name="phone" value={composedPhone} />
+        <input type="hidden" name="password" value={password} />
         <input type="hidden" name="etransferName" value={etName.trim()} />
         <input type="hidden" name="etransferEmail" value={etEmail.trim()} />
         <input type="hidden" name="etransferPhone" value={composedEtPhone} />
         {notifyOptIn && <input type="hidden" name="notifyOptIn" value="on" />}
+        {mode === "payout" && <input type="hidden" name="skipPassword" value="1" />}
 
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-5">
           {mode === "full" && step === 0 && (
             <>
-              <StepHeading
-                eyebrow="Step 1 of 2"
-                title="Your account"
-                hint="Used for alerts and matching you across devices. Separate from Interac payout."
-              />
+              <div>
+                <h1 className="headline text-[26px] leading-[1.15] tracking-tight">
+                  Create a password
+                </h1>
+                <p className="mt-2 text-[14px] leading-relaxed text-muted">
+                  You’ll use this email and password to sign in and access your account later.
+                </p>
+              </div>
 
               {googleNextPath && (
                 <>
-                  <GoogleContinueButton nextPath={googleNextPath} />
+                  <GoogleContinueButton nextPath={googleNextPath} label="Continue with Google" />
                   <div className="flex items-center gap-3" aria-hidden>
                     <span className="h-px flex-1 bg-white/10" />
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                    <span className="font-ui text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
                       or
                     </span>
                     <span className="h-px flex-1 bg-white/10" />
@@ -173,36 +227,85 @@ export function FinishAccountSetup({
                 </>
               )}
 
-              <Field label="Full name" htmlFor="setup-name">
-                <input
-                  id="setup-name"
-                  required
-                  placeholder="Jane Doe"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoComplete="name"
-                  autoCapitalize="words"
-                  className={FIELD_CLASS}
-                />
-              </Field>
+              <div className="rounded-[14px] border border-white/10 bg-white/[0.03] px-4 py-3.5">
+                <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">
+                  Account
+                </p>
+                <p className="mt-1.5 text-[14.5px] font-medium text-ink">{name || "—"}</p>
+                <p className="mt-0.5 text-[13.5px] text-muted">{email || "—"}</p>
+              </div>
 
-              <Field label="Account email" htmlFor="setup-email">
+              {/* Keep editable in case they landed without done-page fields */}
+              {(!prefill.name || !prefill.email) && (
+                <>
+                  <Field label="Full name" htmlFor="setup-name">
+                    <input
+                      id="setup-name"
+                      required
+                      placeholder="Jane Doe"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      autoComplete="name"
+                      className={FIELD_CLASS}
+                    />
+                  </Field>
+                  <Field label="Email" htmlFor="setup-email">
+                    <input
+                      id="setup-email"
+                      type="email"
+                      required
+                      placeholder="jane@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      className={FIELD_CLASS}
+                    />
+                  </Field>
+                </>
+              )}
+
+              <Field label="Password" htmlFor="setup-password">
                 <input
-                  id="setup-email"
-                  type="email"
+                  id="setup-password"
+                  type="password"
                   required
-                  placeholder="jane@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  inputMode="email"
-                  autoCapitalize="off"
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className={FIELD_CLASS}
                 />
               </Field>
-              <p className="-mt-3 text-[12px] leading-relaxed text-muted">
-                Already joined before? Use the same email and we&apos;ll link this device.
-              </p>
+              <Field label="Confirm password" htmlFor="setup-password-confirm">
+                <input
+                  id="setup-password-confirm"
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="Repeat password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  className={FIELD_CLASS}
+                />
+              </Field>
+              {passwordConfirm.length > 0 && password !== passwordConfirm && (
+                <p className="-mt-2 text-[12.5px] text-urgency">Passwords don’t match.</p>
+              )}
+            </>
+          )}
+
+          {mode === "full" && step === 1 && (
+            <>
+              <div>
+                <h1 className="headline text-[26px] leading-[1.15] tracking-tight">
+                  How we reach you
+                </h1>
+                <p className="mt-2 text-[14px] leading-relaxed text-muted">
+                  Phone for holds and alerts. You can change this anytime in settings.
+                </p>
+              </div>
 
               <Field label="Phone number" htmlFor="setup-phone">
                 <div className={FIELD_GROUP_CLASS}>
@@ -239,20 +342,24 @@ export function FinishAccountSetup({
                   Yes, text me with ticket availability and checkout updates
                 </span>
               </label>
-              <p className="-mt-3 text-[12px] leading-relaxed text-muted">
+              <p className="-mt-2 text-[12px] leading-relaxed text-muted">
                 Message frequency varies. Reply STOP to opt out, HELP for help. Msg &amp; data rates
                 may apply.
               </p>
             </>
           )}
 
-          {step === 1 && (
+          {(mode === "payout" || step === 2) && (
             <>
-              <StepHeading
-                eyebrow={mode === "payout" ? "Almost done" : "Step 2 of 2"}
-                title="Interac payout"
-                hint="Where we send money when your ticket sells. This can differ from your account or Google email."
-              />
+              <div>
+                <h1 className="headline text-[26px] leading-[1.15] tracking-tight">
+                  Interac payout
+                </h1>
+                <p className="mt-2 text-[14px] leading-relaxed text-muted">
+                  Where we send money when your ticket sells. This can differ from your account
+                  email.
+                </p>
+              </div>
 
               {!contactOk && (
                 <Field label="Phone number" htmlFor="setup-phone-payout">
@@ -334,16 +441,16 @@ export function FinishAccountSetup({
 
         <button
           type="submit"
-          disabled={pending || (step === 0 ? !step0Ok : !step1Ok)}
+          disabled={pending || !stepReady}
           className={`${BUTTON_CLASS} mt-8 w-full`}
         >
-          {step === 0 ? "Continue" : pending ? "Saving…" : "Save account"}
+          {!isLast ? "Continue" : pending ? "Saving…" : "Save account"}
         </button>
 
         <button
           type="button"
           onClick={() => window.location.assign(next)}
-          className="mt-4 text-center text-[13.5px] font-medium text-muted underline decoration-white/20 underline-offset-4 hover:text-ink"
+          className="font-ui mt-4 text-center text-[13.5px] font-medium text-muted underline decoration-white/20 underline-offset-4 hover:text-ink"
         >
           Skip for now
         </button>

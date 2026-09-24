@@ -12,15 +12,16 @@
   --color-ink: #f5f5f5;
   --color-muted: #9a9a9e;
   --color-urgency: #f5a623;
+  --color-brand: #ffe500;
 
   --radius-hero: 26px;
   --radius-card: 16px;
 
-  /* System sans stack for everything except headlines. Fraunces (self-hosted
-     via next/font, see layout.tsx) is scoped to .headline only, through the
-     separate --font-display token below — an app-wide Fraunces pass was
-     tried and reverted by request. */
+  /* UI chrome (buttons, section labels, nav) — Space Grotesk.
+     Body / supporting copy stays on the system sans stack.
+     Headlines stay on Fraunces (.headline). */
   --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-ui: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
 }
 
@@ -36,19 +37,22 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* Section header: bold, uppercase, tight tracking, small relative to its
-   weight. Sans, not Fraunces — Fraunces' display forms don't hold up at
-   small uppercase-tracked sizes. */
-.section-header {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-ink);
+/* Product UI chrome — buttons, nav, section labels, compact controls. */
+.font-ui {
+  font-family: var(--font-ui);
 }
 
-/* Headlines — page titles and event/listing titles. Serif, not the small
-   uppercase labels above or body/UI copy. */
+/* Section header: bold, uppercase, tight tracking. UI face, not Fraunces. */
+.section-header {
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+
+/* Headlines — page titles and event/listing titles. Serif display. */
 .headline {
   font-family: var(--font-display);
   font-optical-sizing: auto;
@@ -110,15 +114,6 @@ body {
   }
 }
 
-/*
- * Page transitions — driven by the native View Transitions API via
- * TransitionLink, not a JS animation library. Short and simple on purpose:
- * a quick cross-fade for the page shell, a real morph for a poster image that
- * shares a view-transition-name between a grid tile and the event page hero
- * (set inline in event-cards.tsx / events/[id]/page.tsx). Browsers without
- * support simply skip all of this — TransitionLink falls back to an instant
- * navigation, so nothing here is required for the app to work.
- */
 @media not (prefers-reduced-motion: reduce) {
   ::view-transition-old(root),
   ::view-transition-new(root) {

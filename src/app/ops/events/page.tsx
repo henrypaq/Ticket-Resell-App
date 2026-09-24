@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { OpsChrome } from "@/components/beta-ops/chrome";
-import { EventsCatalogBoard } from "@/components/beta-ops/events-catalog-board";
+import { FakeFrontButton } from "@/components/beta-ops/fake-front";
+import { EventsWaitlistBoard } from "@/components/beta-ops/events-waitlist-board";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
+import { listOpsWaitlistEntries, listQueuePadding } from "@/domains/beta-ops/service";
+import { partitionWaitlistEntries } from "@/domains/beta-ops/shared";
 import { listCatalogRowsForOps } from "@/domains/beta-events/catalog";
+import type { OpsWaitlistEntry } from "@/domains/beta-ops/shared";
 
 export const metadata: Metadata = {
   title: "Events · Ops · mcgill.tickets",
@@ -15,17 +19,36 @@ export const dynamic = "force-dynamic";
 export default async function OpsEventsPage() {
   if (!(await getBetaOpsSession())) redirect("/ops/login");
 
-  const events = await listCatalogRowsForOps();
+  const [events, waitlistEntries, padding] = await Promise.all([
+    listCatalogRowsForOps(),
+    listOpsWaitlistEntries(),
+    listQueuePadding(),
+  ]);
+
+  const { active } = partitionWaitlistEntries(waitlistEntries);
+  const waitlistBySlug = groupWaitlistBySlug(active);
 
   return (
     <OpsChrome active="events">
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Events</h1>
-        <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
-          Create nights for the public board — date, title, flyer — then post them live.
-        </p>
-      </div>
-      <EventsCatalogBoard events={events} />
+      <EventsWaitlistBoard
+        events={events}
+        waitlistBySlug={waitlistBySlug}
+        fakeFrontSlot={<FakeFrontButton rows={padding} />}
+      />
     </OpsChrome>
   );
+}
+
+function groupWaitlistBySlug(
+  entries: OpsWaitlistEntry[],
+): Record<string, OpsWaitlistEntry[]> {
+  const map: Record<string, OpsWaitlistEntry[]> = {};
+  for (const entry of entries) {
+    const list = map[entry.eventSlug] ?? (map[entry.eventSlug] = []);
+    list.push(entry);
+  }
+  for (const slug of Object.keys(map)) {
+    map[slug]!.sort((a, b) => a.displayedPosition - b.displayedPosition);
+  }
+  return map;
 }

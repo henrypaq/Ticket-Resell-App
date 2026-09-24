@@ -197,6 +197,8 @@ const finishAccountSchema = z
     eventName: z.string().trim().max(160).optional(),
     referralSource: z.string().trim().max(160).optional(),
     notifyOptIn: z.boolean().default(false),
+    password: z.string().max(128).optional().default(""),
+    skipPassword: z.boolean().default(false),
     etransferName: z.string().trim().min(1, "Enter the Interac name.").max(120),
     etransferEmail: z.union([
       z.literal(""),
@@ -211,6 +213,21 @@ const finishAccountSchema = z
     contactInstagram: z.string().trim().max(40).optional().default(""),
   })
   .superRefine((value, ctx) => {
+    if (!value.skipPassword) {
+      if (!value.password || value.password.length < 8) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Password must be at least 8 characters.",
+          path: ["password"],
+        });
+      } else if (/\s/.test(value.password)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Password can’t contain spaces.",
+          path: ["password"],
+        });
+      }
+    }
     const etPhoneOk = (value.etransferPhone ?? "").replace(/\D/g, "").length >= 7;
     const etEmailOk = (value.etransferEmail ?? "").length > 3;
     if (!etPhoneOk && !etEmailOk) {
@@ -232,8 +249,81 @@ const finishAccountSchema = z
   });
 
 /**
- * Multi-step account setup after buy/sell: creates the member profile and
- * stores Interac payout details on the /go contact (separate from account email).
+ * Create (or sign into) a Supabase Auth user so email+password works on /login.
+ * Uses the admin API to confirm email immediately — signup here already collected
+ * a reachable contact path via the buy/sell flow.
+ */
+async function ensureAuthUserWithPassword(input: {
+  email: string;
+  password: string;
+  name: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const { createClient } = await import("@/lib/supabase/server");
+  const admin = createAdminClient();
+
+  const { error: createError } = await admin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { full_name: input.name },
+  });
+
+  if (createError) {
+    const msg = createError.message.toLowerCase();
+    const already =
+      msg.includes("already") ||
+      msg.includes("registered") ||
+      msg.includes("exists") ||
+      createError.status === 422;
+
+    if (!already) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "auth_user_create_failed",
+          error: createError.message,
+        }),
+      );
+      return { ok: false, error: "Couldn't create your login. Try again, or use Google." };
+    }
+
+    // Email already has an Auth user — sign in with the password they just entered.
+    const supabaseExisting = await createClient();
+    const { error: signExisting } = await supabaseExisting.auth.signInWithPassword({
+      email: input.email,
+      password: input.password,
+    });
+    if (signExisting) {
+      return {
+        ok: false,
+        error:
+          "That email already has an account. Sign in with your existing password, or continue with Google.",
+      };
+    }
+    return { ok: true };
+  }
+
+  const supabase = await createClient();
+  const { error: signError } = await supabase.auth.signInWithPassword({
+    email: input.email,
+    password: input.password,
+  });
+  if (signError) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        msg: "auth_sign_in_after_create_failed",
+        error: signError.message,
+      }),
+    );
+  }
+  return { ok: true };
+}
+
+/**
+ * Multi-step account setup after buy/sell: creates the member profile,
+ * optional email+password Auth user, and Interac payout details.
  */
 export async function finishAccountSetupAction(
   _prev: BetaActionState,
@@ -248,6 +338,9 @@ export async function finishAccountSetupAction(
     eventName: formData.get("eventName") || undefined,
     referralSource: formData.get("referralSource") || undefined,
     notifyOptIn: formData.get("notifyOptIn") === "on",
+    password: formData.get("password") || "",
+    skipPassword:
+      formData.get("skipPassword") === "1" || formData.get("skipPassword") === "on",
     etransferName: formData.get("etransferName"),
     etransferEmail: formData.get("etransferEmail") || "",
     etransferPhone: formData.get("etransferPhone") || "",
@@ -260,6 +353,16 @@ export async function finishAccountSetupAction(
   }
 
   const data = parsed.data;
+
+  if (!data.skipPassword && data.password) {
+    const auth = await ensureAuthUserWithPassword({
+      email: data.email,
+      password: data.password,
+      name: data.name,
+    });
+    if (!auth.ok) return { error: auth.error };
+  }
+
   const existing = await findBetaSignupIdByEmail(data.email);
   const returning = existing.ok && Boolean(existing.id);
 
@@ -294,7 +397,6 @@ export async function finishAccountSetupAction(
   });
 
   if (!contactResult.ok) {
-    // Profile is saved; Interac can be completed later in settings / next sell.
     if (existingContactId && UUID_RE.test(existingContactId)) {
       await adoptGoContactForMember({
         contactId: existingContactId,
@@ -308,7 +410,7 @@ export async function finishAccountSetupAction(
       ok: true,
       message: returning
         ? "Profile linked. Add Interac details next time you sell."
-        : "Profile saved. Add Interac details next time you sell.",
+        : "Profile saved. Sign in anytime with your email and password.",
     };
   }
 
@@ -319,8 +421,8 @@ export async function finishAccountSetupAction(
   return {
     ok: true,
     message: returning
-      ? "Welcome back — account and payout details are saved on this device."
-      : "Account saved. Your tickets and payout details will follow you from now on.",
+      ? "Welcome back — account and payout details are saved. Sign in with your email and password anytime."
+      : "Account saved. Sign in anytime with your email and password to access your tickets and waitlist.",
   };
 }
 

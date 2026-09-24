@@ -32,15 +32,15 @@ export default async function OpsTransactionsPage() {
           Queue snapshot
         </h2>
         <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Stat label="New waitlist" value={stats.buyNew} href="/ops/waitlist" />
-          <Stat label="Open waitlist" value={stats.buyOpen} href="/ops/waitlist" />
+          <Stat label="New waitlist" value={stats.buyNew} href="/ops/events" />
+          <Stat label="Open waitlist" value={stats.buyOpen} href="/ops/events" />
           <Stat label="New sellers" value={stats.sellNew} href="/ops/sellers" />
           <Stat label="Open sellers" value={stats.sellOpen} href="/ops/sellers" />
         </div>
         <p className="mt-3 text-[11px] text-zinc-600">
-          Matching controls and unit allocation live on{" "}
-          <Link href="/ops/offers" className="text-zinc-400 underline underline-offset-2">
-            Offers
+          Matching controls live under each seller on{" "}
+          <Link href="/ops/sellers" className="text-zinc-400 underline underline-offset-2">
+            Sellers
           </Link>
           .
         </p>

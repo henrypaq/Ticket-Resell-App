@@ -14,17 +14,49 @@ import { logEvent } from "@/lib/analytics/log";
 import { sanitizeNextPath } from "@/lib/next-path";
 
 /**
- * Email OTP only — no passwords in v1 (SECURITY.md). Signup is open to any
- * address; the OTP round-trip is what proves the address is real and reachable,
- * rather than gating on a domain allow-list.
+ * Email OTP and email+password. Passwords are created during post-flow account
+ * setup (`finishAccountSetupAction`); OTP remains available as a backup.
  */
+export type AuthState = { error?: string; sent?: boolean; email?: string };
+
 const emailSchema = z.object({ email: z.string().email("Enter a valid email address.") });
 const verifySchema = z.object({
   email: z.string().email(),
   token: z.string().regex(/^\d{6}$/, "Enter the 6-digit code from your email."),
 });
 
-export type AuthState = { error?: string; sent?: boolean; email?: string };
+export async function signInWithPasswordAction(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: "Enter a valid email address." };
+  }
+  if (password.length < 8) {
+    return { error: "Enter your password." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data.user) {
+    return { error: "Wrong email or password." };
+  }
+
+  const { ensureBetaProfileFromSession } = await import("@/domains/beta-signup/actions");
+  await ensureBetaProfileFromSession();
+
+  await logEvent({
+    type: "login",
+    userId: data.user.id,
+    metadata: { method: "email_password" },
+  });
+
+  redirect(sanitizeNextPath(String(formData.get("next") ?? "")) ?? "/");
+}
 
 export async function requestCode(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = emailSchema.safeParse({ email: String(formData.get("email") ?? "").trim() });

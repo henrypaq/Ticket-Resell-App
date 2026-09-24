@@ -30,6 +30,7 @@ const upsertSchema = z
     supported: z.boolean().default(true),
     entryNote: z.string().trim().max(200).optional().nullable(),
     doorsHour: z.coerce.number().int().min(0).max(23).optional().nullable(),
+    fixedPriceEach: z.coerce.number().min(0).max(5000).optional().nullable(),
     flyerUrl: z.string().trim().min(1).max(500).optional(),
     flyerPath: z.string().trim().max(300).optional().nullable(),
   })
@@ -71,25 +72,27 @@ export async function upsertCatalogEvent(
 
   const admin = createAdminClient();
   const now = new Date().toISOString();
-  const { error } = await admin.from("beta_event_catalog").upsert(
-    {
-      slug: data.slug,
-      name: data.name,
-      venue: data.venue,
-      city: data.city,
-      blurb: data.blurb,
-      flyer_url: data.flyerUrl,
-      flyer_path: data.flyerPath ?? null,
-      days: data.days,
-      extra_date_keys: data.extraDateKeys,
-      supported: data.supported,
-      entry_note: data.entryNote || null,
-      doors_hour: data.doorsHour ?? null,
-      updated_at: now,
-      created_by: opts?.createdBy ?? null,
-    },
-    { onConflict: "slug" },
-  );
+  const row: Record<string, unknown> = {
+    slug: data.slug,
+    name: data.name,
+    venue: data.venue,
+    city: data.city,
+    blurb: data.blurb,
+    flyer_url: data.flyerUrl,
+    flyer_path: data.flyerPath ?? null,
+    days: data.days,
+    extra_date_keys: data.extraDateKeys,
+    supported: data.supported,
+    entry_note: data.entryNote || null,
+    doors_hour: data.doorsHour ?? null,
+    fixed_price_each: data.fixedPriceEach ?? null,
+    updated_at: now,
+  };
+  if (opts?.createdBy) {
+    row.created_by = opts.createdBy;
+  }
+
+  const { error } = await admin.from("beta_event_catalog").upsert(row, { onConflict: "slug" });
 
   if (error) {
     console.warn(JSON.stringify({ level: "warn", msg: "catalog_upsert_failed", error }));
@@ -127,6 +130,7 @@ export async function setCatalogEventSupported(
       supported,
       entryNote: seed.entryNote ?? null,
       doorsHour: seed.doorsHour ?? null,
+      fixedPriceEach: seed.fixedPriceEach ?? null,
       flyerUrl: seed.flyerUrl,
       flyerPath: null,
     });

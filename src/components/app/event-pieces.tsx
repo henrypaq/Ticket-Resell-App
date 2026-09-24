@@ -4,12 +4,14 @@ import Link from "next/link";
 import { formatBetaEventWhenShort, type BetaEvent, type BetaWeekday } from "@/lib/beta-events";
 import { ArrowLeft } from "@/components/icons";
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
+import {
+  STARRY_SELL_BUTTON_CLASS,
+  StarryButtonStars,
+} from "@/components/forms/starry-button";
 import { SERVICE_FEE_CAD, SERVICE_FEE_LABEL } from "@/lib/compliance/fees";
 import { formatCad } from "@/lib/format";
 
-export const SECONDARY_BUTTON_CLASS =
-  "flex items-center justify-center rounded-[14px] border border-white/20 bg-white/[0.06] px-8 font-bold text-ink transition-colors hover:bg-white/[0.1]";
-
+export { SECONDARY_BUTTON_CLASS } from "@/components/forms/field-styles";
 /**
  * The one place the two intents are offered. Home and /upcoming both route an
  * event tap here rather than each having their own buy/sell affordance — the
@@ -53,13 +55,14 @@ export function EventIntentView({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <p className="section-header text-[11px] text-muted">What do you need?</p>
+      <div className="flex flex-col gap-2.5">
+        <p className="section-header">What do you need?</p>
         <Link href={buyHref} className={`${BUTTON_CLASS} min-h-[56px] text-[16px]`}>
           I need a ticket
         </Link>
-        <Link href={sellHref} className={`${SECONDARY_BUTTON_CLASS} min-h-[56px] text-[16px]`}>
-          I have a ticket to sell
+        <Link href={sellHref} className={`${STARRY_SELL_BUTTON_CLASS} min-h-[56px]`}>
+          <StarryButtonStars />
+          <span className="relative z-10">I have a ticket to sell</span>
         </Link>
       </div>
 

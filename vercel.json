@@ -11,6 +11,10 @@
     {
       "path": "/api/v1/cron/release-stale-reservations",
       "schedule": "30 0 * * *"
+    },
+    {
+      "path": "/api/v1/cron/integrity-check",
+      "schedule": "45 0 * * *"
     }
   ]
 }

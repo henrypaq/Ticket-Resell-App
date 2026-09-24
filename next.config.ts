@@ -35,6 +35,8 @@ const nextConfig: NextConfig = {
       { source: "/go/buy", destination: "/buy", permanent: false },
       { source: "/go/sell", destination: "/sell", permanent: false },
       { source: "/go/done", destination: "/done", permanent: false },
+      { source: "/ops/waitlist", destination: "/ops/events", permanent: false },
+      { source: "/ops/offers", destination: "/ops/sellers", permanent: false },
       // Retired `(app)` routes — see src/_legacy/README.md. All of them, not
       // just the obvious ones: Phase 3 shipped shareable listing links
       // (`share_link_created`), so `/events/<id>` URLs are sitting in chat

@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import {
   demoSignIn,
   requestCode,
+  signInWithPasswordAction,
   startGoogleSignIn,
   verifyCode,
   type AuthState,
@@ -21,14 +22,20 @@ export function LoginForm({
   /** Where to land after signing in — set when a signed-out visitor arrived via a shared link. */
   nextPath?: string;
 }) {
+  const [mode, setMode] = useState<"password" | "otp">("password");
   const [requestState, requestAction, requesting] = useActionState(requestCode, initial);
   const [verifyState, verifyAction, verifying] = useActionState(verifyCode, initial);
+  const [passwordState, passwordAction, passwordPending] = useActionState(
+    signInWithPasswordAction,
+    initial,
+  );
   const [providerError, setProviderError] = useState<string | null>(initialError ?? null);
   const [pending, startTransition] = useTransition();
 
   const sent = requestState.sent;
   const email = requestState.email ?? "";
-  const error = verifyState.error ?? requestState.error ?? providerError;
+  const error =
+    verifyState.error ?? requestState.error ?? passwordState.error ?? providerError;
 
   function onGoogle() {
     setProviderError(null);
@@ -68,7 +75,64 @@ export function LoginForm({
         <span className="h-px flex-1 bg-hairline" />
       </div>
 
-      {!sent ? (
+      <div className="mb-4 flex gap-2 rounded-full bg-white/[0.04] p-1">
+        <button
+          type="button"
+          onClick={() => setMode("password")}
+          className={`flex-1 rounded-full px-3 py-2 text-[13px] font-semibold transition-colors ${
+            mode === "password" ? "bg-ink text-base" : "text-muted hover:text-ink"
+          }`}
+        >
+          Password
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("otp")}
+          className={`flex-1 rounded-full px-3 py-2 text-[13px] font-semibold transition-colors ${
+            mode === "otp" ? "bg-ink text-base" : "text-muted hover:text-ink"
+          }`}
+        >
+          Email code
+        </button>
+      </div>
+
+      {mode === "password" ? (
+        <form action={passwordAction} className="space-y-3">
+          {nextPath && <input type="hidden" name="next" value={nextPath} />}
+          <label htmlFor="password-email" className="block text-[13px] text-muted">
+            Email
+          </label>
+          <input
+            id="password-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            placeholder="you@example.com"
+            className="pill w-full px-5 py-3.5 text-[16px] text-ink outline-none placeholder:text-muted focus:border-white/25"
+          />
+          <label htmlFor="password" className="block text-[13px] text-muted">
+            Password
+          </label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            minLength={8}
+            placeholder="Your password"
+            className="pill w-full px-5 py-3.5 text-[16px] text-ink outline-none placeholder:text-muted focus:border-white/25"
+          />
+          <button
+            type="submit"
+            disabled={passwordPending}
+            className="w-full rounded-full bg-ink px-5 py-3.5 text-[15px] font-bold text-base disabled:opacity-60"
+          >
+            {passwordPending ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      ) : !sent ? (
         <form action={requestAction} className="space-y-3">
           {nextPath && <input type="hidden" name="next" value={nextPath} />}
           <label htmlFor="email" className="block text-[13px] text-muted">

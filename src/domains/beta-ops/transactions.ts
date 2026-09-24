@@ -336,27 +336,13 @@ export async function listOpsTransactions(): Promise<OpsTransactionsBoard> {
 export async function declareSellerTicketSent(
   sellLeadId: string,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const now = new Date();
   const admin = createAdminClient();
-  const { data: lead, error } = await admin
-    .from("beta_go_leads")
-    .select("id, intent, status, seller_ticket_sent_at")
-    .eq("id", sellLeadId)
-    .maybeSingle();
-  if (error || !lead) return { ok: false, error: "Listing not found." };
-  if (lead.intent !== "sell") return { ok: false, error: "Not a sell listing." };
-  if (lead.status === "cancelled") return { ok: false, error: "Listing was removed." };
-  if (lead.seller_ticket_sent_at) return { ok: true, id: sellLeadId };
-
-  const { error: updateError } = await admin
-    .from("beta_go_leads")
-    .update({
-      seller_ticket_sent_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    })
-    .eq("id", sellLeadId)
-    .eq("intent", "sell");
-  if (updateError) return { ok: false, error: updateError.message };
+  const { data, error } = await admin.rpc("declare_seller_ticket_sent", {
+    p_sell_lead_id: sellLeadId,
+  });
+  if (error) return { ok: false, error: error.message };
+  const outcome = (data ?? {}) as { ok?: boolean; error?: string };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not record the transfer." };
   // No ops email here — ops only gets buyer payment-declared + seller listed.
   return { ok: true, id: sellLeadId };
 }
@@ -365,31 +351,25 @@ export async function markSellTicketReceived(
   sellLeadId: string,
   recordedBy = "ops",
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  const now = new Date();
   const admin = createAdminClient();
   const { data: lead, error } = await admin
     .from("beta_go_leads")
-    .select(
-      "id, intent, event_slug, ask_each, seller_ticket_sent_at, ticket_received_at",
-    )
+    .select("id, intent, event_slug, ask_each, ticket_received_at")
     .eq("id", sellLeadId)
     .maybeSingle();
   if (error || !lead) return { ok: false, error: "Listing not found." };
-  if (lead.intent !== "sell") return { ok: false, error: "Not a sell listing." };
-  if (lead.ticket_received_at) return { ok: true, id: sellLeadId };
-  if (!lead.seller_ticket_sent_at) {
-    return { ok: false, error: "Seller hasn’t confirmed the transfer yet." };
-  }
+  const alreadyReceived = Boolean(lead.ticket_received_at);
 
-  const { error: updateError } = await admin
-    .from("beta_go_leads")
-    .update({
-      ticket_received_at: now.toISOString(),
-      ticket_received_by: recordedBy,
-      updated_at: now.toISOString(),
-    })
-    .eq("id", sellLeadId);
-  if (updateError) return { ok: false, error: updateError.message };
+  // Locks the lead, re-checks that the seller declared the transfer, and stamps
+  // custody with the operator's name attached (migration 20260923090200).
+  const { data: received, error: rpcError } = await admin.rpc("confirm_ticket_received", {
+    p_sell_lead_id: sellLeadId,
+    p_actor_label: recordedBy,
+  });
+  if (rpcError) return { ok: false, error: rpcError.message };
+  const outcome = (received ?? {}) as { ok?: boolean; error?: string };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not confirm receipt." };
+  if (alreadyReceived) return { ok: true, id: sellLeadId };
 
   const { notifySellLead } = await import("@/domains/beta-matching/notify");
   void notifySellLead({
