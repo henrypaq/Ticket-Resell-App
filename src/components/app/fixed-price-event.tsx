@@ -510,7 +510,7 @@ function CheckoutPhase({
 }) {
   const [paymentSent, setPaymentSent] = useState(false);
   const [copiedField, setCopiedField] = useState<"email" | "name" | "memo" | null>(null);
-  const paymentMemo = `MT-${event.slug}`.slice(0, 32).toUpperCase();
+  const paymentMemo = fixedPricePaymentMemo(event.slug);
   const canJoin = paymentSent && !pending && !state.ok;
 
   async function copyField(field: "email" | "name" | "memo", value: string) {
@@ -609,7 +609,7 @@ function CheckoutPhase({
             </div>
           </div>
 
-          <div className="mt-4 space-y-3 border-t border-hairline pt-4">
+          <div className="mt-4 space-y-2 border-t border-hairline pt-4">
             <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
               Interac e-Transfer
             </p>
@@ -631,7 +631,7 @@ function CheckoutPhase({
               }}
             />
             <CopyRow
-              label="Message / memo"
+              label="Memo"
               value={paymentMemo}
               mono
               copied={copiedField === "memo"}
@@ -642,7 +642,7 @@ function CheckoutPhase({
           </div>
 
           <p className="mt-3 text-[12px] leading-relaxed text-muted">
-            Tap email, name, or memo to copy. Use the memo exactly so we can match your transfer.
+            Tap a row to copy. Put the memo in the Interac message so we can match your payment.
           </p>
         </section>
 
@@ -679,6 +679,12 @@ function CheckoutPhase({
   );
 }
 
+/** Short Interac memo — first slug token, e.g. y2k-party-… → MT-Y2K. */
+function fixedPricePaymentMemo(slug: string): string {
+  const token = (slug.split("-")[0] || slug).replace(/[^a-z0-9]/gi, "");
+  return `MT-${token}`.toUpperCase().slice(0, 12);
+}
+
 function CopyRow({
   label,
   value,
@@ -693,25 +699,25 @@ function CopyRow({
   onCopy: () => void;
 }) {
   return (
-    <div>
-      <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">{label}</p>
-      <button
-        type="button"
-        onClick={onCopy}
-        className="font-ui mt-0.5 flex w-full items-center justify-between gap-3 py-1 text-left transition-opacity active:opacity-70"
-        aria-label={`Copy ${label.toLowerCase()} ${value}`}
-      >
-        <span
-          className={`min-w-0 break-all text-[14px] font-semibold tracking-tight text-ink ${
+    <button
+      type="button"
+      onClick={onCopy}
+      className="flex w-full items-center gap-3 rounded-[12px] bg-base px-3.5 py-3 text-left transition-opacity active:opacity-75"
+      aria-label={`Copy ${label.toLowerCase()} ${value}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted">{label}</p>
+        <p
+          className={`mt-0.5 break-all text-[14px] font-semibold tracking-tight text-ink ${
             mono ? "font-mono text-[13px] font-medium" : ""
           }`}
         >
           {value}
-        </span>
-        <span className="shrink-0 text-[12px] font-semibold text-muted">
-          {copied ? "Copied" : "Copy"}
-        </span>
-      </button>
-    </div>
+        </p>
+      </div>
+      <span className="font-ui shrink-0 text-[12px] font-semibold text-muted">
+        {copied ? "Copied" : "Copy"}
+      </span>
+    </button>
   );
 }

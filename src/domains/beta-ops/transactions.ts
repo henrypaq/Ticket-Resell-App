@@ -353,7 +353,9 @@ export async function listOpsTransactions(): Promise<OpsTransactionsBoard> {
       eventName: nameFor(lead.event_slug as string),
       quantity: qty,
       amount,
-      memoHint: `MT-${String(lead.event_slug).slice(0, 28)}`.toUpperCase(),
+      memoHint: `MT-${(String(lead.event_slug).split("-")[0] || String(lead.event_slug)).replace(/[^a-z0-9]/gi, "")}`
+        .toUpperCase()
+        .slice(0, 12),
       buyerDeclaredSentAt: lead.buyer_declared_sent_at as string,
       paymentRecordedAt,
       ticketForwardedAt,
