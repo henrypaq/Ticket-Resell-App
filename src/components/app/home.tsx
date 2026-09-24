@@ -131,22 +131,19 @@ export function AppHome({
             <p className="section-header text-emerald-400/80">Ticket transferred</p>
             <ul className="mt-2 flex flex-col gap-1.5">
               {transferredTickets.map((entry) => (
-                <li
-                  key={entry.leadId}
-                  className="flex items-center gap-2.5 rounded-[12px] border border-emerald-500/25 bg-emerald-500/10 px-3 py-2"
-                >
-                  <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-emerald-100">
-                    {entry.eventName}
-                    <span className="text-emerald-200/50">
-                      {" · "}
-                      {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
-                    </span>
-                  </p>
+                <li key={entry.leadId}>
                   <Link
                     href={`/queue?lead=${entry.leadId}&event=${encodeURIComponent(entry.eventSlug)}`}
-                    className="font-ui shrink-0 rounded-lg bg-emerald-500/20 px-2.5 py-1.5 text-[11px] font-semibold tracking-tight text-emerald-200 transition-colors hover:bg-emerald-500/30"
+                    className="flex w-full items-center gap-2.5 rounded-[12px] border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/15 active:bg-emerald-500/20"
                   >
-                    Open
+                    <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-emerald-100">
+                      {entry.eventName}
+                      <span className="text-emerald-200/50">
+                        {" · "}
+                        {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
+                      </span>
+                    </p>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-emerald-300/70" />
                   </Link>
                 </li>
               ))}

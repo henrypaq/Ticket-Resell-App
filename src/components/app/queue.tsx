@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { ArrowLeft } from "@/components/icons";
-import { AppFlowShell } from "./shell";
 
 const QUEUE_WINDOW_MS = 20 * 60 * 1000;
 
@@ -24,18 +23,21 @@ export function isPredeterminedQueueEntry(entry: QuickWaitlistEntry): boolean {
 }
 
 /**
- * Standalone `/queue` page — chrome-less shell after checkout.
+ * Standalone `/queue` page — full-bleed like the fixed-price event screen.
  */
 export function QueueScreen({ entry }: { entry: QuickWaitlistEntry }) {
   return (
-    <AppFlowShell>
-      <FixedPriceQueueView entry={entry} />
-    </AppFlowShell>
+    <div className="fixed inset-0 z-[60] flex justify-center bg-base">
+      <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden bg-base text-ink">
+        <FixedPriceQueueView entry={entry} />
+      </div>
+    </div>
   );
 }
 
 /**
- * Same predetermined queue UI, embedded in home (keeps the app header).
+ * Same predetermined queue UI, embedded from home as a full-screen overlay
+ * (no app header — matches the event page).
  */
 export function FixedPriceQueueEmbedded({
   entry,
@@ -44,7 +46,13 @@ export function FixedPriceQueueEmbedded({
   entry: QuickWaitlistEntry;
   onBack: () => void;
 }) {
-  return <FixedPriceQueueView entry={entry} onBack={onBack} />;
+  return (
+    <div className="fixed inset-0 z-[60] flex justify-center bg-base">
+      <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden bg-base text-ink">
+        <FixedPriceQueueView entry={entry} onBack={onBack} />
+      </div>
+    </div>
+  );
 }
 
 function FixedPriceQueueView({
@@ -57,7 +65,6 @@ function FixedPriceQueueView({
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Keep the seat live so ops “ticket transferred” flips this screen without a reload.
   useEffect(() => {
     if (entry.ticketForwardedAt) return;
     const id = window.setInterval(() => {
@@ -73,94 +80,92 @@ function FixedPriceQueueView({
   }
 
   const atFront = entry.position <= 1;
+  const goHome = onBack ?? (() => {
+    window.location.assign("/");
+  });
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      {onBack ? (
-        <button
-          type="button"
-          onClick={onBack}
-          className="font-ui mb-4 inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </button>
-      ) : (
-        <p className="font-ui mb-4 text-[13px] font-semibold tracking-[0.04em] text-ink/55">
-          mcgill.tickets
-        </p>
-      )}
-
-      {entry.flyerUrl ? (
-        <div className="relative isolate h-[min(42vh,320px)] w-full shrink-0 overflow-hidden rounded-[20px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={entry.flyerUrl}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
+    <div className="relative flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="relative isolate h-[min(32vh,240px)] w-full shrink-0 overflow-hidden">
+          {entry.flyerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={entry.flyerUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-white/[0.06]" />
+          )}
+          <div
+            aria-hidden
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to bottom, rgba(11,11,12,0.35) 0%, rgba(11,11,12,0.15) 35%, rgba(11,11,12,0.88) 78%, #0b0b0c 100%)",
+            }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-black/10" />
-          <div className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-16">
-            <p className="section-header text-white/70">Your place in line</p>
-            <h1 className="headline mt-1.5 text-[26px] leading-[1.1] tracking-tight text-white sm:text-[28px]">
-              {entry.eventName}
-            </h1>
+          <div className="relative flex h-full flex-col px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <button
+              type="button"
+              onClick={goHome}
+              className="font-ui inline-flex items-center gap-1.5 self-start rounded-full bg-black/40 px-3 py-1.5 text-[13px] font-semibold text-ink backdrop-blur-md transition-colors hover:bg-black/55"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </button>
+            <div className="mt-auto pb-4">
+              <p className="section-header text-white/70">Your place in line</p>
+              <h1 className="headline mt-1.5 text-[24px] leading-[1.1] tracking-tight text-white sm:text-[26px]">
+                {entry.eventName}
+              </h1>
+            </div>
           </div>
         </div>
-      ) : (
-        <header>
-          <p className="section-header text-muted">Your place in line</p>
-          <h1 className="headline mt-2 text-[26px] leading-[1.12] tracking-tight text-ink">
-            {entry.eventName}
-          </h1>
-        </header>
-      )}
 
-      <div className="mt-8 flex flex-col items-center text-center">
-        <div className="relative inline-flex items-center justify-center">
-          <p
-            className="font-ui text-[72px] font-bold leading-none tracking-tight tabular-nums text-brand sm:text-[84px]"
-            aria-label={`Position ${entry.position} in queue`}
-          >
-            #{entry.position}
+        <div className="flex flex-col items-center px-5 pt-6 text-center sm:px-6">
+          <div className="relative inline-flex items-end justify-center">
+            <p
+              className="font-ui text-[88px] font-bold leading-none tracking-tight tabular-nums text-brand sm:text-[96px]"
+              aria-label={`Position ${entry.position} in queue`}
+            >
+              #{entry.position}
+            </p>
+            <span
+              className="mb-3 ml-2 flex items-end gap-1"
+              aria-hidden
+              title="Live updating"
+            >
+              <LiveDot delay="0ms" active={refreshing} />
+              <LiveDot delay="150ms" active={refreshing} />
+              <LiveDot delay="300ms" active={refreshing} />
+            </span>
+          </div>
+          <p className="mt-4 text-[13px] font-semibold uppercase tracking-[0.16em] text-muted">
+            Live position
           </p>
-          <span
-            className={`absolute -right-7 top-2 flex h-5 w-5 items-center justify-center ${
-              refreshing ? "opacity-100" : "opacity-40"
-            }`}
-            aria-hidden
-          >
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand/25 border-t-brand" />
-          </span>
+          <p className="mt-2.5 text-[16px] text-muted">
+            {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
+            {entry.paymentAmount != null ? (
+              <>
+                <span className="text-ink/25"> · </span>
+                <span className="tabular-nums">${entry.paymentAmount.toFixed(2)}</span>
+              </>
+            ) : null}
+          </p>
+
+          <div className="mt-10 w-full max-w-md text-left">
+            {atFront ? (
+              <FrontOfQueuePanel entry={entry} />
+            ) : (
+              <WaitingPanel position={entry.position} />
+            )}
+          </div>
         </div>
-        <p className="mt-3 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-[0.14em] text-muted">
-          <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              refreshing ? "animate-pulse bg-brand" : "bg-brand/50"
-            }`}
-          />
-          Live position
-        </p>
-        <p className="mt-2 text-[14px] text-muted">
-          {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
-          {entry.paymentAmount != null ? (
-            <>
-              <span className="text-ink/25"> · </span>
-              <span className="tabular-nums">${entry.paymentAmount.toFixed(2)}</span>
-            </>
-          ) : null}
-        </p>
       </div>
 
-      <div className="mt-8 flex-1">
-        {atFront ? (
-          <FrontOfQueuePanel entry={entry} />
-        ) : (
-          <WaitingPanel position={entry.position} />
-        )}
-      </div>
-
-      <div className="mt-auto pt-10">
+      <div className="shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
         {onBack ? (
           <button type="button" onClick={onBack} className={HOME_LINK_CLASS}>
             Home
@@ -175,6 +180,17 @@ function FixedPriceQueueView({
   );
 }
 
+function LiveDot({ delay, active }: { delay: string; active: boolean }) {
+  return (
+    <span
+      className={`h-1.5 w-1.5 rounded-full bg-brand ${
+        active ? "animate-bounce" : "animate-pulse opacity-60"
+      }`}
+      style={{ animationDelay: delay }}
+    />
+  );
+}
+
 function WaitingPanel({ position }: { position: number }) {
   const ahead = Math.max(0, position - 1);
   const aheadLine =
@@ -185,12 +201,12 @@ function WaitingPanel({ position }: { position: number }) {
         : `There are ${ahead} people ahead of you`;
 
   return (
-    <div className="rounded-[20px] bg-white/[0.04] px-5 py-5">
-      <p className="text-[15px] leading-relaxed text-ink/90">
+    <div>
+      <p className="text-[16px] leading-relaxed text-ink/90">
         You’re in the queue. {aheadLine}, but we’ll start the delivery window shortly and send
         your ticket to the email you gave us.
       </p>
-      <p className="mt-3 text-[13.5px] leading-relaxed text-muted">
+      <p className="mt-4 text-[14.5px] leading-relaxed text-muted">
         Stay on this page — your place (#{position}) updates here as people ahead of you leave
         the queue.
       </p>
@@ -206,14 +222,14 @@ function FrontOfQueuePanel({ entry }: { entry: QuickWaitlistEntry }) {
 
   if (!paymentConfirmed) {
     return (
-      <div className="rounded-[20px] bg-white/[0.04] px-5 py-5">
+      <div>
         <p className="section-header text-brand/90">You’re next</p>
-        <p className="mt-3 text-[15px] leading-relaxed text-ink/90">
+        <p className="mt-3 text-[16px] leading-relaxed text-ink/90">
           You’re at the front of the line. As soon as we confirm your Interac, a 20-minute
           delivery window starts and your ticket is sent automatically to the email you gave us.
         </p>
         {entry.transferEmail && (
-          <p className="mt-4 text-[13px] leading-relaxed text-muted">
+          <p className="mt-4 text-[14px] leading-relaxed text-muted">
             Transfer email:{" "}
             <span className="text-ink/85">{entry.transferEmail}</span>
           </p>
@@ -223,17 +239,17 @@ function FrontOfQueuePanel({ entry }: { entry: QuickWaitlistEntry }) {
   }
 
   return (
-    <div className="rounded-[20px] bg-white/[0.04] px-5 py-5">
+    <div>
       <p className="section-header text-brand/90">You’re next</p>
-      <p className="mt-3 text-[15px] leading-relaxed text-ink/90">
+      <p className="mt-3 text-[16px] leading-relaxed text-ink/90">
         {expired
           ? "We’re sending your ticket now. Keep this page open — it will update when the transfer goes out."
           : "Payment confirmed. Your ticket will be sent automatically within this window — stay on this page."}
       </p>
 
-      <div className="mt-6 flex flex-col items-center py-2">
+      <div className="mt-8 flex flex-col items-center py-2">
         <p
-          className="font-ui text-[48px] font-bold tabular-nums tracking-tight text-ink sm:text-[56px]"
+          className="font-ui text-[56px] font-bold tabular-nums tracking-tight text-ink sm:text-[64px]"
           aria-live="polite"
           aria-label={
             expired ? "Delivery window ended" : `${formatCountdown(remaining)} remaining`
@@ -247,7 +263,7 @@ function FrontOfQueuePanel({ entry }: { entry: QuickWaitlistEntry }) {
       </div>
 
       {entry.transferEmail && (
-        <p className="mt-2 text-center text-[13px] leading-relaxed text-muted">
+        <p className="mt-2 text-center text-[14px] leading-relaxed text-muted">
           Sending to <span className="text-ink/85">{entry.transferEmail}</span>
         </p>
       )}
@@ -263,65 +279,74 @@ function TransferredBody({
   onBack?: () => void;
 }) {
   const email = entry.transferEmail;
+  const goHome = onBack ?? (() => {
+    window.location.assign("/");
+  });
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
-      {onBack ? (
-        <button
-          type="button"
-          onClick={onBack}
-          className="font-ui mb-4 inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </button>
-      ) : (
-        <p className="font-ui mb-4 text-[13px] font-semibold tracking-[0.04em] text-ink/55">
-          mcgill.tickets
-        </p>
-      )}
-
-      {entry.flyerUrl && (
-        <div className="relative isolate h-[min(28vh,200px)] w-full shrink-0 overflow-hidden rounded-[20px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={entry.flyerUrl}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
+    <div className="relative flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="relative isolate h-[min(28vh,200px)] w-full shrink-0 overflow-hidden">
+          {entry.flyerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={entry.flyerUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-white/[0.06]" />
+          )}
+          <div
+            aria-hidden
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to bottom, rgba(11,11,12,0.35) 0%, rgba(11,11,12,0.2) 40%, rgba(11,11,12,0.9) 80%, #0b0b0c 100%)",
+            }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/20" />
-          <div className="absolute inset-x-0 bottom-0 px-4 pb-4">
-            <p className="headline text-[22px] leading-tight tracking-tight text-white">
-              {entry.eventName}
-            </p>
+          <div className="relative flex h-full flex-col px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <button
+              type="button"
+              onClick={goHome}
+              className="font-ui inline-flex items-center gap-1.5 self-start rounded-full bg-black/40 px-3 py-1.5 text-[13px] font-semibold text-ink backdrop-blur-md transition-colors hover:bg-black/55"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
+            </button>
+            <div className="mt-auto pb-4">
+              <p className="headline text-[22px] leading-tight tracking-tight text-white">
+                {entry.eventName}
+              </p>
+            </div>
           </div>
         </div>
-      )}
 
-      <header className="mt-8">
-        <p className="section-header text-brand">You’re all set</p>
-        <h1 className="headline mt-3 text-[34px] leading-[1.1] tracking-tight text-ink sm:text-[38px]">
-          Your ticket has been transferred
-        </h1>
-        <p className="mt-5 text-[15.5px] leading-relaxed text-muted">
-          Check{" "}
-          {email ? (
-            <span className="font-medium text-ink">{email}</span>
-          ) : (
-            "the email we have on file"
-          )}{" "}
-          for your ticket
-          {entry.transferName ? (
-            <>
-              {" "}
-              under <span className="text-ink/90">{entry.transferName}</span>
-            </>
-          ) : null}
-          . Look in spam if you don’t see it within a few minutes.
-        </p>
-      </header>
+        <div className="px-5 pt-8 sm:px-6">
+          <p className="section-header text-brand">You’re all set</p>
+          <h1 className="headline mt-3 text-[34px] leading-[1.1] tracking-tight text-ink sm:text-[38px]">
+            Your ticket has been transferred
+          </h1>
+          <p className="mt-5 text-[15.5px] leading-relaxed text-muted">
+            Check{" "}
+            {email ? (
+              <span className="font-medium text-ink">{email}</span>
+            ) : (
+              "the email we have on file"
+            )}{" "}
+            for your ticket
+            {entry.transferName ? (
+              <>
+                {" "}
+                under <span className="text-ink/90">{entry.transferName}</span>
+              </>
+            ) : null}
+            . Look in spam if you don’t see it within a few minutes.
+          </p>
+        </div>
+      </div>
 
-      <div className="mt-auto pt-12">
+      <div className="shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
         {onBack ? (
           <button type="button" onClick={onBack} className={HOME_LINK_CLASS}>
             Home
@@ -338,8 +363,8 @@ function TransferredBody({
 
 export function QueueUnavailable() {
   return (
-    <AppFlowShell>
-      <div className="flex flex-1 flex-col">
+    <div className="fixed inset-0 z-[60] flex justify-center bg-base">
+      <div className="relative flex h-full w-full max-w-lg flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] sm:px-6">
         <p className="font-ui text-[13px] font-semibold tracking-[0.04em] text-ink/55">
           mcgill.tickets
         </p>
@@ -354,11 +379,10 @@ export function QueueUnavailable() {
           Home
         </Link>
       </div>
-    </AppFlowShell>
+    </div>
   );
 }
 
-/** 20-minute delivery window once payment is confirmed. */
 function queueDeadlineMs(entry: QuickWaitlistEntry): number {
   const startIso = entry.paymentRecordedAt ?? entry.buyerDeclaredSentAt ?? entry.createdAt;
   const start = Date.parse(startIso);

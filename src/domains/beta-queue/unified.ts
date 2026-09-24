@@ -46,7 +46,8 @@ export async function listUnifiedQueueSeats(
       .select("id, quantity, created_at, status")
       .eq("event_slug", eventSlug)
       .eq("intent", "buy")
-      .neq("status", "cancelled"),
+      .neq("status", "cancelled")
+      .neq("status", "done"),
   ]);
 
   const seats: UnifiedQueueSeat[] = [
@@ -88,7 +89,8 @@ export async function listAllUnifiedQueueSeats(): Promise<Map<string, UnifiedQue
       .from("beta_go_leads")
       .select("id, event_slug, quantity, created_at, status")
       .eq("intent", "buy")
-      .neq("status", "cancelled"),
+      .neq("status", "cancelled")
+      .neq("status", "done"),
   ]);
 
   const map = new Map<string, UnifiedQueueSeat[]>();

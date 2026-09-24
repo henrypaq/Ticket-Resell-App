@@ -725,6 +725,9 @@ export async function getQuickWaitlistEntries(
 
   for (const row of mine) {
     if (row.status === "cancelled") continue;
+    // Fulfilled predetermined seats leave the live waitlist (still returned so
+    // home can show the transferred row). They no longer take a queue slot —
+    // listUnifiedQueueSeats already excludes status=done.
     let seats = seatsByEvent.get(row.event_slug);
     if (!seats) {
       seats = await listUnifiedQueueSeats(row.event_slug);
