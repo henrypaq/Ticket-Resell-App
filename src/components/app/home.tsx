@@ -31,6 +31,10 @@ import { EventIntentView, EventPoster } from "./event-pieces";
 import { FixedPriceEventScreen } from "./fixed-price-event";
 import { EventRequestSection } from "./event-request";
 import { CafeCampusTransferCard } from "./cafe-campus-transfer-card";
+import {
+  FixedPriceQueueEmbedded,
+  isPredeterminedQueueEntry,
+} from "./queue";
 
 function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
   if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
@@ -68,7 +72,13 @@ export function AppHome({
   const hasTonight = tonight.length > 0;
 
   if (editing) {
-    return <WaitlistEditView entry={editing} onBack={() => setEditing(null)} />;
+    const live = waitlist.find((e) => e.leadId === editing.leadId) ?? editing;
+    if (isPredeterminedQueueEntry(live)) {
+      return (
+        <FixedPriceQueueEmbedded entry={live} onBack={() => setEditing(null)} />
+      );
+    }
+    return <WaitlistEditView entry={live} onBack={() => setEditing(null)} />;
   }
 
   if (selected) {
@@ -164,7 +174,9 @@ export function AppHome({
                     />
                     <div className="min-w-0 flex-1">
                       <p className="font-ui truncate text-[15px] font-semibold tracking-tight text-ink">
-                        Waitlist position #{entry.position}
+                        {isPredeterminedQueueEntry(entry)
+                          ? `Your place in line · #${entry.position}`
+                          : `Waitlist position #${entry.position}`}
                       </p>
                       <p className="mt-0.5 truncate text-[12.5px] leading-snug text-muted">
                         {entry.eventName}
@@ -174,15 +186,19 @@ export function AppHome({
                           ? " · paused"
                           : entry.activeOfferId
                             ? " · ticket held — claim / pay"
-                            : entry.paymentRecordedAt
-                              ? " · payment confirmed"
-                              : entry.buyerDeclaredSentAt
-                                ? " · Interac sent"
-                                : entry.status === "matched"
-                                  ? " · matched"
-                                  : entry.status === "done"
-                                    ? " · completed"
-                                    : null}
+                            : isPredeterminedQueueEntry(entry)
+                              ? entry.paymentRecordedAt
+                                ? entry.position <= 1
+                                  ? " · sending your ticket"
+                                  : " · payment confirmed"
+                                : entry.buyerDeclaredSentAt
+                                  ? " · Interac sent — in queue"
+                                  : null
+                              : entry.status === "matched"
+                                ? " · matched"
+                                : entry.status === "done"
+                                  ? " · completed"
+                                  : null}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
