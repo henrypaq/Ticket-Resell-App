@@ -2,10 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { betaOpsLogoutAction } from "@/domains/beta-ops/actions";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
-import { getPastOpsData } from "@/domains/beta-ops/service";
 import { countUnseenEventRequests } from "@/domains/beta-ops/event-requests";
 import { listOpsTransactions } from "@/domains/beta-ops/transactions";
-import { PastOpsModal } from "@/components/beta-ops/past-records-modal";
 import { Button } from "@/components/ui/button";
 
 const TABS = [
@@ -33,8 +31,7 @@ export async function OpsChrome({
   const session = await getBetaOpsSession();
   if (!session) redirect("/ops/login");
 
-  const [{ pastWaitlist, pastSellers }, unseenRequests, txBoard] = await Promise.all([
-    getPastOpsData(),
+  const [unseenRequests, txBoard] = await Promise.all([
     countUnseenEventRequests(),
     listOpsTransactions().catch(() => null),
   ]);
@@ -99,8 +96,6 @@ export async function OpsChrome({
       </nav>
 
       <main className="mt-6">{children}</main>
-
-      <PastOpsModal pastWaitlist={pastWaitlist} pastSellers={pastSellers} />
     </div>
   );
 }
