@@ -147,7 +147,7 @@ export function FixedPriceEventScreen({
 
   return (
     <div className="fixed inset-0 z-[60] flex justify-center bg-base">
-      <div className="relative flex h-full w-full max-w-lg flex-col overflow-y-auto overscroll-contain bg-base text-ink">
+      <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden bg-base text-ink">
         {phase === "details" ? (
           <DetailsPhase
             event={event}
@@ -291,8 +291,9 @@ function DetailsPhase({
   onCheckout: () => void;
 }) {
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="relative isolate h-[min(48vh,380px)] w-full shrink-0 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="relative isolate h-[min(48vh,380px)] w-full shrink-0 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={event.flyerUrl}
@@ -418,8 +419,9 @@ function DetailsPhase({
           />
         </section>
       </div>
+      </div>
 
-      <div className="sticky bottom-0 z-20 mt-auto border-t border-hairline bg-base/90 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md">
+      <div className="shrink-0 border-t border-hairline bg-base/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md">
         <button
           type="button"
           disabled={!contactOk}
@@ -475,15 +477,11 @@ function CheckoutPhase({
   onBack: () => void;
 }) {
   const [paymentSent, setPaymentSent] = useState(false);
-  const transferName = `${transferFirstName.trim()} ${transferLastName.trim()}`.trim();
   const paymentMemo = `MT-${event.slug}`.slice(0, 32).toUpperCase();
   const canJoin = paymentSent && !pending && !state.ok;
 
   return (
-    <form
-      action={formAction}
-      className="flex min-h-full flex-col px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]"
-    >
+    <form action={formAction} className="flex h-full min-h-0 flex-col">
       <input type="hidden" name="eventSlug" value={event.slug} />
       <input type="hidden" name="quantity" value={quantity} />
       <input type="hidden" name="maxPriceEach" value={String(priceEach)} />
@@ -499,132 +497,130 @@ function CheckoutPhase({
       <input type="hidden" name="paymentDeclared" value={paymentSent ? "1" : ""} />
       <input type="hidden" name="paymentAmount" value={String(grandTotal)} />
 
-      <button
-        type="button"
-        onClick={onBack}
-        className="font-ui inline-flex items-center gap-1.5 self-start text-[13px] font-semibold text-muted"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Back
-      </button>
-
-      <header className="mt-6">
-        <p className="section-header">Checkout</p>
-        <h1 className="headline mt-2 text-[26px] leading-[1.12] tracking-tight text-ink">
-          Send Interac payment
-        </h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-muted">
-          Pay the total below by Interac e-Transfer, confirm you&apos;ve sent it, then join the
-          queue. Your ticket goes to {transferEmail.trim()} once you leave the line.
-        </p>
-      </header>
-
-      <section className="mt-6 rounded-2xl bg-white/[0.04] px-3.5 py-3.5">
-        <p className="font-ui text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
-          Event
-        </p>
-        <p className="mt-1.5 text-[15px] font-medium text-ink">{event.name}</p>
-        <p className="mt-0.5 text-[13px] text-muted">
-          {formatBetaEventWhen(day)} · {event.venue}
-        </p>
-        <div className="mt-3 space-y-1 border-t border-hairline pt-3">
-          <div className="flex items-center justify-between text-[13px]">
-            <span className="text-muted">
-              Ticket{quantity > 1 ? ` × ${quantity}` : ""}
-            </span>
-            <span className="tabular-nums text-ink">{formatCad(ticketsSubtotal)}</span>
-          </div>
-          <div className="flex items-center justify-between text-[13px]">
-            <span className="text-muted">
-              {SERVICE_FEE_LABEL}
-              {quantity > 1 ? ` × ${quantity}` : ""}
-            </span>
-            <span className="tabular-nums text-ink">{formatCad(feesTotal)}</span>
-          </div>
-          <div className="flex items-center justify-between pt-1">
-            <span className="font-ui text-[13px] font-semibold tracking-tight text-ink">
-              Total due
-            </span>
-            <span className="font-ui text-[17px] font-bold tabular-nums tracking-tight text-amber-300">
-              {formatCad(grandTotal)}
-            </span>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative mt-4 overflow-hidden rounded-2xl border-2 border-amber-400/55 bg-gradient-to-b from-amber-400/15 via-amber-400/[0.06] to-transparent px-4 py-4 shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_12px_40px_rgba(0,0,0,0.35)]">
-        <div className="flex items-center justify-between gap-2">
-          <p className="font-ui text-[11px] font-bold uppercase tracking-[0.16em] text-amber-300">
-            Send Interac to
-          </p>
-          <span className="font-ui rounded-md bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-950">
-            Pay now
-          </span>
-        </div>
-        <p className="mt-3 font-ui text-[28px] font-bold tabular-nums tracking-tight text-amber-300">
-          {formatCad(grandTotal)}
-        </p>
-        <dl className="mt-4 flex flex-col gap-3 border-t border-amber-400/20 pt-4 text-[14px]">
-          <div>
-            <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-amber-200/60">
-              Email
-            </dt>
-            <dd className="mt-0.5 break-all font-semibold text-ink">
-              {FIXED_PRICE_ETRANSFER.email}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-amber-200/60">
-              Name
-            </dt>
-            <dd className="mt-0.5 font-semibold text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
-          </div>
-          <div>
-            <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-amber-200/60">
-              Message / memo
-            </dt>
-            <dd className="mt-0.5 font-mono text-[13px] font-semibold tracking-tight text-amber-100">
-              {paymentMemo}
-            </dd>
-          </div>
-        </dl>
-        <p className="mt-3 text-[12px] leading-relaxed text-amber-100/55">
-          Use the memo exactly so we can match your transfer. Autodeposit may not ask for a
-          security question.
-        </p>
-      </section>
-
-      <section className="mt-4 px-0.5">
-        <p className="font-ui text-[12px] font-medium tracking-tight text-muted/80">
-          ticket transfer details
-        </p>
-        <p className="mt-1.5 text-[14px] text-ink/85">{transferName}</p>
-        <p className="mt-0.5 text-[13px] text-muted">{transferEmail.trim()}</p>
-      </section>
-
-      {state.error && (
-        <p role="alert" className="mt-4 text-[13.5px] text-urgency">
-          {state.error}
-        </p>
-      )}
-
-      <div className="mt-auto flex flex-col gap-2.5 pt-8">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button
           type="button"
-          onClick={() => setPaymentSent((v) => !v)}
-          className={paymentSent ? FP_BUTTON_CONFIRM_ON : FP_BUTTON_CONFIRM}
-          aria-pressed={paymentSent}
+          onClick={onBack}
+          className="font-ui inline-flex items-center gap-1.5 self-start text-[13px] font-semibold text-muted"
         >
-          {paymentSent ? "E-transfer confirmed" : "I've sent the e-transfer"}
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back
         </button>
 
-        <button
-          type="submit"
-          disabled={!canJoin}
-          className={`w-full ${canJoin ? FP_BUTTON_CLASS : FP_BUTTON_MUTED}`}
-        >
-          {pending || state.ok ? "Joining queue…" : "Join queue"}
-        </button>
+        <header className="mt-6">
+          <p className="section-header">Checkout</p>
+          <h1 className="headline mt-2 text-[26px] leading-[1.12] tracking-tight text-ink">
+            Send Interac payment
+          </h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-muted">
+            Pay the total below by Interac e-Transfer, confirm you&apos;ve sent it, then join the
+            queue. Your ticket goes to {transferEmail.trim()} once you leave the line.
+          </p>
+        </header>
+
+        <section className="mt-6 rounded-2xl bg-white/[0.04] px-3.5 py-3.5">
+          <p className="font-ui text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
+            Event
+          </p>
+          <p className="mt-1.5 text-[15px] font-medium text-ink">{event.name}</p>
+          <p className="mt-0.5 text-[13px] text-muted">
+            {formatBetaEventWhen(day)} · {event.venue}
+          </p>
+          <div className="mt-3 space-y-1 border-t border-hairline pt-3">
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="text-muted">
+                Ticket{quantity > 1 ? ` × ${quantity}` : ""}
+              </span>
+              <span className="tabular-nums text-ink">{formatCad(ticketsSubtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="text-muted">
+                {SERVICE_FEE_LABEL}
+                {quantity > 1 ? ` × ${quantity}` : ""}
+              </span>
+              <span className="tabular-nums text-ink">{formatCad(feesTotal)}</span>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <span className="font-ui text-[13px] font-semibold tracking-tight text-ink">
+                Total due
+              </span>
+              <span className="font-ui text-[17px] font-bold tabular-nums tracking-tight text-ink">
+                {formatCad(grandTotal)}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Payment destination — clear but not loud yellow */}
+        <section className="relative mt-4 overflow-hidden rounded-2xl border border-white/12 bg-[#141416] px-4 py-4">
+          <div
+            aria-hidden
+            className="absolute inset-y-3 left-0 w-1 rounded-full bg-amber-400/80"
+          />
+          <p className="font-ui pl-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+            Send Interac to
+          </p>
+          <p className="mt-2 pl-3 font-ui text-[26px] font-bold tabular-nums tracking-tight text-ink">
+            {formatCad(grandTotal)}
+          </p>
+          <dl className="mt-4 flex flex-col gap-3 border-t border-white/8 pl-3 pt-4 text-[14px]">
+            <div>
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
+                Email
+              </dt>
+              <dd className="mt-0.5 break-all font-semibold text-ink">
+                {FIXED_PRICE_ETRANSFER.email}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
+                Name
+              </dt>
+              <dd className="mt-0.5 font-semibold text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
+                Message / memo
+              </dt>
+              <dd className="mt-0.5 font-mono text-[13px] font-medium tracking-tight text-ink/90">
+                {paymentMemo}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-3 pl-3 text-[12px] leading-relaxed text-muted">
+            Use the memo exactly so we can match your transfer. Autodeposit may not ask for a
+            security question.
+          </p>
+        </section>
+
+        {state.error && (
+          <p role="alert" className="mt-4 text-[13.5px] text-urgency">
+            {state.error}
+          </p>
+        )}
+
+        <div className="h-4" />
+      </div>
+
+      <div className="shrink-0 border-t border-hairline bg-base/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md">
+        <div className="flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={() => setPaymentSent((v) => !v)}
+            className={paymentSent ? FP_BUTTON_CONFIRM_ON : FP_BUTTON_CONFIRM}
+            aria-pressed={paymentSent}
+          >
+            {paymentSent ? "E-transfer confirmed" : "I've sent the e-transfer"}
+          </button>
+
+          <button
+            type="submit"
+            disabled={!canJoin}
+            className={`w-full ${canJoin ? FP_BUTTON_CLASS : FP_BUTTON_MUTED}`}
+          >
+            {pending || state.ok ? "Joining queue…" : "Join queue"}
+          </button>
+        </div>
       </div>
     </form>
   );

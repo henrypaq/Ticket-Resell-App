@@ -70,7 +70,7 @@ export function BottomSheet({
   const light = tone === "light";
 
   return createPortal(
-    <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label={title}>
       <div
         onClick={onClose}
         aria-hidden
@@ -82,12 +82,12 @@ export function BottomSheet({
         onTransitionEnd={(e) => {
           if (e.target === e.currentTarget && !visible) setRendered(false);
         }}
-        className={`absolute inset-x-0 bottom-0 mx-auto max-w-lg rounded-t-[28px] transition-transform duration-250 ease-out ${
+        className={`absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(92dvh,100%)] w-full max-w-lg flex-col rounded-t-[28px] transition-transform duration-250 ease-out ${
           visible ? "translate-y-0" : "translate-y-full"
         } ${light ? "border-t border-black/5 bg-white text-neutral-900" : "border-t border-hairline bg-card text-ink"}`}
         style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
       >
-        <div className="flex justify-center pt-3">
+        <div className="flex shrink-0 justify-center pt-3">
           <span
             aria-hidden
             className={`h-1 w-9 rounded-full ${light ? "bg-black/15" : "bg-white/15"}`}
@@ -95,7 +95,7 @@ export function BottomSheet({
         </div>
 
         {title && (
-          <div className="flex items-center justify-between px-5 pt-3">
+          <div className="flex shrink-0 items-center justify-between px-5 pt-3">
             <h2 className="text-[16px] font-bold">{title}</h2>
             <button
               type="button"
@@ -110,7 +110,9 @@ export function BottomSheet({
           </div>
         )}
 
-        <div className="px-5 pb-2 pt-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-2 pt-4">
+          {children}
+        </div>
       </div>
     </div>,
     document.body,
