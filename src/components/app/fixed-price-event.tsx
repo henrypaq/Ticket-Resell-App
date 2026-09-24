@@ -573,31 +573,31 @@ function CheckoutPhase({
           </div>
         </section>
 
-        {/* Payment destination — light grey, no border, stands out from event card */}
-        <section className="mt-4 rounded-2xl bg-[#e4e4e7] px-4 py-4 text-zinc-900">
-          <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+        {/* Payment destination — slight lift over the event card, dark + readable */}
+        <section className="mt-4 rounded-2xl bg-white/[0.08] px-4 py-4">
+          <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
             Send Interac to
           </p>
-          <p className="mt-2 font-ui text-[26px] font-bold tabular-nums tracking-tight text-zinc-950">
+          <p className="mt-2 font-ui text-[26px] font-bold tabular-nums tracking-tight text-ink">
             {formatCad(grandTotal)}
           </p>
-          <dl className="mt-4 flex flex-col gap-3 border-t border-zinc-900/10 pt-4 text-[14px]">
+          <dl className="mt-4 flex flex-col gap-3 border-t border-hairline pt-4 text-[14px]">
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
                 Email
               </dt>
-              <dd className="mt-0.5 break-all font-semibold text-zinc-950">
+              <dd className="mt-0.5 break-all font-semibold text-ink">
                 {FIXED_PRICE_ETRANSFER.email}
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
                 Name
               </dt>
-              <dd className="mt-0.5 font-semibold text-zinc-950">{FIXED_PRICE_ETRANSFER.name}</dd>
+              <dd className="mt-0.5 font-semibold text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
                 Message / memo
               </dt>
               <dd className="mt-1">
@@ -606,20 +606,20 @@ function CheckoutPhase({
                   onClick={() => {
                     void copyMemo();
                   }}
-                  className="font-ui flex w-full items-center justify-between gap-3 rounded-xl bg-zinc-900/8 px-3 py-2.5 text-left transition-colors active:bg-zinc-900/14"
+                  className="font-ui flex w-full items-center justify-between gap-3 rounded-xl bg-white/[0.06] px-3 py-2.5 text-left transition-colors active:bg-white/[0.1]"
                   aria-label={`Copy memo ${paymentMemo}`}
                 >
-                  <span className="min-w-0 break-all font-mono text-[13px] font-medium tracking-tight text-zinc-950">
+                  <span className="min-w-0 break-all font-mono text-[13px] font-medium tracking-tight text-ink">
                     {paymentMemo}
                   </span>
-                  <span className="shrink-0 text-[12px] font-semibold text-zinc-600">
+                  <span className="shrink-0 text-[12px] font-semibold text-muted">
                     {memoCopied ? "Copied" : "Copy"}
                   </span>
                 </button>
               </dd>
             </div>
           </dl>
-          <p className="mt-3 text-[12px] leading-relaxed text-zinc-500">
+          <p className="mt-3 text-[12px] leading-relaxed text-muted">
             Tap the memo to copy it. Use it exactly so we can match your transfer.
           </p>
         </section>
