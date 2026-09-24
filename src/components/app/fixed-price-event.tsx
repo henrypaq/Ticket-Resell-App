@@ -16,7 +16,7 @@ import { formatCad } from "@/lib/format";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 import { ArrowLeft } from "@/components/icons";
 import { Field } from "@/components/forms/field";
-import { BUTTON_CLASS, FIELD_CLASS } from "@/components/forms/field-styles";
+import { FIELD_CLASS, FIELD_RADIUS } from "@/components/forms/field-styles";
 import { BottomSheet } from "@/components/bottom-sheet";
 import {
   ContactFields,
@@ -27,6 +27,12 @@ import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
 import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
 
 const initial: QuickActionState = {};
+
+/** Ops amber CTAs — darker orange than the consumer yellow. */
+const FP_BUTTON_CLASS = `font-ui flex min-h-[52px] items-center justify-center gap-2 ${FIELD_RADIUS} border-0 bg-amber-400 px-8 py-4 text-[15px] font-semibold tracking-tight text-zinc-950 transition-opacity duration-200 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-35`;
+const FP_BUTTON_MUTED = `${FP_BUTTON_CLASS} !bg-amber-400/25 !text-amber-200/40 hover:!bg-amber-400/25`;
+const FP_BUTTON_CONFIRM = `font-ui flex min-h-[52px] w-full items-center justify-center gap-2 ${FIELD_RADIUS} border border-amber-400/40 bg-amber-400/10 px-6 text-[14px] font-semibold tracking-tight text-amber-200 transition-colors hover:bg-amber-400/15`;
+const FP_BUTTON_CONFIRM_ON = `font-ui flex min-h-[52px] w-full items-center justify-center gap-2 ${FIELD_RADIUS} border border-amber-400 bg-amber-400/20 px-6 text-[14px] font-semibold tracking-tight text-amber-300`;
 
 type Phase = "details" | "checkout";
 
@@ -234,7 +240,7 @@ export function FixedPriceEventScreen({
               type="button"
               disabled={!transferOk}
               onClick={continueToCheckout}
-              className={`${BUTTON_CLASS} w-full ${transferOk ? "" : "!bg-[#ffe500]/30 !text-black/40"}`}
+              className={`w-full ${transferOk ? FP_BUTTON_CLASS : FP_BUTTON_MUTED}`}
             >
               Continue to checkout
             </button>
@@ -418,7 +424,7 @@ function DetailsPhase({
           type="button"
           disabled={!contactOk}
           onClick={onCheckout}
-          className={`${BUTTON_CLASS} w-full ${contactOk ? "" : "!bg-[#ffe500]/30 !text-black/40"}`}
+          className={`w-full ${contactOk ? FP_BUTTON_CLASS : FP_BUTTON_MUTED}`}
         >
           Checkout · {formatCad(grandTotal)}
         </button>
@@ -546,47 +552,54 @@ function CheckoutPhase({
         </div>
       </section>
 
-      <section className="mt-3 rounded-2xl border border-[#ffe500]/45 bg-[rgba(255,229,0,0.08)] px-4 py-4">
+      <section className="relative mt-4 overflow-hidden rounded-2xl border-2 border-amber-400/55 bg-gradient-to-b from-amber-400/15 via-amber-400/[0.06] to-transparent px-4 py-4 shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_12px_40px_rgba(0,0,0,0.35)]">
         <div className="flex items-center justify-between gap-2">
-          <p className="font-ui text-[12px] font-bold uppercase tracking-[0.14em] text-[#ffe500]">
-            Interac e-Transfer
+          <p className="font-ui text-[11px] font-bold uppercase tracking-[0.16em] text-amber-300">
+            Send Interac to
           </p>
-          <span className="font-ui rounded-md bg-[#ffe500] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-950">
-            Pay here
+          <span className="font-ui rounded-md bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-950">
+            Pay now
           </span>
         </div>
-        <p className="mt-3 font-ui text-[28px] font-bold tabular-nums tracking-tight text-[#ffe500]">
+        <p className="mt-3 font-ui text-[28px] font-bold tabular-nums tracking-tight text-amber-300">
           {formatCad(grandTotal)}
         </p>
-        <p className="mt-0.5 text-[12px] text-muted">Send this exact amount</p>
-        <dl className="mt-4 flex flex-col gap-3 border-t border-[#ffe500]/20 pt-3.5 text-[14px]">
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted">Send to</dt>
-            <dd className="text-right font-semibold break-all text-ink">
+        <dl className="mt-4 flex flex-col gap-3 border-t border-amber-400/20 pt-4 text-[14px]">
+          <div>
+            <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-amber-200/60">
+              Email
+            </dt>
+            <dd className="mt-0.5 break-all font-semibold text-ink">
               {FIXED_PRICE_ETRANSFER.email}
             </dd>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted">Name</dt>
-            <dd className="text-right font-medium text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
+          <div>
+            <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-amber-200/60">
+              Name
+            </dt>
+            <dd className="mt-0.5 font-semibold text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted">Message / memo</dt>
-            <dd className="font-mono text-[12px] font-semibold text-[#ffe500]">{paymentMemo}</dd>
+          <div>
+            <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-amber-200/60">
+              Message / memo
+            </dt>
+            <dd className="mt-0.5 font-mono text-[13px] font-semibold tracking-tight text-amber-100">
+              {paymentMemo}
+            </dd>
           </div>
         </dl>
-        <p className="mt-3.5 text-[12px] leading-relaxed text-ink/55">
+        <p className="mt-3 text-[12px] leading-relaxed text-amber-100/55">
           Use the memo exactly so we can match your transfer. Autodeposit may not ask for a
           security question.
         </p>
       </section>
 
       <section className="mt-4 px-0.5">
-        <p className="font-ui text-[11px] font-medium tracking-tight text-muted/70">
-          Ticket transfer details
+        <p className="font-ui text-[12px] font-medium tracking-tight text-muted/80">
+          ticket transfer details
         </p>
-        <p className="mt-1 text-[13px] font-medium text-ink/75">{transferName}</p>
-        <p className="mt-0.5 text-[12.5px] text-muted/80">{transferEmail.trim()}</p>
+        <p className="mt-1.5 text-[14px] text-ink/85">{transferName}</p>
+        <p className="mt-0.5 text-[13px] text-muted">{transferEmail.trim()}</p>
       </section>
 
       {state.error && (
@@ -599,11 +612,7 @@ function CheckoutPhase({
         <button
           type="button"
           onClick={() => setPaymentSent((v) => !v)}
-          className={`font-ui flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[14px] border px-6 text-[14px] font-semibold tracking-tight transition-colors ${
-            paymentSent
-              ? "border-[#ffe500]/50 bg-[#ffe500]/15 text-[#ffe500]"
-              : "border-hairline bg-white/[0.04] text-ink hover:bg-white/[0.07]"
-          }`}
+          className={paymentSent ? FP_BUTTON_CONFIRM_ON : FP_BUTTON_CONFIRM}
           aria-pressed={paymentSent}
         >
           {paymentSent ? "E-transfer confirmed" : "I've sent the e-transfer"}
@@ -612,9 +621,7 @@ function CheckoutPhase({
         <button
           type="submit"
           disabled={!canJoin}
-          className={`${BUTTON_CLASS} w-full ${
-            canJoin ? "" : "!bg-[#ffe500]/30 !text-black/40"
-          }`}
+          className={`w-full ${canJoin ? FP_BUTTON_CLASS : FP_BUTTON_MUTED}`}
         >
           {pending || state.ok ? "Joining queue…" : "Join queue"}
         </button>
