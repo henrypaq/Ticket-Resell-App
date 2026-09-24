@@ -87,6 +87,9 @@ export type EventSalesSummary = {
   unitsSold: number;
   unitsWithdrawn: number;
   unitsOnHold: number;
+  ticketsSold: number;
+  ticketsSoldResale: number;
+  ticketsSoldFixedPrice: number;
   grossSalesCad: number;
   avgSalePriceCad: number | null;
   distinctBuyers: number;
@@ -227,6 +230,38 @@ export const FINDING_GUIDE: Record<string, { title: string; action: string }> = 
   lifecycle_event_unknown_name: {
     title: "Lifecycle event with a name that isn't in the catalog",
     action: "Add it to lifecycle_event_types, or fix the emitter.",
+  },
+  fixed_price_ticket_forwarded_without_payment: {
+    title: "Fixed-price ticket sent with no payment recorded",
+    action: "Recover the ticket or collect the money — the RPC refuses this, so something wrote around it.",
+  },
+  fixed_price_payment_declared_unverified: {
+    title: "Fixed-price buyer paid at checkout and is still unverified",
+    action: "Check the platform Interac inbox and confirm it, or tell them it didn't arrive.",
+  },
+  fixed_price_paid_ticket_not_delivered: {
+    title: "Fixed-price buyer paid 24h ago and has no ticket",
+    action: "Send the ticket to the transfer email on the lead.",
+  },
+  fixed_price_amount_below_ticket_price: {
+    title: "Fixed-price buyer was asked for less than the tickets cost",
+    action: "Check the event's price against what checkout charged — we're short before fees.",
+  },
+  fixed_price_amount_mismatch: {
+    title: "Fixed-price amount doesn't match the event's configured total",
+    action: "Usually a price edited after checkout. Confirm which figure the buyer actually sent.",
+  },
+  fixed_price_lead_done_without_payment: {
+    title: "Fixed-price buy closed as done with no payment confirmed",
+    action: "Either the money was never recorded or the lead was closed by mistake.",
+  },
+  fixed_price_payment_without_declaration: {
+    title: "Fixed-price payment recorded that the buyer never declared",
+    action: "Informational — usually an ops-entered payment.",
+  },
+  fixed_price_sale_without_history: {
+    title: "Fixed-price sale with no payment event in its history",
+    action: "Pre-dates the lifecycle log, or a write bypassed the triggers.",
   },
   paid_offer_without_history: {
     title: "Paid offer with no payment event in its history",

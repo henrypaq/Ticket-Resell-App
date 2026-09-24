@@ -139,3 +139,53 @@ when a night starts producing tens of thousands of offers.
   would make the log best-effort, which is the property that made
   `analytics_events` insufficient in the first place. The emit path is made
   unfailable instead.
+
+---
+
+## Addendum — 2026-09-24: the fixed-price path and the settings around it
+
+`0031` added a second way to sell a ticket: on a predetermined-price event the
+buyer pays at checkout and the lead *is* the transaction — no unit, no offer.
+Four migrations (`20260924090000`–`090300`) bring it under the same layer, and
+sweep up what else was changing untraced.
+
+**Sales became a grain, not a table.** Every revenue view was built on
+`beta_ticket_units`, so a fixed-price sale was revenue that never happened.
+Rather than teach each view about a second source, there is now `v_sales` — one
+row per sale, `sale_source` of `unit` or `fixed_price_lead`, and a `tickets`
+column because a fixed-price lead buys `quantity` tickets in one go.
+`v_event_sales_summary`, `v_event_sales_daily`, `v_buyer_behaviour`,
+`v_sales_velocity` and `v_platform_daily` are rebuilt on it and report the split.
+`v_ticket_ledger` keeps its one-row-per-physical-ticket meaning untouched.
+
+**The integrity view became a union.** `20260923090300`'s view is renamed
+`integrity_findings_base` and `integrity_findings` is now it plus
+`integrity_findings_fixed_price`. Copying 200 lines of SQL into a second
+migration to append six branches would have left two definitions to keep in
+step; a union leaves one. `run_integrity_checks()`, the cron route and
+`/ops/data` all still read one view.
+
+**The amount check deliberately stops short of exactness.** Checkout charges
+tickets *plus* a service fee, and when an event doesn't configure its own fee it
+falls back to `SERVICE_FEE_CAD` in `lib/compliance/fees.ts`. Hardcoding that
+number in SQL would create a second source of truth for a fee — the one thing
+`CLAUDE.md` § hard constraint 2 says lives in exactly one place. So there are two
+checks instead: a critical one when the buyer was asked for less than the tickets
+alone cost (true regardless of the fee), and an exact one only for events that
+configure `service_fee_each` themselves.
+
+**Governance is logged now.** `event_authorizations` — the only thing that
+unlocks above-face pricing — had no record of who created one. Neither did
+`profiles.is_admin`, `admin_allowlist`, catalog prices and visibility, queue
+padding, seat dormancy, or member preferences. All have triggers now. The one
+deliberate un-redacted value in the whole log is `admin_allowlist`'s email,
+because a staff identity *is* the subject of an admin grant — the same identity
+already stored in `actor_label`.
+
+**What was left alone.** `beta_campaign_link_opens` (`0032`) gets no lifecycle
+trigger: it is already an append-only event log with no state transitions, and
+mirroring every link open into `lifecycle_events` would double the write for no
+forensic value. `declare_fixed_price_payment_sent` exists for symmetry with the
+resale path but is not wired yet — checkout writes the declaration as part of
+creating the lead, and the trigger names it `buyer_payment_declared` with the
+buyer as actor either way.

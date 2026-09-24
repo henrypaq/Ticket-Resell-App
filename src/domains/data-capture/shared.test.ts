@@ -108,19 +108,25 @@ describe("severityRank", () => {
  * migration keeps this honest without anyone remembering to update two files.
  */
 describe("FINDING_GUIDE vs the integrity view", () => {
-  const migration = readFileSync(
-    fileURLToPath(
-      new URL(
-        "../../../supabase/migrations/20260923090300_data_capture_integrity.sql",
-        import.meta.url,
+  // Both halves of the view: the resale checks and the fixed-price ones that
+  // 20260924090100 unions onto them.
+  const migration = [
+    "20260923090300_data_capture_integrity.sql",
+    "20260924090100_data_capture_fixed_price_integrity.sql",
+  ]
+    .map((name) =>
+      readFileSync(
+        fileURLToPath(new URL(`../../../supabase/migrations/${name}`, import.meta.url)),
+        "utf8",
       ),
-    ),
-    "utf8",
-  );
+    )
+    .join("\n");
 
   const checkNames = new Set<string>();
-  const firstBlock = migration.match(/'([a-z0-9_]+)'::text as check_name/);
-  if (firstBlock) checkNames.add(firstBlock[1]);
+  // Each view's first block names the column; every later block is positional.
+  for (const m of migration.matchAll(/'([a-z0-9_]+)'::text as check_name/g)) {
+    checkNames.add(m[1]);
+  }
   for (const m of migration.matchAll(/select '([a-z0-9_]+)', '(critical|warning|info)'/g)) {
     checkNames.add(m[1]);
   }

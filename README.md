@@ -545,12 +545,46 @@ holding a lead/contact id and the boundary is server code (`ownsLead`,
 `getGoActivity`). The per-user RLS that does exist is on the Phase 1 card-payment
 tables and is unchanged.
 
+### Two money paths, one set of numbers
+
+There are two ways a ticket sells, and both land in the same places:
+
+| | resale | fixed price (`0031`) |
+|---|---|---|
+| inventory | `beta_ticket_units` | platform-held, no unit row |
+| claim | `beta_offers` | none — the lead *is* the transaction |
+| money in | `confirm_offer_payment` | `confirm_fixed_price_payment` |
+| ticket out | `forward_offer_ticket` | `forward_fixed_price_ticket` |
+| history | `buyer_payment_declared` → `buyer_payment_confirmed` → `ticket_forwarded_to_buyer` | identical names, `subject_type = buy_lead` |
+
+`v_sales` is the revenue grain both feed — one row per sale, `sale_source` of
+`unit` or `fixed_price_lead`, with a `tickets` count because a fixed-price lead
+buys `quantity` of them at once. Every revenue view is built on it and reports
+the split (`tickets_sold_resale` vs `tickets_sold_fixed_price`).
+`v_ticket_ledger` still means one row per physical resale ticket.
+
+The fixed-price amount check is deliberately two checks: a **critical** one when
+the buyer was charged less than the tickets alone cost, and an **exact** one only
+for events that set their own `service_fee_each`. Events on the platform default
+fee are covered by the first — duplicating `SERVICE_FEE_CAD` into SQL would give
+a fee two sources of truth, which is the one thing § hard constraint 2 forbids.
+
+### Settings and permissions are logged too
+
+Whatever decides what those flows may do now leaves a record:
+`event_authorizations` (the only above-face unlock), `profiles.is_admin`,
+`admin_allowlist`, catalog prices and visibility (`catalog_price_changed` carries
+the list/discount/fee breakdown), queue padding, seat dormancy, and member
+preferences.
+
 ### Known gaps
 
-- **`beta_members` has no lifecycle trigger.** A classic member editing their
-  profile or notification preferences leaves no history row; their *seats*
-  (`beta_member_interests`) and purchases do. Add a trigger there if member
-  profile edits ever need an audit trail.
+- **`beta_campaign_link_opens` is not mirrored into the lifecycle log.** It is
+  already an append-only log of its own with no state transitions; logging each
+  open twice would cost a write for no forensic value.
+- **`declare_fixed_price_payment_sent` is not wired yet.** Checkout writes the
+  buyer's declaration while creating the lead, and the trigger names it either
+  way; the RPC exists for the case where a returning buyer declares later.
 - **Backfilled history is inferred, not observed.** Rows written before these
   migrations are reconstructed from their timestamp columns and tagged
   `source = 'backfill'`. A status that was overwritten before the triggers

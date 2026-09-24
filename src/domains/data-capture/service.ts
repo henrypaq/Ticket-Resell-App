@@ -263,6 +263,9 @@ export async function listEventSalesSummary(): Promise<EventSalesSummary[]> {
     unitsSold: num(row.units_sold),
     unitsWithdrawn: num(row.units_withdrawn),
     unitsOnHold: num(row.units_on_hold),
+    ticketsSold: num(row.tickets_sold),
+    ticketsSoldResale: num(row.tickets_sold_resale),
+    ticketsSoldFixedPrice: num(row.tickets_sold_fixed_price),
     grossSalesCad: num(row.gross_sales_cad),
     avgSalePriceCad: numOrNull(row.avg_sale_price_cad),
     distinctBuyers: num(row.distinct_buyers),
@@ -308,7 +311,8 @@ export async function readAnalyticsView(
     | "v_seller_performance"
     | "v_buyer_behaviour"
     | "v_sales_velocity"
-    | "v_platform_daily",
+    | "v_platform_daily"
+    | "v_sales",
   options: { limit?: number; orderBy?: string; ascending?: boolean } = {},
 ): Promise<Record<string, unknown>[]> {
   const admin = createAdminClient();

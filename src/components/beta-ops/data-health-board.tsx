@@ -158,7 +158,10 @@ export function DataHealthBoard({
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-zinc-400">
-                  {s.unitsSold}/{s.unitsListed} sold
+                  {s.ticketsSold} ticket{s.ticketsSold === 1 ? "" : "s"} sold
+                  {s.ticketsSoldFixedPrice > 0
+                    ? ` (${s.ticketsSoldResale} resale · ${s.ticketsSoldFixedPrice} fixed price)`
+                    : ""}
                   {s.sellThroughPct != null ? ` · ${s.sellThroughPct}% sell-through` : ""}
                   {s.avgSalePriceCad != null ? ` · avg ${money(s.avgSalePriceCad)}` : ""}
                   {s.medianMinutesToSell != null
@@ -166,8 +169,8 @@ export function DataHealthBoard({
                     : ""}
                 </p>
                 <p className="mt-0.5 text-xs text-zinc-500">
-                  {s.unitsAvailable} available · {s.unitsOnHold} on hold · {s.awaitingDelivery}{" "}
-                  awaiting delivery · {s.awaitingPayout} awaiting payout
+                  {s.unitsListed} listed · {s.unitsAvailable} available · {s.unitsOnHold} on hold ·{" "}
+                  {s.awaitingDelivery} awaiting delivery · {s.awaitingPayout} awaiting payout
                 </p>
               </li>
             ))}

@@ -548,23 +548,27 @@ function DetailPanel({
   onBack: () => void;
   onDelete: () => void;
 }) {
-  const [stats, setStats] = useState<CampaignLinkStats | null>(null);
-  const [statsError, setStatsError] = useState<string | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
+  // Keyed by the src it was loaded for: switching campaigns reads as loading
+  // again without an effect having to reset three pieces of state first.
+  const [loaded, setLoaded] = useState<{
+    src: string;
+    stats: CampaignLinkStats | null;
+    error: string | null;
+  } | null>(null);
+  const current = loaded?.src === item.src ? loaded : null;
+  const stats = current?.stats ?? null;
+  const statsError = current?.error ?? null;
+  const statsLoading = current === null;
 
   useEffect(() => {
     let cancelled = false;
-    setStatsLoading(true);
-    setStatsError(null);
     void getCampaignLinkStatsAction(item.src).then((result) => {
       if (cancelled) return;
-      setStatsLoading(false);
-      if ("error" in result) {
-        setStatsError(result.error);
-        setStats(null);
-        return;
-      }
-      setStats(result);
+      setLoaded(
+        "error" in result
+          ? { src: item.src, stats: null, error: result.error }
+          : { src: item.src, stats: result, error: null },
+      );
     });
     return () => {
       cancelled = true;

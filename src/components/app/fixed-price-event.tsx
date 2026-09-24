@@ -160,8 +160,6 @@ export function FixedPriceEventScreen({
             day={day}
             blurb={blurb}
             priceEach={priceEach}
-            listEach={pricing.listEach}
-            showDiscount={showDiscount}
             quantity={quantity}
             setQuantity={setQuantity}
             listSubtotal={listSubtotal}
