@@ -327,8 +327,8 @@ export async function markFixedPriceTicketForwardedAction(
   leadId: string,
 ): Promise<OpsActionState> {
   try {
-    await requireBetaOpsSession();
-    const result = await markFixedPriceTicketForwarded(leadId);
+    const session = await requireBetaOpsSession();
+    const result = await markFixedPriceTicketForwarded(leadId, session.email);
     if (!result.ok) return { error: result.error };
     return { ok: true };
   } catch {

@@ -13,6 +13,7 @@ import {
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
 import { betaEventBySlug } from "@/lib/beta-events";
 import { getBetaEventBySlug, loadBetaCatalog } from "@/domains/beta-events/catalog";
+import { SERVICE_FEE_CAD } from "@/lib/compliance/fees";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validateTicketEvidenceFile, encodeEvidencePaths } from "@/lib/verification/ticket-evidence";
 import type { QuickWaitlistEntry, GoActivityEntry } from "./shared";
@@ -297,7 +298,11 @@ export async function submitQuickBuy(
     input.paymentAmount > 0
       ? Math.round(input.paymentAmount * 100) / 100
       : manualQueueOnly && listed.fixedPriceEach != null
-        ? Math.round(listed.fixedPriceEach * input.quantity * 100) / 100
+        ? Math.round(
+            (listed.fixedPriceEach + (listed.serviceFeeEach ?? SERVICE_FEE_CAD)) *
+              input.quantity *
+              100,
+          ) / 100
         : null;
   const declaredAt =
     manualQueueOnly && input.paymentDeclared ? new Date().toISOString() : null;

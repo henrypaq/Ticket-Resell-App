@@ -439,62 +439,35 @@ export async function markFixedPricePaymentReceived(
   if (!/^[0-9a-f-]{36}$/i.test(leadId)) {
     return { ok: false, error: "Invalid lead." };
   }
+  // Locks the lead, re-checks that the buyer declared payment, and stamps the
+  // operator's name into the lifecycle log — same contract as the resale path's
+  // confirm_offer_payment (migration 20260924090000).
   const admin = createAdminClient();
-  const { data: lead, error } = await admin
-    .from("beta_go_leads")
-    .select("id, intent, buyer_declared_sent_at, payment_recorded_at, status")
-    .eq("id", leadId)
-    .maybeSingle();
-  if (error || !lead || lead.intent !== "buy") {
-    return { ok: false, error: "Buy lead not found." };
-  }
-  if (!lead.buyer_declared_sent_at) {
-    return { ok: false, error: "Buyer hasn’t declared payment yet." };
-  }
-  if (lead.payment_recorded_at) return { ok: true, id: leadId };
-
-  const { error: updateError } = await admin
-    .from("beta_go_leads")
-    .update({
-      payment_recorded_at: new Date().toISOString(),
-      payment_recorded_by: recordedBy.slice(0, 120),
-      status: lead.status === "new" ? "contacted" : lead.status,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", leadId);
-  if (updateError) return { ok: false, error: updateError.message };
+  const { data, error } = await admin.rpc("confirm_fixed_price_payment", {
+    p_lead_id: leadId,
+    p_actor_label: recordedBy.slice(0, 120),
+  });
+  if (error) return { ok: false, error: error.message };
+  const outcome = (data ?? {}) as { ok?: boolean; error?: string };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not record the payment." };
   return { ok: true, id: leadId };
 }
 
 /** Ops: confirm fixed-price ticket was sent to the buyer’s transfer email. */
 export async function markFixedPriceTicketForwarded(
   leadId: string,
+  actorLabel = "ops",
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   if (!/^[0-9a-f-]{36}$/i.test(leadId)) {
     return { ok: false, error: "Invalid lead." };
   }
   const admin = createAdminClient();
-  const { data: lead, error } = await admin
-    .from("beta_go_leads")
-    .select("id, intent, payment_recorded_at, ticket_forwarded_at")
-    .eq("id", leadId)
-    .maybeSingle();
-  if (error || !lead || lead.intent !== "buy") {
-    return { ok: false, error: "Buy lead not found." };
-  }
-  if (!lead.payment_recorded_at) {
-    return { ok: false, error: "Confirm Interac received before marking the ticket sent." };
-  }
-  if (lead.ticket_forwarded_at) return { ok: true, id: leadId };
-
-  const { error: updateError } = await admin
-    .from("beta_go_leads")
-    .update({
-      ticket_forwarded_at: new Date().toISOString(),
-      status: "done",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", leadId);
-  if (updateError) return { ok: false, error: updateError.message };
+  const { data, error } = await admin.rpc("forward_fixed_price_ticket", {
+    p_lead_id: leadId,
+    p_actor_label: actorLabel.slice(0, 120),
+  });
+  if (error) return { ok: false, error: error.message };
+  const outcome = (data ?? {}) as { ok?: boolean; error?: string };
+  if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not mark the ticket sent." };
   return { ok: true, id: leadId };
 }

@@ -31,6 +31,10 @@ const upsertSchema = z
     entryNote: z.string().trim().max(200).optional().nullable(),
     doorsHour: z.coerce.number().int().min(0).max(23).optional().nullable(),
     fixedPriceEach: z.coerce.number().min(0).max(5000).optional().nullable(),
+    listPriceEach: z.coerce.number().min(0).max(5000).optional().nullable(),
+    discountEach: z.coerce.number().min(0).max(5000).optional().nullable(),
+    discountLabel: z.string().trim().max(80).optional().nullable(),
+    serviceFeeEach: z.coerce.number().min(0).max(500).optional().nullable(),
     flyerUrl: z.string().trim().min(1).max(500).optional(),
     flyerPath: z.string().trim().max(300).optional().nullable(),
   })
@@ -86,6 +90,10 @@ export async function upsertCatalogEvent(
     entry_note: data.entryNote || null,
     doors_hour: data.doorsHour ?? null,
     fixed_price_each: data.fixedPriceEach ?? null,
+    list_price_each: data.fixedPriceEach != null ? (data.listPriceEach ?? null) : null,
+    discount_each: data.fixedPriceEach != null ? (data.discountEach ?? null) : null,
+    discount_label: data.fixedPriceEach != null ? (data.discountLabel || null) : null,
+    service_fee_each: data.fixedPriceEach != null ? (data.serviceFeeEach ?? null) : null,
     updated_at: now,
   };
   if (opts?.createdBy) {

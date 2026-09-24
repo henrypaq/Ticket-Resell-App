@@ -473,7 +473,13 @@ function EditEventForm({
         />
       </Field>
 
-      <FixedPriceFields initialPrice={event.fixedPriceEach} />
+      <FixedPriceFields
+        initialPrice={event.fixedPriceEach}
+        initialListPrice={event.listPriceEach}
+        initialDiscount={event.discountEach}
+        initialDiscountLabel={event.discountLabel}
+        initialServiceFee={event.serviceFeeEach}
+      />
 
       <div>
         <p className="text-[11px] font-medium text-zinc-400">Schedule</p>
@@ -808,7 +814,19 @@ function CreateEventForm({ onCreated }: { onCreated?: () => void }) {
   );
 }
 
-function FixedPriceFields({ initialPrice }: { initialPrice?: number }) {
+function FixedPriceFields({
+  initialPrice,
+  initialListPrice,
+  initialDiscount,
+  initialDiscountLabel,
+  initialServiceFee,
+}: {
+  initialPrice?: number;
+  initialListPrice?: number;
+  initialDiscount?: number;
+  initialDiscountLabel?: string;
+  initialServiceFee?: number;
+}) {
   const [enabled, setEnabled] = useState(initialPrice != null && initialPrice >= 0);
 
   return (
@@ -831,20 +849,73 @@ function FixedPriceFields({ initialPrice }: { initialPrice?: number }) {
         </span>
       </label>
       {enabled && (
-        <Field label="Ticket price (CAD each)">
-          <input
-            name="fixedPriceEach"
-            type="number"
-            inputMode="decimal"
-            min={0}
-            max={5000}
-            step="0.01"
-            required
-            defaultValue={initialPrice ?? ""}
-            placeholder="40.00"
-            className={`${inputClass} mt-2`}
-          />
-        </Field>
+        <div className="mt-2 space-y-2">
+          <Field label="Net ticket price (CAD each, after discount)">
+            <input
+              name="fixedPriceEach"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={5000}
+              step="0.01"
+              required
+              defaultValue={initialPrice ?? ""}
+              placeholder="12.75"
+              className={`${inputClass} mt-2`}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="List price (optional)">
+              <input
+                name="listPriceEach"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={5000}
+                step="0.01"
+                defaultValue={initialListPrice ?? ""}
+                placeholder="15.00"
+                className={`${inputClass} mt-2`}
+              />
+            </Field>
+            <Field label="Discount $ (optional)">
+              <input
+                name="discountEach"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={5000}
+                step="0.01"
+                defaultValue={initialDiscount ?? ""}
+                placeholder="2.25"
+                className={`${inputClass} mt-2`}
+              />
+            </Field>
+          </div>
+          <Field label="Discount label (optional)">
+            <input
+              name="discountLabel"
+              type="text"
+              maxLength={80}
+              defaultValue={initialDiscountLabel ?? ""}
+              placeholder="15% off"
+              className={`${inputClass} mt-2`}
+            />
+          </Field>
+          <Field label="Service fee each (optional — blank = platform default)">
+            <input
+              name="serviceFeeEach"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={500}
+              step="0.01"
+              defaultValue={initialServiceFee ?? ""}
+              placeholder="1.50"
+              className={`${inputClass} mt-2`}
+            />
+          </Field>
+        </div>
       )}
     </div>
   );

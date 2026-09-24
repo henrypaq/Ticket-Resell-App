@@ -102,6 +102,34 @@ export default async function proxy(request: NextRequest) {
         ...cookieBase,
         maxAge: 60 * 60 * 24 * 30,
       });
+
+      // Once per browser session per src — count story/link opens without
+      // flooding the table on every navigation after the first hit.
+      const seenRaw = request.cookies.get("passe_src_opens")?.value ?? "";
+      const seen = new Set(
+        seenRaw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+      if (!seen.has(lastSrc)) {
+        seen.add(lastSrc);
+        response.cookies.set("passe_src_opens", [...seen].slice(-24).join(","), {
+          ...cookieBase,
+          maxAge: 60 * 60 * 12,
+        });
+        const trackUrl = new URL("/api/v1/track/campaign-open", request.nextUrl.origin);
+        void fetch(trackUrl, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: request.headers.get("cookie") ?? "",
+            "user-agent": request.headers.get("user-agent") ?? "",
+            "x-forwarded-for": request.headers.get("x-forwarded-for") ?? "",
+          },
+          body: JSON.stringify({ src: lastSrc, path }),
+        }).catch(() => {});
+      }
     }
   }
 

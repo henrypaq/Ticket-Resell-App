@@ -27,7 +27,17 @@ type CatalogRow = {
   entry_note: string | null;
   doors_hour: number | null;
   fixed_price_each: number | string | null;
+  list_price_each: number | string | null;
+  discount_each: number | string | null;
+  discount_label: string | null;
+  service_fee_each: number | string | null;
 };
+
+function optionalMoney(value: number | string | null | undefined): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
 
 function isWeekday(value: string): value is BetaWeekday {
   return (BETA_WEEKDAYS as readonly string[]).includes(value);
@@ -36,10 +46,7 @@ function isWeekday(value: string): value is BetaWeekday {
 function rowToEvent(row: CatalogRow): BetaEvent {
   const days = (row.days ?? []).filter(isWeekday);
   const extra = (row.extra_date_keys ?? []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-  const fixed =
-    row.fixed_price_each == null || row.fixed_price_each === ""
-      ? undefined
-      : Number(row.fixed_price_each);
+  const fixed = optionalMoney(row.fixed_price_each);
   return {
     slug: row.slug,
     name: row.name,
@@ -52,8 +59,11 @@ function rowToEvent(row: CatalogRow): BetaEvent {
     supported: Boolean(row.supported),
     entryNote: row.entry_note || undefined,
     doorsHour: row.doors_hour ?? undefined,
-    fixedPriceEach:
-      fixed != null && Number.isFinite(fixed) && fixed >= 0 ? fixed : undefined,
+    fixedPriceEach: fixed,
+    listPriceEach: optionalMoney(row.list_price_each),
+    discountEach: optionalMoney(row.discount_each),
+    discountLabel: row.discount_label?.trim() || undefined,
+    serviceFeeEach: optionalMoney(row.service_fee_each),
   };
 }
 
@@ -63,7 +73,7 @@ async function fetchDbCatalog(): Promise<BetaEvent[]> {
     const { data, error } = await admin
       .from("beta_event_catalog")
       .select(
-        "slug, name, venue, city, blurb, flyer_url, flyer_path, days, extra_date_keys, supported, entry_note, doors_hour, fixed_price_each",
+        "slug, name, venue, city, blurb, flyer_url, flyer_path, days, extra_date_keys, supported, entry_note, doors_hour, fixed_price_each, list_price_each, discount_each, discount_label, service_fee_each",
       )
       .order("name", { ascending: true });
     if (error) {
@@ -124,7 +134,7 @@ export async function listCatalogRowsForOps(): Promise<
   const { data } = await admin
     .from("beta_event_catalog")
     .select(
-      "slug, name, venue, city, blurb, flyer_url, flyer_path, days, extra_date_keys, supported, entry_note, doors_hour, fixed_price_each",
+      "slug, name, venue, city, blurb, flyer_url, flyer_path, days, extra_date_keys, supported, entry_note, doors_hour, fixed_price_each, list_price_each, discount_each, discount_label, service_fee_each",
     )
     .order("updated_at", { ascending: false });
 

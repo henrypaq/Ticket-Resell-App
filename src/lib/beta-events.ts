@@ -42,8 +42,17 @@ export type BetaEvent = {
   /**
    * Predetermined ticket price in CAD. When set, buyers skip naming a max and
    * see a fixed itemized breakdown; sell listings are expected at this price.
+   * This is the **net** ticket after any discount (what we charge for the ticket line).
    */
   fixedPriceEach?: number;
+  /** Optional face/list price before discount (display only). */
+  listPriceEach?: number;
+  /** Optional per-ticket discount amount in CAD. */
+  discountEach?: number;
+  /** Optional discount label, e.g. "15% off". */
+  discountLabel?: string;
+  /** Optional per-ticket service fee override; null → platform default. */
+  serviceFeeEach?: number;
 };
 
 /** Club night default. Overridden per event via `BetaEvent.doorsHour`. */

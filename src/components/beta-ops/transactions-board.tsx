@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { RefreshCw } from "lucide-react";
 import {
   markFixedPricePaymentReceivedAction,
   markFixedPriceTicketForwardedAction,
@@ -27,12 +28,21 @@ import { Badge } from "@/components/ui/badge";
  * Ops home: marketplace queues + predetermined-price Interac rows.
  */
 export function TransactionsBoard({ board }: { board: OpsTransactionsBoard }) {
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
   const fixedPrice = board.fixedPriceTxns ?? [];
   const openFixed = fixedPrice.filter((t) => t.status !== "done");
   const empty =
     board.attentionCount === 0 &&
     board.recentlyCompleted.length === 0 &&
     fixedPrice.length === 0;
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      router.refresh();
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [router]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -45,11 +55,24 @@ export function TransactionsBoard({ board }: { board: OpsTransactionsBoard }) {
             Interac sent.
           </p>
         </div>
-        {board.attentionCount > 0 && (
-          <Badge className="bg-amber-400/15 text-amber-200 hover:bg-amber-400/15">
-            {board.attentionCount} need you
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={refreshing}
+            className="h-8 gap-1.5 border-zinc-700 text-xs text-zinc-200"
+            onClick={() => startRefresh(() => router.refresh())}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </Button>
+          {board.attentionCount > 0 && (
+            <Badge className="bg-amber-400/15 text-amber-200 hover:bg-amber-400/15">
+              {board.attentionCount} need you
+            </Badge>
+          )}
+        </div>
       </div>
 
       {empty ? (

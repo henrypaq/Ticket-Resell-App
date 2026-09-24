@@ -11,7 +11,8 @@ import { submitQuickBuyAction, saveContactDraftAction } from "@/domains/beta-qui
 import type { QuickActionState } from "@/domains/beta-quick/shared";
 import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
-import { buildFeeBreakdown, SERVICE_FEE_LABEL } from "@/lib/compliance/fees";
+import { SERVICE_FEE_LABEL } from "@/lib/compliance/fees";
+import { fixedPriceBreakdown } from "@/lib/compliance/fixed-price";
 import { formatCad } from "@/lib/format";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 import { ArrowLeft } from "@/components/icons";
@@ -66,7 +67,6 @@ export function FixedPriceEventScreen({
   backHref?: string;
 }) {
   const router = useRouter();
-  const priceEach = event.fixedPriceEach ?? 0;
   const [phase, setPhase] = useState<Phase>("details");
   const [transferOpen, setTransferOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -90,10 +90,16 @@ export function FixedPriceEventScreen({
     transferLastName.trim().length >= 1 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(transferEmail.trim());
 
-  const perTicket = buildFeeBreakdown(priceEach);
-  const ticketsSubtotal = Math.round(priceEach * quantity * 100) / 100;
-  const feesTotal = Math.round(perTicket.serviceFee * quantity * 100) / 100;
-  const grandTotal = Math.round((ticketsSubtotal + feesTotal) * 100) / 100;
+  const pricing = fixedPriceBreakdown(event, quantity);
+  const {
+    netEach: priceEach,
+    listSubtotal,
+    discountTotal,
+    feesTotal,
+    grandTotal,
+    showDiscount,
+    discountLabel,
+  } = pricing;
 
   const blurb =
     event.blurb &&
@@ -154,9 +160,14 @@ export function FixedPriceEventScreen({
             day={day}
             blurb={blurb}
             priceEach={priceEach}
+            listEach={pricing.listEach}
+            showDiscount={showDiscount}
             quantity={quantity}
             setQuantity={setQuantity}
-            ticketsSubtotal={ticketsSubtotal}
+            listSubtotal={listSubtotal}
+            discountTotal={discountTotal}
+            showDiscount={showDiscount}
+            discountLabel={discountLabel}
             feesTotal={feesTotal}
             grandTotal={grandTotal}
             phoneCountry={phoneCountry}
@@ -175,7 +186,10 @@ export function FixedPriceEventScreen({
             day={day}
             quantity={quantity}
             priceEach={priceEach}
-            ticketsSubtotal={ticketsSubtotal}
+            listSubtotal={listSubtotal}
+            discountTotal={discountTotal}
+            showDiscount={showDiscount}
+            discountLabel={discountLabel}
             feesTotal={feesTotal}
             grandTotal={grandTotal}
             phone={phone}
@@ -258,7 +272,10 @@ function DetailsPhase({
   priceEach,
   quantity,
   setQuantity,
-  ticketsSubtotal,
+  listSubtotal,
+  discountTotal,
+  showDiscount,
+  discountLabel,
   feesTotal,
   grandTotal,
   phoneCountry,
@@ -277,7 +294,10 @@ function DetailsPhase({
   priceEach: number;
   quantity: number;
   setQuantity: (n: number | ((q: number) => number)) => void;
-  ticketsSubtotal: number;
+  listSubtotal: number;
+  discountTotal: number;
+  showDiscount: boolean;
+  discountLabel: string | null;
   feesTotal: number;
   grandTotal: number;
   phoneCountry: string;
@@ -319,7 +339,7 @@ function DetailsPhase({
           </button>
           <div className="mt-auto pb-5">
             <span className="font-ui inline-block rounded-md bg-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-950">
-              Fixed · {formatCad(priceEach)}
+              Fixed · {formatCad(showDiscount ? listSubtotal / quantity : priceEach)}
             </span>
             <h1 className="headline mt-2 text-[26px] leading-[1.1] tracking-tight text-ink">
               {event.name}
@@ -384,8 +404,16 @@ function DetailsPhase({
               <span className="text-muted">
                 Ticket{quantity > 1 ? ` × ${quantity}` : ""}
               </span>
-              <span className="tabular-nums text-ink">{formatCad(ticketsSubtotal)}</span>
+              <span className="tabular-nums text-ink">{formatCad(listSubtotal)}</span>
             </div>
+            {showDiscount && (
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-muted">{discountLabel ?? "Discount"}</span>
+                <span className="tabular-nums text-emerald-400">
+                  −{formatCad(discountTotal)}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-muted">
                 {SERVICE_FEE_LABEL}
@@ -446,7 +474,10 @@ function CheckoutPhase({
   day,
   quantity,
   priceEach,
-  ticketsSubtotal,
+  listSubtotal,
+  discountTotal,
+  showDiscount,
+  discountLabel,
   feesTotal,
   grandTotal,
   phone,
@@ -463,7 +494,10 @@ function CheckoutPhase({
   day: BetaWeekday;
   quantity: number;
   priceEach: number;
-  ticketsSubtotal: number;
+  listSubtotal: number;
+  discountTotal: number;
+  showDiscount: boolean;
+  discountLabel: string | null;
   feesTotal: number;
   grandTotal: number;
   phone: string;
@@ -550,8 +584,16 @@ function CheckoutPhase({
               <span className="text-muted">
                 Ticket{quantity > 1 ? ` × ${quantity}` : ""}
               </span>
-              <span className="tabular-nums text-ink">{formatCad(ticketsSubtotal)}</span>
+              <span className="tabular-nums text-ink">{formatCad(listSubtotal)}</span>
             </div>
+            {showDiscount && (
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-muted">{discountLabel ?? "Discount"}</span>
+                <span className="tabular-nums text-emerald-400">
+                  −{formatCad(discountTotal)}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-muted">
                 {SERVICE_FEE_LABEL}

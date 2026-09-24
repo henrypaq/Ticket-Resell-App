@@ -17,6 +17,44 @@ export type CreateEventState = {
   slug?: string;
 };
 
+function parseOptionalMoney(
+  formData: FormData,
+  key: string,
+  max = 5000,
+): number | null | { error: string } {
+  const raw = String(formData.get(key) ?? "").trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > max) {
+    return { error: `${key} must be a valid amount.` };
+  }
+  return Math.round(n * 100) / 100;
+}
+
+function parseFixedPriceExtras(formData: FormData, enabled: boolean) {
+  if (!enabled) {
+    return {
+      listPriceEach: null as number | null,
+      discountEach: null as number | null,
+      discountLabel: null as string | null,
+      serviceFeeEach: null as number | null,
+    };
+  }
+  const list = parseOptionalMoney(formData, "listPriceEach");
+  if (list && typeof list === "object" && "error" in list) return list;
+  const discount = parseOptionalMoney(formData, "discountEach");
+  if (discount && typeof discount === "object" && "error" in discount) return discount;
+  const fee = parseOptionalMoney(formData, "serviceFeeEach", 500);
+  if (fee && typeof fee === "object" && "error" in fee) return fee;
+  const discountLabel = String(formData.get("discountLabel") ?? "").trim().slice(0, 80) || null;
+  return {
+    listPriceEach: list as number | null,
+    discountEach: discount as number | null,
+    discountLabel,
+    serviceFeeEach: fee as number | null,
+  };
+}
+
 function parseFixedPriceEach(formData: FormData): number | null | { error: string } {
   const enabled =
     formData.get("fixedPriceEnabled") === "on" || formData.get("fixedPriceEnabled") === "1";
@@ -68,6 +106,16 @@ export async function createCatalogEventAction(
     return { error: fixedParsed.error };
   }
   const fixedPriceEach = fixedParsed as number | null;
+  const extras = parseFixedPriceExtras(formData, fixedPriceEach != null);
+  if (extras && typeof extras === "object" && "error" in extras) {
+    return { error: (extras as { error: string }).error };
+  }
+  const pricing = extras as {
+    listPriceEach: number | null;
+    discountEach: number | null;
+    discountLabel: string | null;
+    serviceFeeEach: number | null;
+  };
 
   const flyer = formData.get("flyer");
   if (!(flyer instanceof File) || flyer.size === 0) {
@@ -94,6 +142,10 @@ export async function createCatalogEventAction(
       entryNote,
       doorsHour: Number.isFinite(doorsHour) ? doorsHour : null,
       fixedPriceEach,
+      listPriceEach: pricing.listPriceEach,
+      discountEach: pricing.discountEach,
+      discountLabel: pricing.discountLabel,
+      serviceFeeEach: pricing.serviceFeeEach,
       flyerUrl: uploaded.url,
       flyerPath: uploaded.path,
     },
@@ -155,6 +207,16 @@ export async function updateCatalogEventAction(
     return { error: fixedParsed.error };
   }
   const fixedPriceEach = fixedParsed as number | null;
+  const extras = parseFixedPriceExtras(formData, fixedPriceEach != null);
+  if (extras && typeof extras === "object" && "error" in extras) {
+    return { error: (extras as { error: string }).error };
+  }
+  const pricing = extras as {
+    listPriceEach: number | null;
+    discountEach: number | null;
+    discountLabel: string | null;
+    serviceFeeEach: number | null;
+  };
 
   let flyerUrl = String(formData.get("existingFlyerUrl") ?? "").trim();
   let flyerPath = String(formData.get("existingFlyerPath") ?? "").trim() || null;
@@ -187,6 +249,10 @@ export async function updateCatalogEventAction(
     entryNote,
     doorsHour: Number.isFinite(doorsHour) ? doorsHour : null,
     fixedPriceEach,
+    listPriceEach: pricing.listPriceEach,
+    discountEach: pricing.discountEach,
+    discountLabel: pricing.discountLabel,
+    serviceFeeEach: pricing.serviceFeeEach,
     flyerUrl,
     flyerPath,
   });

@@ -11,6 +11,8 @@ import {
   type AcquisitionChannel,
 } from "@/lib/beta-acquisition";
 import { nightlifeDateKey, isPastNightlife } from "@/lib/beta-events";
+import { getCampaignLinkStatsAction } from "@/domains/beta-ops/campaign-opens-actions";
+import type { CampaignLinkStats } from "@/domains/beta-ops/campaign-open-types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -546,6 +548,29 @@ function DetailPanel({
   onBack: () => void;
   onDelete: () => void;
 }) {
+  const [stats, setStats] = useState<CampaignLinkStats | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatsLoading(true);
+    setStatsError(null);
+    void getCampaignLinkStatsAction(item.src).then((result) => {
+      if (cancelled) return;
+      setStatsLoading(false);
+      if ("error" in result) {
+        setStatsError(result.error);
+        setStats(null);
+        return;
+      }
+      setStats(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.src]);
+
   return (
     <div className="mt-5 rounded-xl bg-zinc-900/60">
       <div className="flex items-center gap-2 border-b border-zinc-800/60 px-3 py-2.5">
@@ -630,6 +655,72 @@ function DetailPanel({
             </a>
           </div>
         )}
+
+        <div className="rounded-lg bg-zinc-950/60 px-3 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+              Opens · {item.src}
+            </p>
+            {stats && (
+              <span className="text-[11px] tabular-nums text-zinc-400">
+                {stats.openCount} open{stats.openCount === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+          {statsLoading ? (
+            <p className="mt-2 text-xs text-zinc-500">Loading opens…</p>
+          ) : statsError ? (
+            <p className="mt-2 text-xs text-red-300">{statsError}</p>
+          ) : !stats || stats.opens.length === 0 ? (
+            <p className="mt-2 text-xs text-zinc-500">
+              No opens yet. Anyone who taps this link is logged here (once per browser session).
+            </p>
+          ) : (
+            <ul className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
+              {stats.opens.map((open) => (
+                <li
+                  key={open.id}
+                  className="flex items-start justify-between gap-2 rounded-md bg-zinc-900/80 px-2.5 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[12px] font-medium text-zinc-100">{open.label}</p>
+                    <p className="mt-0.5 text-[10px] text-zinc-500">
+                      {open.path ?? "/"} · {formatWhen(open.openedAt)}
+                    </p>
+                  </div>
+                  {open.contactId ? (
+                    <Badge variant="subtle" className="shrink-0 text-[9px]">
+                      Known
+                    </Badge>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {stats && stats.converts.length > 0 && (
+            <div className="mt-3 border-t border-zinc-800/80 pt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                Converted · {stats.converts.length}
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {stats.converts.map((c) => (
+                  <li
+                    key={c.leadId}
+                    className="flex items-start justify-between gap-2 rounded-md bg-zinc-900/80 px-2.5 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[12px] font-medium text-zinc-100">{c.label}</p>
+                      <p className="mt-0.5 text-[10px] text-zinc-500">
+                        {c.intent} · {c.eventSlug} · {formatWhen(c.createdAt)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

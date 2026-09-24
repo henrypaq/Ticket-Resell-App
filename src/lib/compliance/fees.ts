@@ -9,7 +9,7 @@
  */
 export const SERVICE_FEE_LABEL = "Service fee";
 
-/** Flat, per-transaction, in CAD. Not a percentage of the ticket price. */
+/** Flat, per-transaction default, in CAD. Not a percentage of the ticket price. */
 export const SERVICE_FEE_CAD = 2.49;
 
 export type FeeBreakdown = {
@@ -19,8 +19,11 @@ export type FeeBreakdown = {
   total: number;
 };
 
-export function buildFeeBreakdown(ticketPrice: number): FeeBreakdown {
-  const serviceFee = SERVICE_FEE_CAD;
+export function buildFeeBreakdown(
+  ticketPrice: number,
+  serviceFeeCad: number = SERVICE_FEE_CAD,
+): FeeBreakdown {
+  const serviceFee = serviceFeeCad;
   return {
     ticketPrice: round2(ticketPrice),
     serviceFee: round2(serviceFee),
