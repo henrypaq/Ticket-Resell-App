@@ -397,7 +397,7 @@ function DetailsPhase({
               <span className="font-ui text-[13px] font-semibold tracking-tight text-ink">
                 Total
               </span>
-              <span className="font-ui text-[17px] font-bold tabular-nums tracking-tight text-amber-300">
+              <span className="font-ui text-[17px] font-bold tabular-nums tracking-tight text-brand">
                 {formatCad(grandTotal)}
               </span>
             </div>
