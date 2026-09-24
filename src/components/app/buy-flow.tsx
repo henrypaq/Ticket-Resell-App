@@ -73,11 +73,13 @@ export function QuickBuyFlow({
   const [transferEmail, setTransferEmail] = useState("");
   const [maxPriceEach, setMaxPriceEach] = useState("");
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
-  const [availability, setAvailability] = useState<{
-    availableUnits: number;
-    demandAhead: number;
-    canCheckoutNow: boolean;
+  // Keyed by the slug it was fetched for, so switching events can't show the
+  // previous night's numbers and the stale value needs no reset effect.
+  const [availabilityFor, setAvailabilityFor] = useState<{
+    slug: string;
+    data: { availableUnits: number; demandAhead: number; canCheckoutNow: boolean };
   } | null>(null);
+  const availability = availabilityFor?.slug === eventSlug ? availabilityFor.data : null;
 
   useEffect(() => {
     if (!state.ok) return;
@@ -88,13 +90,10 @@ export function QuickBuyFlow({
   }, [state.ok, state.offerId, router, eventSlug]);
 
   useEffect(() => {
-    if (!eventSlug) {
-      setAvailability(null);
-      return;
-    }
+    if (!eventSlug) return;
     let cancelled = false;
     void loadBuyAvailabilityAction(eventSlug, quantity).then((result) => {
-      if (!cancelled) setAvailability(result);
+      if (!cancelled && result) setAvailabilityFor({ slug: eventSlug, data: result });
     });
     return () => {
       cancelled = true;

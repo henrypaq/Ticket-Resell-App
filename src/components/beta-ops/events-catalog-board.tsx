@@ -54,8 +54,11 @@ function CreateEventForm() {
           variant="outline"
           className="mt-3 h-8 text-[11px]"
           onClick={() => {
+            // Full reload rather than router.push: this board lives on
+            // /ops/events, and the point is to clear the submitted action
+            // state so the form comes back blank.
             router.refresh();
-            window.location.href = "/ops/events";
+            window.location.reload();
           }}
         >
           Create another

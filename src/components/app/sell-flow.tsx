@@ -90,11 +90,12 @@ export function QuickSellFlow({
   const fixedAsk =
     lockedEvent?.fixedPriceEach != null ? String(lockedEvent.fixedPriceEach) : null;
   const [quantity, setQuantity] = useState(1);
-  const [askEach, setAskEach] = useState(fixedAsk ?? "");
-
-  useEffect(() => {
-    if (fixedAsk != null) setAskEach(fixedAsk);
-  }, [fixedAsk]);
+  // A fixed-price event dictates the ask; anything else is whatever the seller
+  // typed. Deriving it means picking a different event can't leave the previous
+  // one's price behind, and no effect has to sync the two.
+  const [typedAskEach, setTypedAskEach] = useState("");
+  const askEach = fixedAsk ?? typedAskEach;
+  const setAskEach = setTypedAskEach;
   const savedPhone = splitSavedPhone(savedContact?.contactPhone);
   const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);
   const [phoneNational, setPhoneNational] = useState(savedPhone.national);

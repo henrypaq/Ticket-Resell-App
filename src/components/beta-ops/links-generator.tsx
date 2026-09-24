@@ -68,15 +68,23 @@ export function LinksGenerator({
   const [preset, setPreset] = useState(PRESET_SRCS[0]?.value ?? "ig_bio");
   const [customSrc, setCustomSrc] = useState("");
   const [outputMode, setOutputMode] = useState<OutputMode>("both");
-  const [previewQr, setPreviewQr] = useState<string | null>(null);
+  // Keyed by the url it encodes, so a stale code can't be shown for a link that
+  // has since changed, and switching to link-only needs no reset effect.
+  const [previewQrFor, setPreviewQrFor] = useState<{ url: string; dataUrl: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // localStorage can't be read during render — this component is server-rendered
+  // first, and seeding state from it would make the client's first paint
+  // disagree with the server's HTML. A one-shot read on mount, gated by
+  // `hydrated`, is the intended pattern; the cascading-render the rule guards
+  // against doesn't apply to a single mount-time load.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as SavedCampaign[];
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (Array.isArray(parsed)) setSaved(parsed);
       }
     } catch {
@@ -118,12 +126,12 @@ export function LinksGenerator({
     [intent, eventSlug, src, origin],
   );
 
+  const previewQr =
+    outputMode !== "link" && previewQrFor?.url === url ? previewQrFor.dataUrl : null;
+
   useEffect(() => {
     if (view !== "create") return;
-    if (outputMode === "link") {
-      setPreviewQr(null);
-      return;
-    }
+    if (outputMode === "link") return;
     let cancelled = false;
     QRCode.toDataURL(url, {
       width: 280,
@@ -131,10 +139,10 @@ export function LinksGenerator({
       color: { dark: "#0B0B0C", light: "#FFFFFF" },
     })
       .then((dataUrl) => {
-        if (!cancelled) setPreviewQr(dataUrl);
+        if (!cancelled) setPreviewQrFor({ url, dataUrl });
       })
       .catch(() => {
-        if (!cancelled) setPreviewQr(null);
+        if (!cancelled) setPreviewQrFor(null);
       });
     return () => {
       cancelled = true;
