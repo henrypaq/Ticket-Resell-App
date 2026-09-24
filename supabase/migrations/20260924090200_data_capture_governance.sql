@@ -210,14 +210,9 @@ begin
     return null;
   end if;
 
-  -- Every column that changes what a buyer is charged — the net ticket price
-  -- (0030) plus the list/discount/fee display columns (0032). Read through
-  -- jsonb so a database missing either migration degrades to "no event"
-  -- instead of erroring on every catalog edit.
-  if (before_j ->> 'fixed_price_each')  is distinct from (after_j ->> 'fixed_price_each')
-     or (before_j ->> 'list_price_each')  is distinct from (after_j ->> 'list_price_each')
-     or (before_j ->> 'discount_each')    is distinct from (after_j ->> 'discount_each')
-     or (before_j ->> 'service_fee_each') is distinct from (after_j ->> 'service_fee_each') then
+  -- Column arrives in 0030; read through jsonb so this still works on a
+  -- database that hasn't applied it.
+  if (before_j ->> 'fixed_price_each') is distinct from (after_j ->> 'fixed_price_each') then
     perform public.lifecycle_emit(
       p_event_name => 'catalog_price_changed', p_subject_type => 'catalog_event',
       p_subject_id => null, p_subject_key => new.slug, p_event_slug => new.slug,
@@ -225,11 +220,7 @@ begin
       p_new_state => after_j ->> 'fixed_price_each',
       p_before => before_j, p_after => after_j,
       p_amount => (after_j ->> 'fixed_price_each')::numeric,
-      p_actor_kind => 'ops',
-      p_metadata => jsonb_build_object(
-        'list_price_each', after_j ->> 'list_price_each',
-        'discount_each', after_j ->> 'discount_each',
-        'service_fee_each', after_j ->> 'service_fee_each')
+      p_actor_kind => 'ops'
     );
     emitted := true;
   end if;

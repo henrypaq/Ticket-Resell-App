@@ -113,6 +113,7 @@ describe("FINDING_GUIDE vs the integrity view", () => {
   const migration = [
     "20260923090300_data_capture_integrity.sql",
     "20260924090100_data_capture_fixed_price_integrity.sql",
+    "20260924091000_data_capture_fixed_price_corrections.sql",
   ]
     .map((name) =>
       readFileSync(

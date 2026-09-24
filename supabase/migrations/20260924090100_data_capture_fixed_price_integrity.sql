@@ -58,42 +58,19 @@ where l.intent = 'buy'
   and l.payment_recorded_at < now() - interval '24 hours'
 
 union all
--- Charged less than the tickets themselves cost. Checkout adds a service fee on
--- top (lib/compliance/fixed-price.ts), so the ticket component is the floor —
--- anything under it means the buyer was asked for too little, whatever the fee.
-select 'fixed_price_amount_below_ticket_price', 'critical', 'buy_lead', l.id, null, l.event_slug,
-       jsonb_build_object('declared_amount', l.payment_amount,
-                          'tickets_cost', round(c.fixed_price_each * l.quantity, 2),
-                          'fixed_price_each', c.fixed_price_each,
-                          'quantity', l.quantity)
-from public.beta_go_leads l
-join public.beta_event_catalog c on c.slug = l.event_slug
-where l.intent = 'buy'
-  and l.buyer_declared_sent_at is not null
-  and c.fixed_price_each is not null
-  and l.payment_amount is not null
-  and l.payment_amount < round(c.fixed_price_each * l.quantity, 2)
-
-union all
--- Exact check, but only where the event configures its own fee. When
--- service_fee_each is null checkout falls back to the platform default, which
--- lives in TypeScript (SERVICE_FEE_CAD) — duplicating that number here would
--- just create a second source of truth to drift. The floor check above still
--- covers those events.
+-- What the buyer was asked to send vs what the event costs. Catches a price
+-- edited after checkout as well as a typo in a manual amount.
 select 'fixed_price_amount_mismatch', 'warning', 'buy_lead', l.id, null, l.event_slug,
        jsonb_build_object('declared_amount', l.payment_amount,
-                          'expected', round((c.fixed_price_each + c.service_fee_each) * l.quantity, 2),
+                          'expected', round(c.fixed_price_each * l.quantity, 2),
                           'fixed_price_each', c.fixed_price_each,
-                          'service_fee_each', c.service_fee_each,
                           'quantity', l.quantity)
 from public.beta_go_leads l
 join public.beta_event_catalog c on c.slug = l.event_slug
 where l.intent = 'buy'
   and l.buyer_declared_sent_at is not null
   and c.fixed_price_each is not null
-  and c.service_fee_each is not null
-  and l.payment_amount is distinct from
-      round((c.fixed_price_each + c.service_fee_each) * l.quantity, 2)
+  and l.payment_amount is distinct from round(c.fixed_price_each * l.quantity, 2)
 
 union all
 -- Closed out without the money ever being confirmed. Excludes the resale path,
