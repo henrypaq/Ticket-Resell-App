@@ -546,40 +546,47 @@ function CheckoutPhase({
         </div>
       </section>
 
-      <section className="mt-3 rounded-2xl border border-hairline bg-card px-4 py-4">
-        <p className="font-ui text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
-          Interac e-Transfer
+      <section className="mt-3 rounded-2xl border border-[#ffe500]/45 bg-[rgba(255,229,0,0.08)] px-4 py-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-ui text-[12px] font-bold uppercase tracking-[0.14em] text-[#ffe500]">
+            Interac e-Transfer
+          </p>
+          <span className="font-ui rounded-md bg-[#ffe500] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-950">
+            Pay here
+          </span>
+        </div>
+        <p className="mt-3 font-ui text-[28px] font-bold tabular-nums tracking-tight text-[#ffe500]">
+          {formatCad(grandTotal)}
         </p>
-        <dl className="mt-3 flex flex-col gap-2.5 text-[14px]">
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted">Amount</dt>
-            <dd className="font-semibold tabular-nums text-ink">{formatCad(grandTotal)}</dd>
-          </div>
+        <p className="mt-0.5 text-[12px] text-muted">Send this exact amount</p>
+        <dl className="mt-4 flex flex-col gap-3 border-t border-[#ffe500]/20 pt-3.5 text-[14px]">
           <div className="flex justify-between gap-3">
             <dt className="text-muted">Send to</dt>
-            <dd className="text-right font-semibold text-ink">{FIXED_PRICE_ETRANSFER.email}</dd>
+            <dd className="text-right font-semibold break-all text-ink">
+              {FIXED_PRICE_ETRANSFER.email}
+            </dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-muted">Name</dt>
-            <dd className="text-right text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
+            <dd className="text-right font-medium text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-muted">Message / memo</dt>
-            <dd className="font-mono text-[12px] text-ink">{paymentMemo}</dd>
+            <dd className="font-mono text-[12px] font-semibold text-[#ffe500]">{paymentMemo}</dd>
           </div>
         </dl>
-        <p className="mt-3 text-[12.5px] leading-relaxed text-muted">
+        <p className="mt-3.5 text-[12px] leading-relaxed text-ink/55">
           Use the memo exactly so we can match your transfer. Autodeposit may not ask for a
           security question.
         </p>
       </section>
 
-      <section className="mt-3 rounded-2xl bg-white/[0.04] px-3.5 py-3.5">
-        <p className="font-ui text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
-          Ticket transfer
+      <section className="mt-4 px-0.5">
+        <p className="font-ui text-[11px] font-medium tracking-tight text-muted/70">
+          Ticket transfer details
         </p>
-        <p className="mt-1.5 text-[15px] font-medium text-ink">{transferName}</p>
-        <p className="mt-0.5 text-[13px] text-muted">{transferEmail.trim()}</p>
+        <p className="mt-1 text-[13px] font-medium text-ink/75">{transferName}</p>
+        <p className="mt-0.5 text-[12.5px] text-muted/80">{transferEmail.trim()}</p>
       </section>
 
       {state.error && (
@@ -599,7 +606,7 @@ function CheckoutPhase({
           }`}
           aria-pressed={paymentSent}
         >
-          {paymentSent ? "Payment confirmed" : "I've sent the money"}
+          {paymentSent ? "E-transfer confirmed" : "I've sent the e-transfer"}
         </button>
 
         <button
