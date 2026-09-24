@@ -128,28 +128,25 @@ export function AppHome({
       <div className="relative mt-5 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {transferredTickets.length > 0 && (
           <section className="relative shrink-0">
-            <p className="section-header">Ticket transferred</p>
-            <ul className="mt-2.5 flex flex-col gap-2">
+            <p className="section-header text-emerald-400/80">Ticket transferred</p>
+            <ul className="mt-2 flex flex-col gap-1.5">
               {transferredTickets.map((entry) => (
-                <li key={entry.leadId}>
+                <li
+                  key={entry.leadId}
+                  className="flex items-center gap-2.5 rounded-[12px] border border-emerald-500/25 bg-emerald-500/10 px-3 py-2"
+                >
+                  <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-emerald-100">
+                    {entry.eventName}
+                    <span className="text-emerald-200/50">
+                      {" · "}
+                      {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
+                    </span>
+                  </p>
                   <Link
                     href={`/queue?lead=${entry.leadId}&event=${encodeURIComponent(entry.eventSlug)}`}
-                    className="flex w-full items-center gap-3.5 rounded-[16px] border border-brand/25 bg-brand/10 px-3.5 py-3 text-left transition-colors hover:bg-brand/15"
+                    className="font-ui shrink-0 rounded-lg bg-emerald-500/20 px-2.5 py-1.5 text-[11px] font-semibold tracking-tight text-emerald-200 transition-colors hover:bg-emerald-500/30"
                   >
-                    <div className="font-ui flex h-[56px] min-w-[56px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-brand px-2.5 text-black">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.08em]">Sent</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-ui truncate text-[15px] font-semibold tracking-tight text-ink">
-                        Ticket transferred
-                      </p>
-                      <p className="mt-0.5 truncate text-[12.5px] leading-snug text-muted">
-                        {entry.eventName}
-                        {" · "}
-                        {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
-                      </p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
+                    Open
                   </Link>
                 </li>
               ))}
