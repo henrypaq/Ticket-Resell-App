@@ -9,8 +9,8 @@ import { UserIcon } from "@/components/icons";
  * Sticky rather than fixed so it stays in the same max-w-lg column as the
  * page. The safe-area padding lives on the sticky element, not the scroll
  * container, or the header would tuck under the notch as soon as the page
- * scrolls. `z-30` clears the `-z-10`/`-z-20` backdrop layers (Glow,
- * Starfield) and the sell-flow's in-page sheets.
+ * scrolls. `z-30` clears the `-z-10`/`-z-20` backdrop layers (Starfield)
+ * and the sell-flow's in-page sheets.
  */
 export function AppHeader({
   initials,

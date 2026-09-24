@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ProfilePrefillData } from "@/domains/beta-quick/shared";
 import { Field } from "@/components/forms/field";
-import { BUTTON_CLASS, FIELD_CLASS } from "@/components/forms/field-styles";
+import { FIELD_CLASS } from "@/components/forms/field-styles";
 import { GoogleContinueButton } from "./google-continue-button";
 
 /**
@@ -98,7 +98,11 @@ export function AccountSetupEntry({
         <button
           type="submit"
           disabled={!canSetup}
-          className={`${BUTTON_CLASS} mt-1 w-full !min-h-[50px] !text-[15px]`}
+          className={`font-ui mt-1 flex min-h-[50px] w-full items-center justify-center rounded-[14px] border-0 px-8 text-[15px] font-semibold tracking-tight transition-opacity ${
+            canSetup
+              ? "bg-white text-[#0b0b0c] hover:opacity-90"
+              : "cursor-not-allowed bg-white/25 text-black/45"
+          }`}
         >
           Setup account
         </button>

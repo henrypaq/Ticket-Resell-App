@@ -15,10 +15,7 @@ import { buildFeeBreakdown, SERVICE_FEE_LABEL } from "@/lib/compliance/fees";
 import { formatCad } from "@/lib/format";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 import { ArrowLeft } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import {
   ContactFields,
   DEFAULT_COUNTRY_ISO2,
@@ -42,8 +39,8 @@ function splitSavedPhone(e164: string | null | undefined): { iso2: string; natio
 }
 
 /**
- * Buyer-first screen for predetermined-price events: colorful banner, detail
- * rows, then quantity + itemized payment. Ops amber accent, shadcn surfaces.
+ * Fixed-price buy screen — mobile-first, DICE/Shotgun-style fading hero with
+ * title in the scrim, then tight details + payment.
  */
 export function FixedPriceEventScreen({
   event,
@@ -77,6 +74,13 @@ export function FixedPriceEventScreen({
   const feesTotal = Math.round(perTicket.serviceFee * quantity * 100) / 100;
   const grandTotal = Math.round((ticketsSubtotal + feesTotal) * 100) / 100;
 
+  const blurb =
+    event.blurb &&
+    event.blurb.trim() &&
+    event.blurb.trim().toLowerCase() !== `${event.name} at ${event.venue}.`.toLowerCase()
+      ? event.blurb.trim()
+      : null;
+
   useBetaFlowStepLog({
     intent: "buy",
     stepKey: "fixed_price",
@@ -97,91 +101,85 @@ export function FixedPriceEventScreen({
     else router.push(backHref);
   }
 
-  return (
-    <div className="relative -mx-5 flex min-h-full flex-col bg-zinc-950 text-zinc-100 sm:-mx-6">
-      {/* Colorful banner */}
-      <div className="relative isolate overflow-hidden">
-        <div className="absolute inset-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={event.flyerUrl}
-            alt=""
-            className="h-full w-full scale-110 object-cover blur-[2px] opacity-55"
-          />
-          <div
-            aria-hidden
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(251,191,36,0.55) 0%, rgba(14,165,233,0.35) 42%, rgba(168,85,247,0.45) 78%, rgba(9,9,11,0.92) 100%)",
-            }}
-          />
-          <div
-            aria-hidden
-            className="absolute inset-0 opacity-40"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 20% 30%, rgba(255,255,255,0.35), transparent 40%), radial-gradient(circle at 80% 20%, rgba(251,191,36,0.45), transparent 35%), linear-gradient(to bottom, transparent 40%, #09090b 100%)",
-            }}
-          />
-        </div>
+  // Embedded in AppShell (padded column) → bleed to column edges.
+  // Standalone /buy → own max-width column.
+  const embedded = Boolean(onBack);
 
-        <div className="relative px-5 pb-8 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
+  return (
+    <div
+      className={
+        embedded
+          ? "relative -mx-5 flex min-h-[100%] w-[calc(100%+2.5rem)] flex-col bg-base text-ink sm:-mx-6 sm:w-[calc(100%+3rem)]"
+          : "relative mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-base text-ink"
+      }
+    >
+      {/* Hero — full-bleed flyer fading into the page */}
+      <div className="relative isolate h-[min(52vh,420px)] w-full shrink-0 overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={event.flyerUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(11,11,12,0.35) 0%, rgba(11,11,12,0.15) 35%, rgba(11,11,12,0.72) 70%, #0b0b0c 100%)",
+          }}
+        />
+
+        <div className="relative flex h-full flex-col px-5 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
           <button
             type="button"
             onClick={handleBack}
-            className="inline-flex items-center gap-2 rounded-md bg-zinc-950/40 px-2.5 py-1.5 text-[12.5px] font-semibold text-zinc-100 backdrop-blur-md transition-colors hover:bg-zinc-950/60"
+            className="font-ui inline-flex items-center gap-1.5 self-start rounded-full bg-black/35 px-3 py-1.5 text-[13px] font-semibold text-ink backdrop-blur-md transition-colors hover:bg-black/50"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back
           </button>
 
-          <div className="mt-8 flex flex-wrap items-center gap-2">
-            <Badge className="border-0 bg-amber-400/90 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-950">
-              Fixed price
-            </Badge>
-            <Badge variant="outline" className="border-white/20 bg-white/10 text-[10px] text-zinc-100">
-              {formatCad(priceEach)} / ticket
-            </Badge>
+          <div className="mt-auto pb-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-ui rounded-md bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-950">
+                Fixed price
+              </span>
+              <span className="font-ui text-[12px] font-semibold tabular-nums tracking-tight text-ink/90">
+                {formatCad(priceEach)} / ticket
+              </span>
+            </div>
+            <h1 className="headline mt-2.5 text-[28px] leading-[1.12] tracking-tight text-ink sm:text-[30px]">
+              {event.name}
+            </h1>
+            <p className="mt-1.5 text-[13.5px] font-medium text-ink/75">
+              {formatBetaEventWhen(day)}
+            </p>
           </div>
-
-          <h1 className="mt-3 max-w-[18ch] text-[28px] font-semibold leading-[1.12] tracking-tight text-white drop-shadow-sm sm:text-[32px]">
-            {event.name}
-          </h1>
-          <p className="mt-2 text-[13px] font-medium text-zinc-200/90">
-            {formatBetaEventWhen(day)}
-          </p>
         </div>
       </div>
 
-      <div className="relative z-10 -mt-2 flex flex-1 flex-col gap-3 px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
-        {/* Detail rows */}
-        <Card className="border border-zinc-800/80 bg-zinc-900/80 backdrop-blur-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-              Event details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-0 divide-y divide-zinc-800/80 px-0 pb-0">
-            <DetailRow label="Venue" value={event.venue} />
-            <DetailRow label="City" value={event.city} />
-            <DetailRow label="When" value={formatBetaEventWhen(day)} />
-            {event.entryNote && <DetailRow label="Entry" value={event.entryNote} accent />}
-            {event.blurb && (
-              <div className="px-4 py-3 sm:px-5">
-                <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
-                  About
-                </p>
-                <p className="mt-1 text-[13px] leading-relaxed text-zinc-300">{event.blurb}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Body */}
+      <div className="relative z-10 flex flex-1 flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
+        {/* Compact details — no card chrome */}
+        <div className="flex flex-col gap-1.5 border-b border-hairline pb-5">
+          <p className="text-[14px] leading-snug text-ink">
+            <span className="font-medium">{event.venue}</span>
+            <span className="text-muted"> · {event.city}</span>
+          </p>
+          {event.entryNote && (
+            <p className="font-ui text-[13px] font-semibold tracking-tight text-amber-300">
+              {event.entryNote}
+            </p>
+          )}
+          {blurb && (
+            <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{blurb}</p>
+          )}
+        </div>
 
-        {/* Payment */}
         <form
           action={formAction}
-          className="flex flex-col gap-3"
+          className="mt-5 flex flex-col gap-6"
           onSubmit={() => {
             void saveContactDraftAction({ phone, instagram });
           }}
@@ -190,144 +188,106 @@ export function FixedPriceEventScreen({
           <input type="hidden" name="quantity" value={quantity} />
           <input type="hidden" name="maxPriceEach" value={String(priceEach)} />
           <input type="hidden" name="contactPhone" value={phone} />
-          <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
+          <input
+            type="hidden"
+            name="contactInstagram"
+            value={instagram.replace(/^@+/, "").trim()}
+          />
 
-          <Card className="border border-zinc-800/80 bg-zinc-900/80">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-[13px] font-semibold tracking-tight text-zinc-100">
-                  Your tickets
-                </CardTitle>
-                <span className="text-[11px] text-zinc-500">Max {QUICK_MAX_TICKETS}</span>
-              </div>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-[13px] text-zinc-400">Quantity</p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    disabled={quantity <= 1}
-                    className="h-9 w-9 rounded-lg bg-zinc-800 text-lg text-zinc-100"
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    aria-label="Fewer"
-                  >
-                    −
-                  </Button>
-                  <Input
-                    readOnly
-                    value={quantity}
-                    className="h-9 w-12 border-0 bg-zinc-950 text-center text-sm font-semibold tabular-nums text-zinc-100"
-                    aria-label="Ticket quantity"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    disabled={quantity >= QUICK_MAX_TICKETS}
-                    className="h-9 w-9 rounded-lg bg-zinc-800 text-lg text-zinc-100"
-                    onClick={() => setQuantity((q) => Math.min(QUICK_MAX_TICKETS, q + 1))}
-                    aria-label="More"
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950/60">
-                <BreakdownRow
-                  label={`Ticket × ${quantity}`}
-                  value={formatCad(ticketsSubtotal)}
-                />
-                <BreakdownRow
-                  label={`${SERVICE_FEE_LABEL} × ${quantity}`}
-                  value={formatCad(feesTotal)}
-                />
-                <div className="flex items-center justify-between gap-3 border-t border-amber-400/25 bg-amber-400/10 px-3.5 py-3">
-                  <span className="text-[13px] font-semibold text-amber-200">Total due</span>
-                  <span className="text-[16px] font-bold tabular-nums tracking-tight text-amber-300">
-                    {formatCad(grandTotal)}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-[11.5px] leading-relaxed text-zinc-500">
-                Price is set for this event. You&apos;ll get an exclusive hold when a ticket is
-                available — then pay the total above by Interac.
+          {/* Tight payment block */}
+          <section>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-ui text-[14px] font-semibold tracking-tight text-ink">
+                Tickets
               </p>
-            </CardContent>
-          </Card>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Fewer"
+                  disabled={quantity <= 1}
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  className="font-ui flex h-9 w-9 items-center justify-center rounded-[10px] bg-white/[0.08] text-[18px] text-ink transition-colors hover:bg-white/[0.12] disabled:opacity-30"
+                >
+                  −
+                </button>
+                <span className="font-ui min-w-[1.5ch] text-center text-[17px] font-bold tabular-nums tracking-tight text-ink">
+                  {quantity}
+                </span>
+                <button
+                  type="button"
+                  aria-label="More"
+                  disabled={quantity >= QUICK_MAX_TICKETS}
+                  onClick={() => setQuantity((q) => Math.min(QUICK_MAX_TICKETS, q + 1))}
+                  className="font-ui flex h-9 w-9 items-center justify-center rounded-[10px] bg-white/[0.08] text-[18px] text-ink transition-colors hover:bg-white/[0.12] disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+            </div>
 
-          <Card className="border border-zinc-800/80 bg-zinc-900/80">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-[13px] font-semibold tracking-tight text-zinc-100">
-                Contact
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ContactFields
-                phoneCountry={phoneCountry}
-                phoneNational={phoneNational}
-                instagram={instagram}
-                onPhoneCountry={setPhoneCountry}
-                onPhoneNational={setPhoneNational}
-                onInstagram={setInstagram}
-                hint="We’ll notify you when a ticket is held at this price."
-              />
-            </CardContent>
-          </Card>
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between text-[13.5px]">
+                <span className="text-muted">
+                  Ticket{quantity > 1 ? ` × ${quantity}` : ""}
+                </span>
+                <span className="tabular-nums text-ink">{formatCad(ticketsSubtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-[13.5px]">
+                <span className="text-muted">
+                  {SERVICE_FEE_LABEL}
+                  {quantity > 1 ? ` × ${quantity}` : ""}
+                </span>
+                <span className="tabular-nums text-ink">{formatCad(feesTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-hairline pt-2.5">
+                <span className="font-ui text-[14px] font-semibold tracking-tight text-ink">
+                  Total
+                </span>
+                <span className="font-ui text-[18px] font-bold tabular-nums tracking-tight text-amber-300">
+                  {formatCad(grandTotal)}
+                </span>
+              </div>
+            </div>
+
+            <p className="mt-2.5 text-[12px] leading-relaxed text-muted">
+              Fixed price for this event. Pay by Interac when a ticket is held for you.
+            </p>
+          </section>
+
+          <section>
+            <p className="font-ui mb-3 text-[14px] font-semibold tracking-tight text-ink">
+              Contact
+            </p>
+            <ContactFields
+              phoneCountry={phoneCountry}
+              phoneNational={phoneNational}
+              instagram={instagram}
+              onPhoneCountry={setPhoneCountry}
+              onPhoneNational={setPhoneNational}
+              onInstagram={setInstagram}
+              hint="We’ll notify you when a ticket is held at this price."
+            />
+          </section>
 
           {state.error && (
-            <p role="alert" className="text-[13px] text-amber-400">
+            <p role="alert" className="text-[13.5px] text-urgency">
               {state.error}
             </p>
           )}
 
-          <Button
+          <button
             type="submit"
             disabled={!canSubmit || pending || Boolean(state.ok)}
-            className="h-12 w-full rounded-xl bg-amber-400 text-[15px] font-semibold text-zinc-950 hover:bg-amber-300 disabled:opacity-40"
+            className={`${BUTTON_CLASS} w-full ${
+              canSubmit && !pending && !state.ok
+                ? ""
+                : "!bg-[#ffe500]/30 !text-black/40"
+            }`}
           >
-            {pending || state.ok ? "Submitting…" : `Join at ${formatCad(grandTotal)}`}
-          </Button>
+            {pending || state.ok ? "Submitting…" : `Join · ${formatCad(grandTotal)}`}
+          </button>
         </form>
       </div>
-    </div>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 px-4 py-3 sm:px-5">
-      <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
-        {label}
-      </span>
-      <span
-        className={`text-right text-[13.5px] font-medium leading-snug ${
-          accent ? "text-amber-300" : "text-zinc-100"
-        }`}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function BreakdownRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-[13px]">
-      <span className="text-zinc-400">{label}</span>
-      <span className="tabular-nums text-zinc-200">{value}</span>
     </div>
   );
 }

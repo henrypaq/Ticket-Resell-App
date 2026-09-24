@@ -130,19 +130,21 @@ export function AppHome({
                   />
                   <div className="min-w-0 flex-1">
                     <p className="font-ui truncate text-[15px] font-semibold tracking-tight text-ink">
-                      {entry.eventName}
+                      Waitlist position #{entry.position}
                     </p>
-                    <p className="mt-0.5 text-[12.5px] leading-snug text-muted">
-                      ×{entry.quantity}
+                    <p className="mt-0.5 truncate text-[12.5px] leading-snug text-muted">
+                      {entry.eventName}
+                      {" · "}
+                      {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
                       {entry.dormant
-                        ? " · paused — reactivate to get holds again"
+                        ? " · paused"
                         : entry.activeOfferId
                           ? " · ticket held — claim / pay"
                           : entry.status === "matched"
-                            ? " · matched — we’ll notify you"
+                            ? " · matched"
                             : entry.status === "done"
                               ? " · completed"
-                              : " · exclusive hold when it’s your turn"}
+                              : null}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
@@ -286,18 +288,18 @@ function WaitlistPositionBadge({
 }) {
   const dim =
     size === "lg"
-      ? "h-[72px] w-[72px] rounded-[18px]"
-      : "h-[48px] w-[48px] rounded-[14px]";
+      ? "h-[80px] min-w-[80px] rounded-[18px] px-3"
+      : "h-[56px] min-w-[56px] rounded-[14px] px-2.5";
   const num =
     size === "lg"
-      ? "text-[28px] leading-none"
-      : "text-[18px] leading-none";
+      ? "text-[30px] leading-none"
+      : "text-[20px] leading-none";
   return (
     <div
       className={`font-ui flex shrink-0 flex-col items-center justify-center ${dim} ${
         highlight
           ? "bg-[#ffe500] text-black"
-          : "bg-[#1f1f23] text-[#ffe500]"
+          : "border border-white/20 bg-transparent text-[#ffe500]"
       }`}
       aria-label={`Position ${position} in waitlist`}
     >
@@ -654,6 +656,13 @@ function WaitlistEditView({
   const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
   const canSave = phoneOk || igOk;
 
+  const igNormalized = instagram.replace(/^@+/, "").trim();
+  const savedIg = (entry.contactInstagram ?? "").replace(/^@+/, "").trim();
+  const dirty =
+    quantity !== Math.min(QUICK_MAX_TICKETS, Math.max(1, entry.quantity)) ||
+    phone !== (entry.contactPhone ?? "") ||
+    igNormalized !== savedIg;
+
   useEffect(() => {
     if (state.ok) {
       onBack();
@@ -682,7 +691,7 @@ function WaitlistEditView({
         ? "Matched — we’ll notify you."
         : entry.status === "done"
           ? "Completed."
-          : "You’ll get an exclusive hold when it’s your turn.";
+          : "We’ll notify you when a ticket is held for you.";
 
   return (
     <div className="relative flex flex-col gap-7">
@@ -695,15 +704,16 @@ function WaitlistEditView({
         Back
       </button>
 
-      <div className="flex items-center gap-4">
-        <WaitlistPositionBadge
-          position={entry.position}
-          highlight={Boolean(entry.activeOfferId)}
-          size="lg"
-        />
-        <div className="min-w-0 flex-1">
-          <p className="section-header">Waitlist</p>
-          <h1 className="headline mt-1.5 text-[24px] leading-[1.15] tracking-tight sm:text-[26px]">
+      <div className="flex items-start gap-4">
+        <p
+          className="font-ui shrink-0 text-[52px] font-bold leading-none tracking-tight tabular-nums text-[#ffe500] sm:text-[56px]"
+          aria-label={`Position ${entry.position} in waitlist`}
+        >
+          {entry.position}
+        </p>
+        <div className="min-w-0 flex-1 pt-1">
+          <p className="section-header">Waitlist position</p>
+          <h1 className="headline mt-1.5 text-[22px] leading-[1.15] tracking-tight sm:text-[24px]">
             {entry.eventName}
           </h1>
           <p className="mt-1.5 text-[13.5px] leading-snug text-muted">{statusHint}</p>
@@ -714,7 +724,7 @@ function WaitlistEditView({
         <input type="hidden" name="leadId" value={entry.leadId} />
         <input type="hidden" name="quantity" value={quantity} />
         <input type="hidden" name="contactPhone" value={phone} />
-        <input type="hidden" name="contactInstagram" value={instagram.replace(/^@+/, "").trim()} />
+        <input type="hidden" name="contactInstagram" value={igNormalized} />
 
         <div>
           <p className="font-ui mb-3 text-[13.5px] font-semibold tracking-tight text-ink">
@@ -747,8 +757,12 @@ function WaitlistEditView({
 
         <button
           type="submit"
-          disabled={!canSave || pending || leavePending}
-          className={`${BUTTON_CLASS} w-full`}
+          disabled={!canSave || !dirty || pending || leavePending}
+          className={`font-ui flex min-h-[52px] w-full items-center justify-center rounded-[14px] border-0 px-8 text-[15px] font-semibold tracking-tight transition-opacity ${
+            canSave && dirty && !pending && !leavePending
+              ? "bg-[#ffe500] text-black hover:opacity-90"
+              : "cursor-not-allowed bg-[#ffe500]/30 text-black/40"
+          }`}
         >
           {pending ? "Saving…" : "Save changes"}
         </button>

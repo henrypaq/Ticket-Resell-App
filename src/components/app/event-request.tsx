@@ -11,8 +11,8 @@ import { BUTTON_CLASS, FIELD_CLASS } from "@/components/forms/field-styles";
  * this is the single surviving version, writing to
  * `beta_member_event_requests` either way.
  *
- * Visually secondary on purpose: quiet solid surface — so it never competes
- * with Need a ticket / Have a ticket.
+ * Visually quiet on purpose — text-forward, almost no surface, so it never
+ * competes with Need a ticket / Have a ticket.
  */
 export function EventRequestSection() {
   const [open, setOpen] = useState(false);
@@ -27,16 +27,16 @@ export function EventRequestSection() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="font-ui flex w-full items-center justify-between gap-3 rounded-[14px] border-0 bg-card px-4 py-3.5 text-left transition-colors hover:bg-[#1c1c20] active:bg-[#1c1c20]"
+          className="font-ui flex w-full items-center justify-between gap-3 rounded-[12px] border-0 bg-transparent px-1 py-2.5 text-left transition-opacity hover:opacity-80"
         >
-          <span className="truncate text-[13.5px] text-muted">Going somewhere else?</span>
-          <span className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-semibold tracking-tight text-ink">
+          <span className="truncate text-[13px] text-muted/70">Going somewhere else?</span>
+          <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium tracking-tight text-muted">
             Request an event
             <span aria-hidden>→</span>
           </span>
         </button>
       ) : (
-        <div className="rounded-[14px] border-0 bg-card p-4">
+        <div className="rounded-[14px] border border-white/8 bg-white/[0.03] p-4">
           {state.ok ? (
             <div className="flex flex-col gap-2">
               <p className="font-ui text-[14px] font-semibold tracking-tight text-ink">
