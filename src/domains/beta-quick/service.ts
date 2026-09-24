@@ -687,7 +687,7 @@ export async function getQuickWaitlistEntries(
     admin
       .from("beta_go_leads")
       .select(
-        "id, event_slug, quantity, status, created_at, contact_phone, contact_instagram, buyer_declared_sent_at, payment_recorded_at, ticket_forwarded_at, payment_amount",
+        "id, event_slug, quantity, status, created_at, contact_phone, contact_instagram, buyer_declared_sent_at, payment_recorded_at, ticket_forwarded_at, payment_amount, transfer_email, transfer_first_name, transfer_last_name",
       )
       .eq("intent", "buy")
       .in("id", ids)
@@ -753,6 +753,11 @@ export async function getQuickWaitlistEntries(
         row.payment_amount != null && Number.isFinite(Number(row.payment_amount))
           ? Number(row.payment_amount)
           : null,
+      transferEmail: (row.transfer_email as string | null) ?? null,
+      transferName: [row.transfer_first_name, row.transfer_last_name]
+        .filter((p) => typeof p === "string" && p.trim())
+        .join(" ")
+        .trim() || null,
     });
   }
 

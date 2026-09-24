@@ -20,6 +20,10 @@ export type QuickWaitlistEntry = {
   ticketForwardedAt?: string | null;
   /** Fixed-price checkout total the buyer said they sent. */
   paymentAmount?: number | null;
+  /** Ticket transfer destination email (fixed-price). */
+  transferEmail?: string | null;
+  /** Ticket transfer recipient name (fixed-price). */
+  transferName?: string | null;
 };
 
 /** Max tickets per /go buy waitlist or sell listing. */
