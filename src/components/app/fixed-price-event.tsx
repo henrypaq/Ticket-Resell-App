@@ -477,8 +477,30 @@ function CheckoutPhase({
   onBack: () => void;
 }) {
   const [paymentSent, setPaymentSent] = useState(false);
+  const [memoCopied, setMemoCopied] = useState(false);
   const paymentMemo = `MT-${event.slug}`.slice(0, 32).toUpperCase();
   const canJoin = paymentSent && !pending && !state.ok;
+
+  async function copyMemo() {
+    try {
+      await navigator.clipboard.writeText(paymentMemo);
+      setMemoCopied(true);
+      window.setTimeout(() => setMemoCopied(false), 1600);
+    } catch {
+      // Fallback for older browsers / insecure context
+      const el = document.createElement("textarea");
+      el.value = paymentMemo;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setMemoCopied(true);
+      window.setTimeout(() => setMemoCopied(false), 1600);
+    }
+  }
 
   return (
     <form action={formAction} className="flex h-full min-h-0 flex-col">
@@ -551,45 +573,54 @@ function CheckoutPhase({
           </div>
         </section>
 
-        {/* Payment destination — clear but not loud yellow */}
-        <section className="relative mt-4 overflow-hidden rounded-2xl border border-white/12 bg-[#141416] px-4 py-4">
-          <div
-            aria-hidden
-            className="absolute inset-y-3 left-0 w-1 rounded-full bg-amber-400/80"
-          />
-          <p className="font-ui pl-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+        {/* Payment destination — light grey, no border, stands out from event card */}
+        <section className="mt-4 rounded-2xl bg-[#e4e4e7] px-4 py-4 text-zinc-900">
+          <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
             Send Interac to
           </p>
-          <p className="mt-2 pl-3 font-ui text-[26px] font-bold tabular-nums tracking-tight text-ink">
+          <p className="mt-2 font-ui text-[26px] font-bold tabular-nums tracking-tight text-zinc-950">
             {formatCad(grandTotal)}
           </p>
-          <dl className="mt-4 flex flex-col gap-3 border-t border-white/8 pl-3 pt-4 text-[14px]">
+          <dl className="mt-4 flex flex-col gap-3 border-t border-zinc-900/10 pt-4 text-[14px]">
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
                 Email
               </dt>
-              <dd className="mt-0.5 break-all font-semibold text-ink">
+              <dd className="mt-0.5 break-all font-semibold text-zinc-950">
                 {FIXED_PRICE_ETRANSFER.email}
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
                 Name
               </dt>
-              <dd className="mt-0.5 font-semibold text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
+              <dd className="mt-0.5 font-semibold text-zinc-950">{FIXED_PRICE_ETRANSFER.name}</dd>
             </div>
             <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
+              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-zinc-500">
                 Message / memo
               </dt>
-              <dd className="mt-0.5 font-mono text-[13px] font-medium tracking-tight text-ink/90">
-                {paymentMemo}
+              <dd className="mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void copyMemo();
+                  }}
+                  className="font-ui flex w-full items-center justify-between gap-3 rounded-xl bg-zinc-900/8 px-3 py-2.5 text-left transition-colors active:bg-zinc-900/14"
+                  aria-label={`Copy memo ${paymentMemo}`}
+                >
+                  <span className="min-w-0 break-all font-mono text-[13px] font-medium tracking-tight text-zinc-950">
+                    {paymentMemo}
+                  </span>
+                  <span className="shrink-0 text-[12px] font-semibold text-zinc-600">
+                    {memoCopied ? "Copied" : "Copy"}
+                  </span>
+                </button>
               </dd>
             </div>
           </dl>
-          <p className="mt-3 pl-3 text-[12px] leading-relaxed text-muted">
-            Use the memo exactly so we can match your transfer. Autodeposit may not ask for a
-            security question.
+          <p className="mt-3 text-[12px] leading-relaxed text-zinc-500">
+            Tap the memo to copy it. Use it exactly so we can match your transfer.
           </p>
         </section>
 
