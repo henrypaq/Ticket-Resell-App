@@ -39,8 +39,9 @@ function splitSavedPhone(e164: string | null | undefined): { iso2: string; natio
 }
 
 /**
- * Fixed-price buy screen — mobile-first, DICE/Shotgun-style fading hero with
- * title in the scrim, then tight details + payment.
+ * Fixed-price buy screen — always a phone-width column (DICE/Shotgun-style),
+ * even when opened from a desktop browser. Title lives in the hero scrim;
+ * Join sits in a sticky bottom bar.
  */
 export function FixedPriceEventScreen({
   event,
@@ -101,85 +102,12 @@ export function FixedPriceEventScreen({
     else router.push(backHref);
   }
 
-  // Embedded in AppShell (padded column) → bleed to column edges.
-  // Standalone /buy → own max-width column.
-  const embedded = Boolean(onBack);
-
   return (
-    <div
-      className={
-        embedded
-          ? "relative -mx-5 flex min-h-[100%] w-[calc(100%+2.5rem)] flex-col bg-base text-ink sm:-mx-6 sm:w-[calc(100%+3rem)]"
-          : "relative mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-base text-ink"
-      }
-    >
-      {/* Hero — full-bleed flyer fading into the page */}
-      <div className="relative isolate h-[min(52vh,420px)] w-full shrink-0 overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={event.flyerUrl}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(to bottom, rgba(11,11,12,0.35) 0%, rgba(11,11,12,0.15) 35%, rgba(11,11,12,0.72) 70%, #0b0b0c 100%)",
-          }}
-        />
-
-        <div className="relative flex h-full flex-col px-5 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="font-ui inline-flex items-center gap-1.5 self-start rounded-full bg-black/35 px-3 py-1.5 text-[13px] font-semibold text-ink backdrop-blur-md transition-colors hover:bg-black/50"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back
-          </button>
-
-          <div className="mt-auto pb-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-ui rounded-md bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-950">
-                Fixed price
-              </span>
-              <span className="font-ui text-[12px] font-semibold tabular-nums tracking-tight text-ink/90">
-                {formatCad(priceEach)} / ticket
-              </span>
-            </div>
-            <h1 className="headline mt-2.5 text-[28px] leading-[1.12] tracking-tight text-ink sm:text-[30px]">
-              {event.name}
-            </h1>
-            <p className="mt-1.5 text-[13.5px] font-medium text-ink/75">
-              {formatBetaEventWhen(day)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="relative z-10 flex flex-1 flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
-        {/* Compact details — no card chrome */}
-        <div className="flex flex-col gap-1.5 border-b border-hairline pb-5">
-          <p className="text-[14px] leading-snug text-ink">
-            <span className="font-medium">{event.venue}</span>
-            <span className="text-muted"> · {event.city}</span>
-          </p>
-          {event.entryNote && (
-            <p className="font-ui text-[13px] font-semibold tracking-tight text-amber-300">
-              {event.entryNote}
-            </p>
-          )}
-          {blurb && (
-            <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{blurb}</p>
-          )}
-        </div>
-
+    <div className="fixed inset-0 z-[60] flex justify-center bg-base">
+      <div className="relative flex h-full w-full max-w-lg flex-col overflow-y-auto overscroll-contain bg-base text-ink">
         <form
           action={formAction}
-          className="mt-5 flex flex-col gap-6"
+          className="flex min-h-full flex-col"
           onSubmit={() => {
             void saveContactDraftAction({ phone, instagram });
           }}
@@ -194,98 +122,161 @@ export function FixedPriceEventScreen({
             value={instagram.replace(/^@+/, "").trim()}
           />
 
-          {/* Tight payment block */}
-          <section>
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-ui text-[14px] font-semibold tracking-tight text-ink">
-                Tickets
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  aria-label="Fewer"
-                  disabled={quantity <= 1}
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="font-ui flex h-9 w-9 items-center justify-center rounded-[10px] bg-white/[0.08] text-[18px] text-ink transition-colors hover:bg-white/[0.12] disabled:opacity-30"
-                >
-                  −
-                </button>
-                <span className="font-ui min-w-[1.5ch] text-center text-[17px] font-bold tabular-nums tracking-tight text-ink">
-                  {quantity}
-                </span>
-                <button
-                  type="button"
-                  aria-label="More"
-                  disabled={quantity >= QUICK_MAX_TICKETS}
-                  onClick={() => setQuantity((q) => Math.min(QUICK_MAX_TICKETS, q + 1))}
-                  className="font-ui flex h-9 w-9 items-center justify-center rounded-[10px] bg-white/[0.08] text-[18px] text-ink transition-colors hover:bg-white/[0.12] disabled:opacity-30"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-3 space-y-1.5">
-              <div className="flex items-center justify-between text-[13.5px]">
-                <span className="text-muted">
-                  Ticket{quantity > 1 ? ` × ${quantity}` : ""}
-                </span>
-                <span className="tabular-nums text-ink">{formatCad(ticketsSubtotal)}</span>
-              </div>
-              <div className="flex items-center justify-between text-[13.5px]">
-                <span className="text-muted">
-                  {SERVICE_FEE_LABEL}
-                  {quantity > 1 ? ` × ${quantity}` : ""}
-                </span>
-                <span className="tabular-nums text-ink">{formatCad(feesTotal)}</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-hairline pt-2.5">
-                <span className="font-ui text-[14px] font-semibold tracking-tight text-ink">
-                  Total
-                </span>
-                <span className="font-ui text-[18px] font-bold tabular-nums tracking-tight text-amber-300">
-                  {formatCad(grandTotal)}
-                </span>
-              </div>
-            </div>
-
-            <p className="mt-2.5 text-[12px] leading-relaxed text-muted">
-              Fixed price for this event. Pay by Interac when a ticket is held for you.
-            </p>
-          </section>
-
-          <section>
-            <p className="font-ui mb-3 text-[14px] font-semibold tracking-tight text-ink">
-              Contact
-            </p>
-            <ContactFields
-              phoneCountry={phoneCountry}
-              phoneNational={phoneNational}
-              instagram={instagram}
-              onPhoneCountry={setPhoneCountry}
-              onPhoneNational={setPhoneNational}
-              onInstagram={setInstagram}
-              hint="We’ll notify you when a ticket is held at this price."
+          {/* Hero — flyer bleeds into page; title sits in the fade */}
+          <div className="relative isolate h-[min(48vh,380px)] w-full shrink-0 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={event.flyerUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
             />
-          </section>
+            <div
+              aria-hidden
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(to bottom, rgba(11,11,12,0.4) 0%, rgba(11,11,12,0.1) 40%, rgba(11,11,12,0.85) 78%, #0b0b0c 100%)",
+              }}
+            />
 
-          {state.error && (
-            <p role="alert" className="text-[13.5px] text-urgency">
-              {state.error}
-            </p>
-          )}
+            <div className="relative flex h-full flex-col px-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="font-ui inline-flex items-center gap-1.5 self-start rounded-full bg-black/40 px-3 py-1.5 text-[13px] font-semibold text-ink backdrop-blur-md transition-colors hover:bg-black/55"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back
+              </button>
 
-          <button
-            type="submit"
-            disabled={!canSubmit || pending || Boolean(state.ok)}
-            className={`${BUTTON_CLASS} w-full ${
-              canSubmit && !pending && !state.ok
-                ? ""
-                : "!bg-[#ffe500]/30 !text-black/40"
-            }`}
-          >
-            {pending || state.ok ? "Submitting…" : `Join · ${formatCad(grandTotal)}`}
-          </button>
+              <div className="mt-auto pb-5">
+                <span className="font-ui inline-block rounded-md bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-950">
+                  Fixed · {formatCad(priceEach)}
+                </span>
+                <h1 className="headline mt-2 text-[26px] leading-[1.1] tracking-tight text-ink">
+                  {event.name}
+                </h1>
+                <p className="mt-1 text-[13px] font-medium text-ink/70">
+                  {formatBetaEventWhen(day)}
+                  <span className="text-ink/40"> · </span>
+                  {event.venue}
+                  <span className="text-ink/40"> · </span>
+                  {event.city}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="relative z-10 flex flex-1 flex-col gap-5 px-4 pb-2 pt-1">
+            {(event.entryNote || blurb) && (
+              <div className="space-y-1">
+                {event.entryNote && (
+                  <p className="font-ui text-[13px] font-semibold tracking-tight text-amber-300">
+                    {event.entryNote}
+                  </p>
+                )}
+                {blurb && (
+                  <p className="text-[13.5px] leading-relaxed text-muted">{blurb}</p>
+                )}
+              </div>
+            )}
+
+            <section className="rounded-2xl bg-white/[0.04] px-3.5 py-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-ui text-[13px] font-semibold tracking-tight text-ink">
+                  Tickets
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    aria-label="Fewer"
+                    disabled={quantity <= 1}
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    className="font-ui flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.08] text-[17px] text-ink transition-colors hover:bg-white/[0.12] disabled:opacity-30"
+                  >
+                    −
+                  </button>
+                  <span className="font-ui min-w-[1.5ch] text-center text-[16px] font-bold tabular-nums tracking-tight text-ink">
+                    {quantity}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="More"
+                    disabled={quantity >= QUICK_MAX_TICKETS}
+                    onClick={() => setQuantity((q) => Math.min(QUICK_MAX_TICKETS, q + 1))}
+                    className="font-ui flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.08] text-[17px] text-ink transition-colors hover:bg-white/[0.12] disabled:opacity-30"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-1 border-t border-hairline pt-3">
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-muted">
+                    Ticket{quantity > 1 ? ` × ${quantity}` : ""}
+                  </span>
+                  <span className="tabular-nums text-ink">{formatCad(ticketsSubtotal)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-muted">
+                    {SERVICE_FEE_LABEL}
+                    {quantity > 1 ? ` × ${quantity}` : ""}
+                  </span>
+                  <span className="tabular-nums text-ink">{formatCad(feesTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1.5">
+                  <span className="font-ui text-[13px] font-semibold tracking-tight text-ink">
+                    Total
+                  </span>
+                  <span className="font-ui text-[17px] font-bold tabular-nums tracking-tight text-amber-300">
+                    {formatCad(grandTotal)}
+                  </span>
+                </div>
+              </div>
+
+              <p className="mt-2.5 text-[11.5px] leading-relaxed text-muted">
+                Pay by Interac when a ticket is held for you.
+              </p>
+            </section>
+
+            <section>
+              <p className="font-ui mb-2.5 text-[13px] font-semibold tracking-tight text-ink">
+                Contact
+              </p>
+              <ContactFields
+                phoneCountry={phoneCountry}
+                phoneNational={phoneNational}
+                instagram={instagram}
+                onPhoneCountry={setPhoneCountry}
+                onPhoneNational={setPhoneNational}
+                onInstagram={setInstagram}
+                hint="We’ll notify you when a ticket is held at this price."
+              />
+            </section>
+
+            {state.error && (
+              <p role="alert" className="text-[13.5px] text-urgency">
+                {state.error}
+              </p>
+            )}
+          </div>
+
+          {/* Sticky iOS-style action bar — stays inside the phone column */}
+          <div className="pointer-events-none sticky bottom-0 z-20 mt-auto border-t border-hairline bg-base/90 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md">
+            <button
+              type="submit"
+              disabled={!canSubmit || pending || Boolean(state.ok)}
+              className={`pointer-events-auto ${BUTTON_CLASS} w-full ${
+                canSubmit && !pending && !state.ok
+                  ? ""
+                  : "!bg-[#ffe500]/30 !text-black/40"
+              }`}
+            >
+              {pending || state.ok ? "Submitting…" : `Join · ${formatCad(grandTotal)}`}
+            </button>
+          </div>
         </form>
       </div>
     </div>
