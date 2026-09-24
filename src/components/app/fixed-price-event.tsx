@@ -477,19 +477,16 @@ function CheckoutPhase({
   onBack: () => void;
 }) {
   const [paymentSent, setPaymentSent] = useState(false);
-  const [memoCopied, setMemoCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState<"email" | "name" | "memo" | null>(null);
   const paymentMemo = `MT-${event.slug}`.slice(0, 32).toUpperCase();
   const canJoin = paymentSent && !pending && !state.ok;
 
-  async function copyMemo() {
+  async function copyField(field: "email" | "name" | "memo", value: string) {
     try {
-      await navigator.clipboard.writeText(paymentMemo);
-      setMemoCopied(true);
-      window.setTimeout(() => setMemoCopied(false), 1600);
+      await navigator.clipboard.writeText(value);
     } catch {
-      // Fallback for older browsers / insecure context
       const el = document.createElement("textarea");
-      el.value = paymentMemo;
+      el.value = value;
       el.setAttribute("readonly", "");
       el.style.position = "fixed";
       el.style.opacity = "0";
@@ -497,9 +494,9 @@ function CheckoutPhase({
       el.select();
       document.execCommand("copy");
       document.body.removeChild(el);
-      setMemoCopied(true);
-      window.setTimeout(() => setMemoCopied(false), 1600);
     }
+    setCopiedField(field);
+    window.setTimeout(() => setCopiedField(null), 1600);
   }
 
   return (
@@ -542,12 +539,12 @@ function CheckoutPhase({
 
         <section className="mt-6 rounded-2xl bg-white/[0.04] px-3.5 py-3.5">
           <p className="font-ui text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
-            Event
+            {event.name}
           </p>
-          <p className="mt-1.5 text-[15px] font-medium text-ink">{event.name}</p>
-          <p className="mt-0.5 text-[13px] text-muted">
+          <p className="mt-1 text-[13px] text-muted">
             {formatBetaEventWhen(day)} · {event.venue}
           </p>
+
           <div className="mt-3 space-y-1 border-t border-hairline pt-3">
             <div className="flex items-center justify-between text-[13px]">
               <span className="text-muted">
@@ -571,56 +568,41 @@ function CheckoutPhase({
               </span>
             </div>
           </div>
-        </section>
 
-        {/* Payment destination — slight lift over the event card, dark + readable */}
-        <section className="mt-4 rounded-2xl bg-white/[0.08] px-4 py-4">
-          <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-            Send Interac to
-          </p>
-          <p className="mt-2 font-ui text-[26px] font-bold tabular-nums tracking-tight text-ink">
-            {formatCad(grandTotal)}
-          </p>
-          <dl className="mt-4 flex flex-col gap-3 border-t border-hairline pt-4 text-[14px]">
-            <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
-                Email
-              </dt>
-              <dd className="mt-0.5 break-all font-semibold text-ink">
-                {FIXED_PRICE_ETRANSFER.email}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
-                Name
-              </dt>
-              <dd className="mt-0.5 font-semibold text-ink">{FIXED_PRICE_ETRANSFER.name}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">
-                Message / memo
-              </dt>
-              <dd className="mt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    void copyMemo();
-                  }}
-                  className="font-ui flex w-full items-center justify-between gap-3 rounded-xl bg-white/[0.04] px-3 py-2.5 text-left transition-colors active:bg-white/[0.07]"
-                  aria-label={`Copy memo ${paymentMemo}`}
-                >
-                  <span className="min-w-0 break-all font-mono text-[13px] font-medium tracking-tight text-ink">
-                    {paymentMemo}
-                  </span>
-                  <span className="shrink-0 text-[12px] font-semibold text-muted">
-                    {memoCopied ? "Copied" : "Copy"}
-                  </span>
-                </button>
-              </dd>
-            </div>
-          </dl>
+          <div className="mt-4 space-y-3 border-t border-hairline pt-4">
+            <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+              Interac e-Transfer
+            </p>
+
+            <CopyRow
+              label="Email"
+              value={FIXED_PRICE_ETRANSFER.email}
+              copied={copiedField === "email"}
+              onCopy={() => {
+                void copyField("email", FIXED_PRICE_ETRANSFER.email);
+              }}
+            />
+            <CopyRow
+              label="Name"
+              value={FIXED_PRICE_ETRANSFER.name}
+              copied={copiedField === "name"}
+              onCopy={() => {
+                void copyField("name", FIXED_PRICE_ETRANSFER.name);
+              }}
+            />
+            <CopyRow
+              label="Message / memo"
+              value={paymentMemo}
+              mono
+              copied={copiedField === "memo"}
+              onCopy={() => {
+                void copyField("memo", paymentMemo);
+              }}
+            />
+          </div>
+
           <p className="mt-3 text-[12px] leading-relaxed text-muted">
-            Tap the memo to copy it. Use it exactly so we can match your transfer.
+            Tap email, name, or memo to copy. Use the memo exactly so we can match your transfer.
           </p>
         </section>
 
@@ -654,5 +636,42 @@ function CheckoutPhase({
         </div>
       </div>
     </form>
+  );
+}
+
+function CopyRow({
+  label,
+  value,
+  mono,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted">{label}</p>
+      <button
+        type="button"
+        onClick={onCopy}
+        className="font-ui mt-0.5 flex w-full items-center justify-between gap-3 py-1 text-left transition-opacity active:opacity-70"
+        aria-label={`Copy ${label.toLowerCase()} ${value}`}
+      >
+        <span
+          className={`min-w-0 break-all text-[14px] font-semibold tracking-tight text-ink ${
+            mono ? "font-mono text-[13px] font-medium" : ""
+          }`}
+        >
+          {value}
+        </span>
+        <span className="shrink-0 text-[12px] font-semibold text-muted">
+          {copied ? "Copied" : "Copy"}
+        </span>
+      </button>
+    </div>
   );
 }
