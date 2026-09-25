@@ -116,6 +116,22 @@ export function resendFromEmail(): string {
 }
 
 /** Comma-separated admin inboxes for beta interest alerts. */
+/**
+ * Who gets the money alerts (a buyer declaring an e-transfer). Separate from
+ * ADMIN_ALERT_EMAIL, which is the waitlist/listing firehose — these need to
+ * reach the two people who actually move the Interac, and defaulting them in
+ * code means the alert works without an env change on every environment.
+ */
+export function opsTransactionAlertEmails(): string[] {
+  const raw =
+    process.env.OPS_TRANSACTION_ALERT_EMAILS ??
+    "henrypaquin0@gmail.com,gasparbillerault@gmail.com";
+  return raw
+    .split(",")
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0);
+}
+
 export function adminAlertEmails(): string[] {
   const raw = process.env.ADMIN_ALERT_EMAIL ?? "wrymage@gmail.com";
   return raw

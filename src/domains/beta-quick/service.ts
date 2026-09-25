@@ -223,6 +223,62 @@ function ownsLead(
   return false;
 }
 
+/**
+ * Alert the two people who move the Interac that a fixed-price buyer says they
+ * paid. Fire-and-forget on purpose: the buyer's queue spot must not depend on
+ * an email provider being up (`notifyOpsFixedPricePaymentDeclared` swallows its
+ * own failures too).
+ */
+function alertOpsFixedPriceDeclared(args: {
+  leadId: string;
+  eventSlug: string;
+  eventName: string;
+  quantity: number;
+  amount: number | null;
+  declaredAt: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  instagram: string | null;
+}): void {
+  void (async () => {
+    try {
+      const [{ notifyOpsFixedPricePaymentDeclared }, { fixedPriceMemoHint }] = await Promise.all([
+        import("@/domains/beta-ops/notify-transactions"),
+        import("@/domains/beta-ops/transactions"),
+      ]);
+      const origin =
+        process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+        process.env.VERCEL_PROJECT_PRODUCTION_URL?.replace(/\/$/, "") ||
+        "https://mcgilltickets.party";
+
+      await notifyOpsFixedPricePaymentDeclared({
+        leadId: args.leadId,
+        eventName: args.eventName,
+        quantity: args.quantity,
+        amount: args.amount ?? 0,
+        memoHint: fixedPriceMemoHint(args.eventSlug),
+        declaredAt: args.declaredAt,
+        buyerName: args.name.trim() || null,
+        buyerEmail: args.email.trim() || null,
+        buyerPhone: args.phone?.trim() || null,
+        buyerInstagram: args.instagram?.trim() || null,
+        // Anchors the row on the ops board (see FixedPriceTxnRow's id).
+        transactionUrl: `${origin}/ops#txn-${args.leadId}`,
+      });
+    } catch (err) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "ops_fixed_price_alert_dispatch_failed",
+          leadId: args.leadId,
+          error: String(err),
+        }),
+      );
+    }
+  })();
+}
+
 export async function submitQuickBuy(
   input: QuickBuyInput & { existingContactId?: string | null; memberId?: string | null },
 ): Promise<QuickLeadResult> {
@@ -334,6 +390,21 @@ export async function submitQuickBuy(
       );
       return { ok: false, error: "Couldn't update your waitlist. Try again in a moment." };
     }
+    if (declaredAt) {
+      alertOpsFixedPriceDeclared({
+        leadId: existing.id,
+        eventSlug: input.eventSlug,
+        eventName: listed.name,
+        quantity: input.quantity,
+        amount: paymentAmount,
+        declaredAt,
+        name: [transferFirstName, transferLastName].filter(Boolean).join(" "),
+        email: transferEmail,
+        phone,
+        instagram: ig,
+      });
+    }
+
     if (!manualQueueOnly) {
       await allocateAvailableUnitsForEvent(input.eventSlug);
     }
@@ -379,6 +450,23 @@ export async function submitQuickBuy(
     buyLeadId: data.id,
     eventSlug: input.eventSlug,
   });
+
+  // …except on a fixed-price event, where joining the queue *is* declaring a
+  // payment, and someone has to go look for it.
+  if (declaredAt) {
+    alertOpsFixedPriceDeclared({
+      leadId: data.id,
+      eventSlug: input.eventSlug,
+      eventName: listed.name,
+      quantity: input.quantity,
+      amount: paymentAmount,
+      declaredAt,
+      name: [transferFirstName, transferLastName].filter(Boolean).join(" "),
+      email: transferEmail,
+      phone,
+      instagram: ig,
+    });
+  }
 
   // If inventory exists and this seat is next in the real queue, allocate now
   // so the buyer can jump straight to pay (skipped for fixed-price / manual).

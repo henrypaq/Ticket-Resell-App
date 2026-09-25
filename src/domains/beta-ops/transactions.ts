@@ -73,6 +73,16 @@ function memoFromOfferId(offerId: string): string {
 }
 
 /**
+ * The Interac memo a fixed-price buyer is told to use. Per event, not per
+ * buyer — exported so the ops board and the alert email can't drift into
+ * telling ops two different things to look for.
+ */
+export function fixedPriceMemoHint(eventSlug: string): string {
+  const head = String(eventSlug).split("-")[0] || String(eventSlug);
+  return `MT-${head.replace(/[^a-z0-9]/gi, "")}`.toUpperCase().slice(0, 12);
+}
+
+/**
  * Four actionable queues for the ops Transactions hub, plus a short completed tail.
  * Ordered so “someone is waiting on you” surfaces first.
  */
@@ -353,9 +363,7 @@ export async function listOpsTransactions(): Promise<OpsTransactionsBoard> {
       eventName: nameFor(lead.event_slug as string),
       quantity: qty,
       amount,
-      memoHint: `MT-${(String(lead.event_slug).split("-")[0] || String(lead.event_slug)).replace(/[^a-z0-9]/gi, "")}`
-        .toUpperCase()
-        .slice(0, 12),
+      memoHint: fixedPriceMemoHint(lead.event_slug as string),
       buyerDeclaredSentAt: lead.buyer_declared_sent_at as string,
       paymentRecordedAt,
       ticketForwardedAt,

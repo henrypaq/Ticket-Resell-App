@@ -159,7 +159,13 @@ function FixedPriceTxnRow({ item }: { item: OpsFixedPriceTxnItem }) {
   const done = item.status === "done";
 
   return (
-    <li className="rounded-xl bg-zinc-900/70 px-3.5 py-3.5">
+    // The id is what the ops alert email links to (`/ops#txn-<leadId>`). The
+    // highlight is CSS `:target`, so arriving from the email marks the row
+    // without any hash-reading state on the client.
+    <li
+      id={`txn-${item.leadId}`}
+      className="scroll-mt-24 rounded-xl bg-zinc-900/70 px-3.5 py-3.5 target:ring-2 target:ring-amber-400/70"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-semibold tracking-tight text-zinc-100">

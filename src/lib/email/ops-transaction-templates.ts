@@ -15,6 +15,22 @@ export type OpsPaymentDeclaredEmailData = {
   opsUrl: string;
 };
 
+export type OpsFixedPriceDeclaredEmailData = {
+  leadId: string;
+  eventName: string;
+  quantity: number;
+  /** Total the buyer says they sent, all in. */
+  amount: number;
+  memoHint: string;
+  declaredAt: string;
+  buyerName: string | null;
+  buyerEmail: string | null;
+  buyerPhone: string | null;
+  buyerInstagram: string | null;
+  /** Deep link to this row on the ops Transactions board. */
+  transactionUrl: string;
+};
+
 export type OpsSellerTicketDeclaredEmailData = {
   sellLeadId: string;
   eventName: string;
@@ -161,4 +177,88 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+
+/**
+ * Fixed-price checkout: buyer says the Interac is sent and takes their spot.
+ *
+ * Shouted on purpose — all caps and an emoji, because this one lands in a
+ * personal inbox alongside everything else and someone has to notice it while
+ * the buyer is standing there waiting.
+ */
+export function opsFixedPriceDeclaredSubject(data: OpsFixedPriceDeclaredEmailData): string {
+  const tickets = `${data.quantity} TICKET${data.quantity === 1 ? "" : "S"}`;
+  return `🚨 E-TRANSFER SENT — $${data.amount.toFixed(2)} · ${tickets} · ${data.eventName}`.toUpperCase();
+}
+
+export function opsFixedPriceDeclaredText(data: OpsFixedPriceDeclaredEmailData): string {
+  return [
+    "OPEN THIS TRANSACTION:",
+    data.transactionUrl,
+    "",
+    `Event: ${data.eventName}`,
+    `Tickets: ${data.quantity}`,
+    `Amount declared: $${data.amount.toFixed(2)} CAD`,
+    `Interac memo: ${data.memoHint}`,
+    `Buyer: ${data.buyerName || "—"}`,
+    `Email: ${data.buyerEmail || "—"}`,
+    `Phone: ${data.buyerPhone || "—"}`,
+    `Instagram: ${data.buyerInstagram ? `@${data.buyerInstagram}` : "—"}`,
+    `Declared: ${formatMontreal(data.declaredAt)}`,
+    "",
+    `Ref ${data.leadId}`,
+    "",
+    "— mcgill.tickets ops alert",
+  ].join("\n");
+}
+
+export function opsFixedPriceDeclaredHtml(data: OpsFixedPriceDeclaredEmailData): string {
+  const rows: { label: string; value: string }[] = [
+    { label: "Event", value: data.eventName },
+    { label: "Tickets", value: String(data.quantity) },
+    { label: "Amount", value: `$${data.amount.toFixed(2)} CAD` },
+    { label: "Memo", value: data.memoHint },
+    { label: "Buyer", value: data.buyerName || "—" },
+    { label: "Email", value: data.buyerEmail || "—" },
+    { label: "Phone", value: data.buyerPhone || "—" },
+    { label: "Instagram", value: data.buyerInstagram ? `@${data.buyerInstagram}` : "—" },
+    { label: "Declared", value: formatMontreal(data.declaredAt) },
+  ];
+
+  const rowHtml = rows
+    .map(
+      (r) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #2a2a2e;color:#9a9a9e;font-size:13px;width:110px;vertical-align:top;">${escapeHtml(r.label)}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #2a2a2e;color:#f5f5f5;font-size:14px;font-weight:600;">${escapeHtml(r.value)}</td>
+      </tr>`,
+    )
+    .join("");
+
+  // Button first and alone — the only thing to act on is opening the
+  // transaction; the numbers below are for confirming it once you are there.
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0b0b0c;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:520px;margin:0 auto;padding:32px 20px;">
+    <a href="${escapeHtml(data.transactionUrl)}" style="display:block;padding:20px 18px;border-radius:14px;background:#fbbf24;color:#111;font-size:18px;font-weight:800;letter-spacing:0.01em;text-align:center;text-decoration:none;">OPEN THIS TRANSACTION →</a>
+    <table style="width:100%;border-collapse:collapse;margin-top:28px;">${rowHtml}</table>
+    <p style="margin:20px 0 0;color:#9a9a9e;font-size:12px;">Ref ${escapeHtml(data.leadId)}</p>
+  </div>
+</body>
+</html>`;
+}
+
+/** Montreal time — the only clock ops thinks in. */
+function formatMontreal(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
 }
