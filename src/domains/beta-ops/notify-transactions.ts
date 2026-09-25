@@ -78,7 +78,18 @@ export async function notifyOpsFixedPricePaymentDeclared(
   const copy = buildFixedPriceDeclaredAlert(data);
   try {
     const result = await sendEmail({ to, ...copy });
-    if (!result.ok && !result.skipped) {
+    if (!result.ok && result.skipped) {
+      // Money alert: "Resend isn't configured" must not be silent, or the first
+      // time anyone notices is a buyer asking where their ticket is.
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "ops_fixed_price_alert_skipped_unconfigured",
+          leadId: data.leadId,
+          to: to.length,
+        }),
+      );
+    } else if (!result.ok) {
       console.warn(
         JSON.stringify({
           level: "warn",
