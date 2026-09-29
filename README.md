@@ -129,7 +129,8 @@ npm test                   # compliance unit tests
 | `CRON_SECRET` | **server only** — authorizes the Tier B auto-release cron endpoint; see § Tiered verification |
 | `RESEND_API_KEY` | **server only** — Resend API key for admin waitlist/sell alert emails |
 | `RESEND_FROM_EMAIL` | **server only** — optional From header (default `mcgill.tickets alerts <onboarding@resend.dev>`) |
-| `ADMIN_ALERT_EMAIL` | **server only** — comma-separated admin inboxes (default `wrymage@gmail.com`) |
+| `OPS_ALERT_EMAILS` | **server only** — comma-separated inboxes for every ops alert (default `hapaquin@icloud.com`) |
+| `RESEND_OPS_FROM_EMAIL` | **server only** — sender for ops alerts (default `mcgill.tickets ops <alerts@ops.mcgilltickets.party>`; falls back to `RESEND_FROM_EMAIL` until that domain is verified in Resend) |
 | `BETA_OPS_EMAILS` | **server only** — comma-separated emails allowed into `/ops` |
 | `BETA_OPS_PASSWORD` | **server only** — shared password for `/ops` (never commit) |
 | `BETA_OPS_SECRET` | **server only** — HMAC secret for ops session cookies |

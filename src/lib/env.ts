@@ -115,25 +115,25 @@ export function resendFromEmail(): string {
   );
 }
 
-/** Comma-separated admin inboxes for beta interest alerts. */
 /**
- * Who gets the money alerts (a buyer declaring an e-transfer). Separate from
- * ADMIN_ALERT_EMAIL, which is the waitlist/listing firehose — these need to
- * reach the two people who actually move the Interac, and defaulting them in
- * code means the alert works without an env change on every environment.
+ * Sender for ops inbox alerts — a separate subdomain so a junk mark on an ops
+ * alert never touches the reputation user emails ride on. Until Resend has
+ * verified it, `sendEmail` falls back to `resendFromEmail()`.
  */
-export function opsTransactionAlertEmails(): string[] {
-  const raw =
-    process.env.OPS_TRANSACTION_ALERT_EMAILS ??
-    "henrypaquin0@gmail.com,gasparbillerault@gmail.com";
-  return raw
-    .split(",")
-    .map((n) => n.trim())
-    .filter((n) => n.length > 0);
+export function resendOpsFromEmail(): string {
+  return (
+    process.env.RESEND_OPS_FROM_EMAIL ||
+    "mcgill.tickets ops <alerts@ops.mcgilltickets.party>"
+  );
 }
 
-export function adminAlertEmails(): string[] {
-  const raw = process.env.ADMIN_ALERT_EMAIL ?? "wrymage@gmail.com";
+/**
+ * Who receives the ops inbox alerts (listings, waitlist joins, matches,
+ * payments, fixed-price orders, integrity findings). One list on purpose;
+ * comma-separated to add people.
+ */
+export function opsAlertEmails(): string[] {
+  const raw = process.env.OPS_ALERT_EMAILS ?? "hapaquin@icloud.com";
   return raw
     .split(",")
     .map((n) => n.trim())

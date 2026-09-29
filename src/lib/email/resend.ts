@@ -19,11 +19,40 @@ export async function sendEmail(args: {
   subject: string;
   text: string;
   html: string;
+  /** Defaults to RESEND_FROM_EMAIL. */
+  from?: string;
 }): Promise<SendEmailResult> {
   if (!resendConfigured()) {
     return { ok: false, error: "Resend is not configured.", skipped: true };
   }
 
+  const primary = await post({ ...args, from: args.from ?? resendFromEmail() });
+  // A custom sender on a domain Resend hasn't verified yet (e.g. the ops
+  // subdomain while its DNS propagates) is refused outright — resend from the
+  // main address rather than drop the email.
+  if (!primary.ok && args.from && primary.unverifiedDomain) {
+    console.warn(
+      JSON.stringify({ level: "warn", msg: "email_sender_unverified_fallback", from: args.from }),
+    );
+    return strip(await post({ ...args, from: resendFromEmail() }));
+  }
+  return strip(primary);
+}
+
+type PostResult = SendEmailResult & { unverifiedDomain?: boolean };
+
+function strip(result: PostResult): SendEmailResult {
+  if (result.ok) return result;
+  return { ok: false, error: result.error, ...(result.skipped ? { skipped: true } : {}) };
+}
+
+async function post(args: {
+  to: string | string[];
+  subject: string;
+  text: string;
+  html: string;
+  from: string;
+}): Promise<PostResult> {
   const to = Array.isArray(args.to) ? args.to : [args.to];
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
@@ -36,7 +65,7 @@ export async function sendEmail(args: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: resendFromEmail(),
+        from: args.from,
         to,
         subject: args.subject,
         text: args.text,
@@ -52,9 +81,11 @@ export async function sendEmail(args: {
     } | null;
 
     if (!res.ok) {
+      const error = json?.message ?? json?.name ?? `Resend HTTP ${res.status}`;
       return {
         ok: false,
-        error: json?.message ?? json?.name ?? `Resend HTTP ${res.status}`,
+        error,
+        unverifiedDomain: res.status === 403 && /domain is not verified/i.test(error),
       };
     }
 

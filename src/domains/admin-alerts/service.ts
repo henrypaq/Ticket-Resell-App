@@ -11,7 +11,7 @@ import {
   type OpsMatchCustody,
 } from "@/lib/email/ops-event-alerts";
 import { sendEmail } from "@/lib/email/resend";
-import { adminAlertEmails, opsTransactionAlertEmails, platformTicketTransfer } from "@/lib/env";
+import { opsAlertEmails, platformTicketTransfer, resendOpsFromEmail } from "@/lib/env";
 import { defer } from "@/lib/defer";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -33,7 +33,13 @@ function siteOrigin(): string {
 async function send(kind: string, to: string[], copy: OpsAlertContent, ref: string): Promise<void> {
   if (to.length === 0) return;
   try {
-    const result = await sendEmail({ to, subject: copy.subject, text: copy.text, html: copy.html });
+    const result = await sendEmail({
+      to,
+      from: resendOpsFromEmail(),
+      subject: copy.subject,
+      text: copy.text,
+      html: copy.html,
+    });
     if (!result.ok) {
       console.warn(
         JSON.stringify({
@@ -111,7 +117,7 @@ export function notifyOpsOfListing(sellLeadId: string): void {
       custody: slug === "cafe-campus" ? platformTicketTransfer() : null,
       opsUrl: `${siteOrigin()}/ops/sellers`,
     });
-    await send("listing", adminAlertEmails(), copy, sellLeadId);
+    await send("listing", opsAlertEmails(), copy, sellLeadId);
   });
 }
 
@@ -144,7 +150,7 @@ export function notifyOpsOfWaitlistJoin(buyLeadId: string): void {
       contactInstagram: (lead.contact_instagram as string | null) ?? null,
       opsUrl: `${siteOrigin()}/ops/buyers`,
     });
-    await send("waitlist", adminAlertEmails(), copy, buyLeadId);
+    await send("waitlist", opsAlertEmails(), copy, buyLeadId);
   });
 }
 
@@ -245,11 +251,6 @@ async function loadOfferContext(offerId: string) {
   };
 }
 
-/** Admin inbox plus the people who move the money — the next steps are theirs. */
-function moneyTeam(): string[] {
-  return [...new Set([...adminAlertEmails(), ...opsTransactionAlertEmails()])];
-}
-
 /** A ticket was just held for a waitlist buyer. */
 export function notifyOpsOfMatch(offerId: string): void {
   defer(async () => {
@@ -266,7 +267,7 @@ export function notifyOpsOfMatch(offerId: string): void {
       custody: ctx.custody,
       opsUrl: `${siteOrigin()}/ops/sellers`,
     });
-    await send("match", moneyTeam(), copy, offerId);
+    await send("match", opsAlertEmails(), copy, offerId);
   });
 }
 
@@ -286,7 +287,7 @@ export function notifyOpsOfPaymentDeclared(offerId: string, memoHint: string): v
       custody: ctx.custody,
       opsUrl: `${siteOrigin()}/ops`,
     });
-    await send("payment_declared", moneyTeam(), copy, offerId);
+    await send("payment_declared", opsAlertEmails(), copy, offerId);
   });
 }
 
@@ -331,6 +332,6 @@ export function notifyOpsOfFixedPriceOrder(buyLeadId: string): void {
       // Anchors the row on the ops board (see FixedPriceTxnRow's id).
       opsUrl: `${siteOrigin()}/ops#txn-${buyLeadId}`,
     });
-    await send("fixed_price_order", opsTransactionAlertEmails(), copy, buyLeadId);
+    await send("fixed_price_order", opsAlertEmails(), copy, buyLeadId);
   });
 }

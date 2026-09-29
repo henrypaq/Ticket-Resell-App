@@ -27,14 +27,19 @@ All user-facing HTML uses the yellow brand shell in
 | Seller | Buyer paid → transfer ticket | ❌ removed — seller's next email is the payout |
 | Seller | Ops confirmed ticket in custody | ✅ yellow |
 | Seller | Payout released (+ confirm CTA) | ✅ yellow → `/payout/confirm` |
-| Ops | Resale buyer declared Interac sent | ✅ dark `opsPaymentDeclaredAlert` (admin + `OPS_TRANSACTION_ALERT_EMAILS`) |
-| Ops | Fixed-price order (joined queue = Interac declared) | ✅ dark `opsFixedPriceOrderAlert` (`OPS_TRANSACTION_ALERT_EMAILS`) |
-| Ops | Seller posted a ticket | ✅ dark `opsListingAlert` (`ADMIN_ALERT_EMAIL`) |
-| Ops | Waitlist join (resale events) | ✅ dark `opsWaitlistAlert` (`ADMIN_ALERT_EMAIL`) |
-| Ops | Match — ticket held for a buyer, action needed | ✅ dark `opsMatchAlert` (admin + `OPS_TRANSACTION_ALERT_EMAILS`) |
+| Ops | Resale buyer declared Interac sent | ✅ dark `opsPaymentDeclaredAlert` |
+| Ops | Fixed-price order (joined queue = Interac declared) | ✅ dark `opsFixedPriceOrderAlert` |
+| Ops | Seller posted a ticket | ✅ dark `opsListingAlert` |
+| Ops | Waitlist join (resale events) | ✅ dark `opsWaitlistAlert` |
+| Ops | Match — ticket held for a buyer, action needed | ✅ dark `opsMatchAlert` |
 | Ops | Seller declared ticket transferred | ❌ by design |
 | Ops | Beta interest (`/api/v1/admin/alerts/email`) | ❌ removed |
 | Member (legacy Phase 1) | In-app waitlist match row | ❌ removed |
+
+Every ops alert goes to `OPS_ALERT_EMAILS` (default `hapaquin@icloud.com`) from
+`RESEND_OPS_FROM_EMAIL` (default `alerts@ops.mcgilltickets.party`, its own Resend
+domain so ops junk marks can't hurt user-email reputation; falls back to
+`RESEND_FROM_EMAIL` while that domain is unverified).
 
 All sends go through `defer()` (`src/lib/defer.ts`, Next `after()`), so they
 survive the response on Vercel instead of being cut off mid-send.

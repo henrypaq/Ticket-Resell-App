@@ -1,7 +1,7 @@
 import "server-only";
 
 import { sendEmail } from "@/lib/email/resend";
-import { adminAlertEmails, resendConfigured } from "@/lib/env";
+import { opsAlertEmails, resendConfigured, resendOpsFromEmail } from "@/lib/env";
 import { alertableFindings, describeFinding, type IntegrityFinding } from "@/domains/data-capture/shared";
 
 /**
@@ -49,7 +49,8 @@ export async function notifyAdminsOfCriticalFindings(
 
   try {
     await sendEmail({
-      to: adminAlertEmails(),
+      to: opsAlertEmails(),
+      from: resendOpsFromEmail(),
       subject: `[data] ${critical.length} critical integrity finding(s)`,
       text,
       html,
