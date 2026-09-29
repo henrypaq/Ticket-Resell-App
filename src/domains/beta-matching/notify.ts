@@ -7,6 +7,7 @@
 
 import "server-only";
 
+import { defer } from "@/lib/defer";
 import { sendEmail } from "@/lib/email/resend";
 import {
   eventRequestReceivedEmail,
@@ -32,6 +33,13 @@ function offerUrl(offerId: string): string {
 
 function payoutConfirmUrl(offerId: string): string {
   return `${siteOrigin()}/payout/confirm?offer=${encodeURIComponent(offerId)}`;
+}
+
+/** The buyer's own queue/ticket screen — same link as home's "Open" button. */
+function buyLeadTicketUrl(buyLeadId: string, eventSlug: string | null): string {
+  const params = new URLSearchParams({ lead: buyLeadId });
+  if (eventSlug) params.set("event", eventSlug);
+  return `${siteOrigin()}/queue?${params.toString()}`;
 }
 
 const DAY_ABBR: Record<string, string> = {
@@ -162,14 +170,35 @@ async function resolveSellLeadContact(sellLeadId: string): Promise<{
 async function resolveBuyLeadContact(buyLeadId: string): Promise<{
   email: string | null;
   eventSlug: string | null;
+  /** Only the ticket-transfer email — never the Interac fallback. */
+  transferEmail: string | null;
+  recipientName: string | null;
+  quantity: number;
+  paymentAmount: number | null;
 }> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("beta_go_leads")
-    .select("transfer_email, event_slug, contact_id")
+    .select(
+      "transfer_email, transfer_first_name, transfer_last_name, event_slug, contact_id, quantity, payment_amount",
+    )
     .eq("id", buyLeadId)
     .maybeSingle();
-  if (!data) return { email: null, eventSlug: null };
+  if (!data) {
+    return {
+      email: null,
+      eventSlug: null,
+      transferEmail: null,
+      recipientName: null,
+      quantity: 1,
+      paymentAmount: null,
+    };
+  }
+  const recipientName =
+    [data.transfer_first_name, data.transfer_last_name]
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean)
+      .join(" ") || null;
   let email = (data.transfer_email as string | null) ?? null;
   if (!email && data.contact_id) {
     const { data: c } = await admin
@@ -179,7 +208,17 @@ async function resolveBuyLeadContact(buyLeadId: string): Promise<{
       .maybeSingle();
     email = c?.etransfer_email ?? null;
   }
-  return { email, eventSlug: (data.event_slug as string | null) ?? null };
+  return {
+    email,
+    eventSlug: (data.event_slug as string | null) ?? null,
+    transferEmail: (data.transfer_email as string | null) ?? null,
+    recipientName,
+    quantity: Math.max(1, Number(data.quantity) || 1),
+    paymentAmount:
+      data.payment_amount != null && Number.isFinite(Number(data.payment_amount))
+        ? Number(data.payment_amount)
+        : null,
+  };
 }
 
 async function sendNotify(
@@ -191,6 +230,9 @@ async function sendNotify(
     eventSlug?: string;
     deadlineIso?: string | null;
     quantity?: number;
+    ticketUrl?: string;
+    recipientName?: string | null;
+    recipientEmail?: string | null;
   },
 ): Promise<void> {
   if (!contact.email) return;
@@ -225,6 +267,9 @@ async function sendNotify(
     appUrl: origin,
     offerUrl: args.offerId ? offerUrl(args.offerId) : undefined,
     payoutConfirmUrl: args.offerId ? payoutConfirmUrl(args.offerId) : undefined,
+    ticketUrl: args.ticketUrl,
+    recipientName: args.recipientName,
+    recipientEmail: args.recipientEmail,
     flyerUrl: event ? absoluteFlyerUrl(event.flyerUrl, origin) : null,
     eventDay: event ? betaEventDayLabel(event) : null,
     eventCity: event?.city ?? null,
@@ -239,7 +284,7 @@ async function sendNotify(
   });
 }
 
-export async function notifyOfferSeat(args: {
+async function notifyOfferSeatNow(args: {
   kind: OfferNotifyKind;
   seatKey: string;
   priceEach: number;
@@ -263,10 +308,10 @@ export async function notifyOfferSeat(args: {
   }
 }
 
-export async function notifySellLead(args: {
+async function notifySellLeadNow(args: {
   kind:
     | "seller_listed"
-    | "seller_sale_paid"
+    | "seller_listed_custody"
     | "seller_ticket_received"
     | "seller_payout_released";
   sellLeadId: string;
@@ -291,16 +336,25 @@ export async function notifySellLead(args: {
   }
 }
 
-export async function notifyBuyLead(args: {
-  kind: "waitlist_joined";
+/**
+ * Buyer emails keyed off the buy lead itself (no offer row): the waitlist ack on
+ * resale events, and the two fixed-price steps ops confirms by hand.
+ */
+async function notifyBuyLeadNow(args: {
+  kind: "waitlist_joined" | "fixed_price_paid" | "fixed_price_ticket_sent";
   buyLeadId: string;
   eventSlug?: string;
 }): Promise<void> {
   try {
     const contact = await resolveBuyLeadContact(args.buyLeadId);
+    const eventSlug = args.eventSlug ?? contact.eventSlug ?? undefined;
     await sendNotify(args.kind, contact, {
-      priceEach: 0,
-      eventSlug: args.eventSlug ?? contact.eventSlug ?? undefined,
+      priceEach: contact.paymentAmount ?? 0,
+      eventSlug,
+      quantity: contact.quantity,
+      ticketUrl: buyLeadTicketUrl(args.buyLeadId, eventSlug ?? null),
+      recipientName: contact.recipientName,
+      recipientEmail: contact.transferEmail,
     });
   } catch (err) {
     console.warn(
@@ -316,7 +370,7 @@ export async function notifyBuyLead(args: {
 }
 
 /** Soft-fail confirmation when someone requests an unsupported event. */
-export async function notifyUserEventRequestReceived(args: {
+async function notifyUserEventRequestReceivedNow(args: {
   to: string;
   eventNameRequested: string;
   details?: string | null;
@@ -355,4 +409,28 @@ export async function notifyUserEventRequestReceived(args: {
       }),
     );
   }
+}
+
+/*
+ * Public entry points: schedule the send and return straight away. Callers
+ * never wait on (or fail because of) an email, and `defer` keeps the send
+ * alive past the response on Vercel.
+ */
+
+export function notifyOfferSeat(args: Parameters<typeof notifyOfferSeatNow>[0]): void {
+  defer(() => notifyOfferSeatNow(args));
+}
+
+export function notifySellLead(args: Parameters<typeof notifySellLeadNow>[0]): void {
+  defer(() => notifySellLeadNow(args));
+}
+
+export function notifyBuyLead(args: Parameters<typeof notifyBuyLeadNow>[0]): void {
+  defer(() => notifyBuyLeadNow(args));
+}
+
+export function notifyUserEventRequestReceived(
+  args: Parameters<typeof notifyUserEventRequestReceivedNow>[0],
+): void {
+  defer(() => notifyUserEventRequestReceivedNow(args));
 }

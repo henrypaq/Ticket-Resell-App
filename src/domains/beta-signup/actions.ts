@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import {
   BETA_ACQUISITION_COOKIE,
   BETA_LAST_SRC_COOKIE,
@@ -27,6 +28,7 @@ import {
   findBetaSignupIdByEmail,
   getBetaSignupProfile,
   notificationPrefsSchema,
+  sendWelcomeEmailOnce,
   submitBetaSignup,
   submitBetaSupportMessage,
   supportMessageSchema,
@@ -382,6 +384,12 @@ export async function finishAccountSetupAction(
   if (!result.ok) return { error: result.error };
 
   await setSignupCookie(result.id);
+
+  // Setup is complete from here on (payout details are best-effort below), so
+  // this is where the welcome goes out. `after` keeps the send alive past the
+  // response; `sendWelcomeEmailOnce` makes a re-submit a no-op.
+  const memberId = result.id;
+  after(() => sendWelcomeEmailOnce(memberId));
 
   const cookieStore = await cookies();
   const existingContactId = cookieStore.get(GO_CONTACT_COOKIE)?.value;

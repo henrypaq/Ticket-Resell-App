@@ -20,8 +20,14 @@ ticket) and **exclusive offers** (`beta_offers`: at most one live hold per unit)
   becomes open (no exclusive hold).
 - An exclusivity budget caps how long one unit stays exclusive before open/
   broadcast.
-- Decline requeues immediately; no-response / unpaid expiry apply strikes and
-  can dormant a seat until the buyer reactivates.
+- Decline requeues immediately; no-response / unpaid expiry advance the unit
+  to the next rank. (Originally these applied strikes that could make a seat
+  dormant until the buyer reactivated. Removed 2026-09-29: a waitlist spot now
+  stays live until the buyer leaves it, so nobody has to re-opt-in after a
+  missed hold. The cost is that a buyer who never answers keeps getting first
+  hold; the exclusivity budget still caps how long that can park a ticket.)
+- Fixed-price events never get exclusive holds — those buyers paid up front and
+  ops fulfils them by hand (`allocateNextForUnit` skips `fixed_price_manual`).
 - Cron `reconcile-offers` materializes lazy expiry and advances units.
 - Ops can force "release to open"; buyers claim at `/offer/[id]` with SMS/email
   soft-fail notifies.

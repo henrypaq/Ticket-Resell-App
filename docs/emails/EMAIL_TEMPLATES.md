@@ -9,22 +9,38 @@ All user-facing HTML uses the yellow brand shell in
 
 | Audience | When | Status |
 |---|---|---|
-| New member | Signup welcome | ✅ `signupWelcomeEmail` |
+| New member | Finished account setup (`/setup`) — once, via `welcome_emailed_at` | ✅ `signupWelcomeEmail` |
 | Anyone | Event request confirmation | ✅ `eventRequestReceivedEmail` |
-| Buyer | Waitlist joined | ✅ yellow `lifecycleEmail` |
-| Buyer | Exclusive hold offered / reminder / expired | ✅ yellow |
+| Buyer | Waitlist joined (resale events only) | ✅ yellow `lifecycleEmail` |
+| Buyer | Exclusive hold offered / expired | ✅ yellow |
+| Buyer | Hold reminder | ⚠️ template only — nothing sends it |
 | Buyer | Payment declared ack | ✅ yellow |
 | Buyer | Ops marked paid | ✅ yellow |
 | Buyer | Ticket forwarded | ✅ yellow |
-| Buyer | Next-up / waitlist reactivated | ✅ yellow |
-| Seller | Listing received | ✅ yellow |
-| Seller | Buyer paid → transfer ticket | ✅ yellow |
+| Buyer | Next-up | ✅ yellow |
+| Buyer | Waitlist reactivated | ❌ removed — seats never go dormant |
+| Buyer (fixed-price) | Waitlist joined | ❌ skipped — they already paid |
+| Buyer (fixed-price) | Ops confirmed Interac | ✅ `fixed_price_paid` |
+| Buyer (fixed-price) | Ops sent ticket (+ link to `/queue?lead=…`) | ✅ `fixed_price_ticket_sent` |
+| Seller | Listing received (at post time) | ✅ yellow |
+| Seller (Café Campus) | Posting received + transfer the ticket to us for verification (at post time) | ✅ `seller_listed_custody` |
+| Seller | Buyer paid → transfer ticket | ❌ removed — seller's next email is the payout |
 | Seller | Ops confirmed ticket in custody | ✅ yellow |
 | Seller | Payout released (+ confirm CTA) | ✅ yellow → `/payout/confirm` |
-| Ops | Buyer declared Interac sent | ✅ `notifyOpsBuyerPaymentDeclared` |
-| Ops | Seller posted a ticket | ✅ sell-only admin alert |
-| Ops | Waitlist join / buy lead | ❌ removed |
+| Ops | Resale buyer declared Interac sent | ✅ dark `opsPaymentDeclaredAlert` (admin + `OPS_TRANSACTION_ALERT_EMAILS`) |
+| Ops | Fixed-price order (joined queue = Interac declared) | ✅ dark `opsFixedPriceOrderAlert` (`OPS_TRANSACTION_ALERT_EMAILS`) |
+| Ops | Seller posted a ticket | ✅ dark `opsListingAlert` (`ADMIN_ALERT_EMAIL`) |
+| Ops | Waitlist join (resale events) | ✅ dark `opsWaitlistAlert` (`ADMIN_ALERT_EMAIL`) |
+| Ops | Match — ticket held for a buyer, action needed | ✅ dark `opsMatchAlert` (admin + `OPS_TRANSACTION_ALERT_EMAILS`) |
 | Ops | Seller declared ticket transferred | ❌ by design |
+| Ops | Beta interest (`/api/v1/admin/alerts/email`) | ❌ removed |
+| Member (legacy Phase 1) | In-app waitlist match row | ❌ removed |
+
+All sends go through `defer()` (`src/lib/defer.ts`, Next `after()`), so they
+survive the response on Vercel instead of being cut off mid-send.
+
+Ops alert design: `src/lib/email/ops-event-alerts.ts` — black shell, event flyer
+fading into the header, large title, shadcn-style label/value cards.
 
 Ops inbox: `/ops/requests` shows crowdfunded event requests with an iOS-style
 badge on the Requests tab for unseen items.
@@ -400,7 +416,7 @@ that either isn't live yet or isn't live for real users yet.
 ## Implementation notes
 
 - **Where this goes in code:** parallel to
-  `src/lib/email/admin-alert-templates.ts`, add
+  `src/lib/email/ops-event-alerts.ts`, add
   `src/lib/email/user-notification-templates.ts` exporting
   `{name}EmailSubject` / `{name}EmailText` / `{name}EmailHtml` functions per
   template, following that file's existing pattern exactly. Wire sends

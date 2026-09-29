@@ -44,10 +44,6 @@ export const MATCHING_DEFAULTS = {
   openWindowMs: 2 * 60 * 60_000,
   /** Response clock when inside the short window. */
   shortResponseMs: 20 * 60_000,
-  /** Consecutive no-response expiries before dormancy. */
-  noResponseStrikesToDormant: 2,
-  /** Accept-then-ghost is expensive — one strike to dormant. */
-  unpaidStrikesToDormant: 1,
 } as const;
 
 export type OfferClockSnapshot = {
@@ -170,7 +166,6 @@ export type SeatEligibilityInput = {
   unitPriceEach: number;
   /** Live offers already held by this seat (other units). */
   liveOfferCount: number;
-  dormant: boolean;
   /** Seller of this unit — never offer to yourself. */
   isSeller: boolean;
   /** Prices this seat already declined at (inclusive). */
@@ -182,7 +177,6 @@ export type SeatEligibility =
   | {
       ok: false;
       reason:
-        | "dormant"
         | "seller"
         | "seat_cap"
         | "price_ceiling"
@@ -192,7 +186,6 @@ export type SeatEligibility =
 
 export function seatEligibleForOffer(input: SeatEligibilityInput): SeatEligibility {
   if (input.quantity <= 0) return { ok: false, reason: "quantity_zero" };
-  if (input.dormant) return { ok: false, reason: "dormant" };
   if (input.isSeller) return { ok: false, reason: "seller" };
   if (input.liveOfferCount >= input.quantity) return { ok: false, reason: "seat_cap" };
   if (input.maxPriceEach != null && input.unitPriceEach > input.maxPriceEach) {
@@ -215,23 +208,6 @@ export function partialOfferCount(args: {
 }): number {
   const remaining = Math.max(0, args.seatQuantity - args.liveOfferCount);
   return Math.min(remaining, Math.max(0, args.freeUnits));
-}
-
-export type StrikeEvent = "expired_no_response" | "expired_unpaid";
-
-/**
- * Whether the seat should go dormant, given strike counts *including* the
- * terminal event that just landed (since last reactivation, or since joining).
- */
-export function shouldGoDormant(args: {
-  event: StrikeEvent;
-  noResponseStrikes: number;
-  unpaidStrikes: number;
-}): boolean {
-  if (args.event === "expired_unpaid") {
-    return args.unpaidStrikes >= MATCHING_DEFAULTS.unpaidStrikesToDormant;
-  }
-  return args.noResponseStrikes >= MATCHING_DEFAULTS.noResponseStrikesToDormant;
 }
 
 /**

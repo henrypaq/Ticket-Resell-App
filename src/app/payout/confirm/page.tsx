@@ -37,6 +37,7 @@ export default async function PayoutConfirmPage({
     <PayoutConfirmPanel
       offerId={offer.id as string}
       eventName={event?.name ?? (offer.event_slug as string)}
+      flyerUrl={event?.flyerUrl ?? null}
       amount={amount}
       alreadyConfirmed={Boolean(offer.seller_payout_confirmed_at)}
       payoutReleased={Boolean(offer.payout_released_at)}

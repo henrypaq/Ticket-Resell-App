@@ -21,7 +21,6 @@ import {
   markOfferPaid,
   markOfferPaymentFailed,
   markTicketForwardedToBuyer,
-  reactivateSeat,
   releaseSellerPayout,
   releaseUnitToOpen,
 } from "@/domains/beta-matching/service";
@@ -262,17 +261,6 @@ export async function backfillSellUnitsAction(): Promise<OpsActionState & { crea
     return { error: result.errors[0] };
   }
   return { ok: true, created: result.created };
-}
-
-export async function reactivateSeatAction(seatKey: string): Promise<OpsActionState> {
-  try {
-    await requireBetaOpsSession();
-  } catch {
-    return { error: "Session expired. Sign in again." };
-  }
-  const result = await reactivateSeat(seatKey);
-  if (!result.ok) return { error: result.error };
-  return { ok: true };
 }
 
 export async function releaseSellerPayoutAction(offerId: string): Promise<OpsActionState> {

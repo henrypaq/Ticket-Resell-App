@@ -5,7 +5,6 @@ import { getAuthorizedMaxResalePrice, getEventById } from "@/domains/events/data
 import { buildDisclosureSnapshot } from "@/lib/compliance/disclosure";
 import { validateListingPrice } from "@/lib/compliance/pricing";
 import { logEvent } from "@/lib/analytics/log";
-import { notifyWaitlistOfMatch } from "@/domains/notifications/service";
 import { hashBarcode, validateTicketEvidenceFile } from "@/lib/verification/ticket-evidence";
 import { getTierAProvider } from "@/lib/verification/tier-a-providers";
 import type { SourcePlatform } from "@/domains/events/source-parser";
@@ -174,16 +173,6 @@ export async function createListing(
       eventRefId: event.id,
       listingRefId: listing.id,
     });
-  }
-
-  // Match notification (CLAUDE_1 Phase 1). Failure here must not fail the
-  // listing — the ticket is already live and correct.
-  try {
-    await notifyWaitlistOfMatch({ event, listing, excludeUserId: sellerId });
-  } catch (err) {
-    console.warn(
-      JSON.stringify({ level: "warn", msg: "match_notify_failed", listing_id: listing.id, error: String(err) }),
-    );
   }
 
   return { ok: true, listing };

@@ -8,13 +8,12 @@ import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
 import { SELLER_TERMS_PATH } from "@/lib/compliance/seller-terms";
-import { ArrowLeft } from "@/components/icons";
 import { Field } from "@/components/forms/field";
 import { BUTTON_CLASS, FIELD_CLASS, FIELD_GROUP_CLASS } from "@/components/forms/field-styles";
 import { CountryCodeSelect } from "@/components/forms/country-code-select";
 import { countryByIso2, COUNTRY_CODES } from "@/lib/country-codes";
 import { formatPhoneNational } from "@/lib/phone-format";
-import { AppFlowShell } from "./shell";
+import { FlyerHero, JourneyProgress, JourneyScreen, LiveDots } from "./journey";
 import {
   ContactFields,
   DEFAULT_COUNTRY_ISO2,
@@ -25,9 +24,7 @@ import {
 } from "./flow-fields";
 import { TicketUploadZone, type TicketFile } from "./ticket-upload";
 import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
-import { SellConfirmation } from "./done";
 import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
-import { CafeCampusTransferCard } from "./cafe-campus-transfer-card";
 
 const initial: QuickActionState = {};
 const LAST_STEP = 5;
@@ -58,6 +55,8 @@ function isValidTicketUrl(value: string): boolean {
   const trimmed = value.trim();
   return trimmed === "" || TICKET_URL_RE.test(trimmed);
 }
+
+const SELL_FORM_ID = "quick-sell-form";
 
 export function QuickSellFlow({
   events,
@@ -123,10 +122,13 @@ export function QuickSellFlow({
     if (!state.ok) return;
     void logBetaFlowStepAction({ intent: "sell", step: "submit", eventSlug });
     logFlowCompleted({ intent: "sell", eventSlug });
-    const params = new URLSearchParams({ intent: "sell" });
-    if (eventSlug === "cafe-campus") params.set("event", "cafe-campus");
-    if (state.sellLeadId) params.set("lead", state.sellLeadId);
-    router.replace(`/done?${params.toString()}`);
+    if (!state.sellLeadId) {
+      router.replace("/done?intent=sell");
+      return;
+    }
+    // Straight into the listing's journey. Hard navigation so the seller
+    // cookie set by the action rides the next request (ownership check).
+    window.location.assign(`/listing/${state.sellLeadId}?new=1`);
   }, [state.ok, state.sellLeadId, router, eventSlug]);
 
   // Ticket-proof errors belong on the prove-ticket step, not payout.
@@ -176,7 +178,7 @@ export function QuickSellFlow({
 
   const etDial = countryByIso2(etPhoneCountry).dial;
   const stepIndex = step - firstStep + 1;
-  const stepLabel = `Sell · ${stepIndex} of ${totalSteps}`;
+  const stepLabel = `Step ${stepIndex} of ${totalSteps}`;
   const isLast = step === LAST_STEP;
   const stepKey = SELL_STEP_KEYS[Math.min(step, SELL_STEP_KEYS.length - 1)] ?? "event";
 
@@ -242,30 +244,55 @@ export function QuickSellFlow({
   // at the form (or a remounted step 1) while /done is still loading.
   if (state.ok) {
     return (
-      <AppFlowShell>
-        <SellConfirmation
-          showSetup={false}
-          cafeTransfer={eventSlug === "cafe-campus" ? cafeTransfer : undefined}
-          sellLeadId={state.sellLeadId}
+      <JourneyScreen>
+        <FlyerHero
+          flyerUrl={events.find((e) => e.slug === eventSlug)?.flyerUrl}
+          eyebrow="Listing your ticket"
+          title={events.find((e) => e.slug === eventSlug)?.name ?? "Your listing"}
         />
-      </AppFlowShell>
+        <div className="px-5 pt-4 sm:px-6">
+          <LiveDots active label="Opening your listing" />
+        </div>
+      </JourneyScreen>
     );
   }
 
   return (
-    <AppFlowShell>
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </button>
+    <JourneyScreen
+      footer={
+        <>
+          {showFormError && (
+            <p role="alert" className="text-center text-[13.5px] text-urgency">
+              {state.error}
+            </p>
+          )}
+          <button
+            type={isLast ? "submit" : "button"}
+            form={isLast ? SELL_FORM_ID : undefined}
+            disabled={!stepReady || pending || tapGuard}
+            onClick={() => {
+              if (!isLast) goNext();
+            }}
+            className={`${BUTTON_CLASS} w-full`}
+          >
+            {isLast ? (pending ? "Listing…" : "List my ticket") : "Continue"}
+          </button>
+        </>
+      }
+    >
+      <FlyerHero
+        flyerUrl={lockedEvent?.flyerUrl}
+        onBack={onBack}
+        eyebrow="Sell a ticket"
+        title={lockedEvent?.name ?? "Sell a ticket"}
+        subtitle={lockedEvent ? `${lockedEvent.venue} · ${lockedEvent.city}` : null}
+        size="sm"
+      />
 
       <form
+        id={SELL_FORM_ID}
         action={formAction}
-        className="relative mt-6 flex flex-col"
+        className="relative flex flex-col px-5 pb-8 pt-4 sm:px-6"
         encType="multipart/form-data"
         onSubmit={(e) => {
           if (!isLast) {
@@ -274,6 +301,7 @@ export function QuickSellFlow({
           }
         }}
       >
+        <JourneyProgress current={stepIndex} total={totalSteps} />
         <input type="hidden" name="eventSlug" value={eventSlug} />
         <input type="hidden" name="quantity" value={quantity} />
         <input type="hidden" name="paidEach" value={askEach} />
@@ -287,7 +315,7 @@ export function QuickSellFlow({
         {terms && <input type="hidden" name="sellerTermsAccepted" value="1" />}
 
         {/* Step body remounts; the CTA below stays mounted so it doesn’t ghost/morph. */}
-        <div key={step} className="flex flex-col gap-6">
+        <div key={step} className="mt-6 flex flex-col gap-6">
           {step === 0 && (
             <>
               <StepHeading eyebrow={stepLabel} title="Choose an event" />
@@ -297,12 +325,7 @@ export function QuickSellFlow({
 
           {step === 1 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="Number of tickets" />
-              {eventLocked && lockedEvent && (
-                <p className="text-[13.5px] text-muted">
-                  For <span className="font-semibold text-ink">{lockedEvent.name}</span>
-                </p>
-              )}
+              <StepHeading eyebrow={stepLabel} title="How many tickets?" />
               <QuantityStepper value={quantity} onChange={onQuantityChange} max={2} />
             </>
           )}
@@ -311,7 +334,7 @@ export function QuickSellFlow({
             <>
               <StepHeading
                 eyebrow={stepLabel}
-                title={fixedAsk != null ? "Listing price" : "Listing price"}
+                title="Your price"
                 hint={
                   fixedAsk != null
                     ? "This event has a predetermined price. Your listing is locked to that amount."
@@ -348,7 +371,7 @@ export function QuickSellFlow({
 
           {step === 3 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="Contact information" />
+              <StepHeading eyebrow={stepLabel} title="How should we reach you?" />
               <ContactFields
                 phoneCountry={phoneCountry}
                 phoneNational={phoneNational}
@@ -366,7 +389,7 @@ export function QuickSellFlow({
             <>
               <StepHeading
                 eyebrow={stepLabel}
-                title="Ticket verification"
+                title="Show us your ticket"
                 hint={
                   quantity > 1
                     ? `Upload one clear screenshot or PDF for each of the ${quantity} tickets, or one official share link covering all of them.`
@@ -423,7 +446,10 @@ export function QuickSellFlow({
               )}
 
               {eventSlug === "cafe-campus" && cafeTransfer && (
-                <CafeCampusTransferCard name={cafeTransfer.name} email={cafeTransfer.email} />
+                <p className="rounded-2xl bg-white/[0.04] px-4 py-3 text-[12.5px] leading-relaxed text-muted">
+                  After you list, we&apos;ll ask you to transfer the ticket to us so we can verify
+                  it before buyers see it. If it doesn&apos;t sell, we send it straight back.
+                </p>
               )}
 
               {!hasEvidence && ticketUrlOk && (
@@ -472,7 +498,7 @@ export function QuickSellFlow({
             <>
               <StepHeading
                 eyebrow={stepLabel}
-                title="Payout details"
+                title="Where should we pay you?"
                 hint="Buyers pay mcgill.tickets by Interac. We send your payout here once the sale clears."
               />
               <Field label="Name on Interac account" htmlFor="etName">
@@ -520,27 +546,7 @@ export function QuickSellFlow({
           )}
         </div>
 
-        {showFormError && (
-          <p role="alert" className="mt-4 text-[13.5px] text-urgency">
-            {state.error}
-          </p>
-        )}
-
-        <button
-          type={isLast ? "submit" : "button"}
-          disabled={!stepReady || pending || tapGuard}
-          onClick={() => {
-            if (!isLast) goNext();
-          }}
-          className={`${BUTTON_CLASS} relative z-10 mt-6 w-full shrink-0`}
-        >
-          {isLast
-            ? pending
-              ? "Submitting…"
-              : "Submit ticket"
-            : "Continue"}
-        </button>
       </form>
-    </AppFlowShell>
+    </JourneyScreen>
   );
 }

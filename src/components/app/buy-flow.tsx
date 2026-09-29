@@ -7,12 +7,12 @@ import { logBetaFlowStepAction } from "@/domains/beta-quick/funnel-log";
 import type { QuickActionState } from "@/domains/beta-quick/shared";
 import type { GoContactProfile } from "@/domains/beta-go/shared";
 import type { BetaEvent } from "@/lib/beta-events";
-import { nextListedWeekdayForEvent } from "@/lib/beta-events";
-import { ArrowLeft } from "@/components/icons";
+import { formatBetaEventWhenShort, nextListedWeekdayForEvent } from "@/lib/beta-events";
+import { BottomSheet } from "@/components/bottom-sheet";
 import { Field } from "@/components/forms/field";
 import { BUTTON_CLASS, FIELD_CLASS } from "@/components/forms/field-styles";
 import { COUNTRY_CODES } from "@/lib/country-codes";
-import { AppFlowShell } from "./shell";
+import { FlyerHero, JourneyProgress, JourneyScreen } from "./journey";
 import {
   ContactFields,
   DEFAULT_COUNTRY_ISO2,
@@ -27,6 +27,7 @@ import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
 const initial: QuickActionState = {};
 
 const BUY_STEP_KEYS = ["event", "quantity", "contact", "transfer"] as const;
+const BUY_FORM_ID = "quick-buy-form";
 
 function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
   if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
@@ -72,6 +73,7 @@ export function QuickBuyFlow({
   const [transferLastName, setTransferLastName] = useState("");
   const [transferEmail, setTransferEmail] = useState("");
   const [maxPriceEach, setMaxPriceEach] = useState("");
+  const [transferOpen, setTransferOpen] = useState(false);
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
   // Keyed by the slug it was fetched for, so switching events can't show the
   // previous night's numbers and the stale value needs no reset effect.
@@ -85,9 +87,16 @@ export function QuickBuyFlow({
     if (!state.ok) return;
     void logBetaFlowStepAction({ intent: "buy", step: "submit", eventSlug });
     logFlowCompleted({ intent: "buy", eventSlug });
-    if (state.offerId) router.replace(`/offer/${state.offerId}`);
-    else router.replace("/done?intent=buy");
-  }, [state.ok, state.offerId, router, eventSlug]);
+    if (state.offerId) {
+      router.replace(`/offer/${state.offerId}`);
+      return;
+    }
+    // Hard navigation so the buyer cookie from the server action is on the
+    // next request (same race the fixed-price flow hit with a soft replace).
+    const params = new URLSearchParams({ event: eventSlug, joined: "1" });
+    if (state.leadId) params.set("lead", state.leadId);
+    window.location.assign(state.leadId ? `/queue?${params.toString()}` : "/done?intent=buy");
+  }, [state.ok, state.offerId, state.leadId, router, eventSlug]);
 
   useEffect(() => {
     if (!eventSlug) return;
@@ -107,7 +116,9 @@ export function QuickBuyFlow({
     intent: "buy",
     stepKey: showFixedPrice
       ? "fixed_price"
-      : (BUY_STEP_KEYS[Math.min(step, BUY_STEP_KEYS.length - 1)] ?? "event"),
+      : transferOpen
+        ? "transfer"
+        : (BUY_STEP_KEYS[Math.min(step, BUY_STEP_KEYS.length - 1)] ?? "event"),
     eventSlug,
     enabled: !state.ok && !showFixedPrice,
   });
@@ -134,8 +145,9 @@ export function QuickBuyFlow({
   const redirecting = Boolean(state.ok);
 
   const isCafeCampus = eventSlug === "cafe-campus";
-  // Café Campus adds a transfer-recipient step after contact.
-  const lastStep = isCafeCampus ? 3 : 2;
+  // Café Campus asks for the transfer recipient in a sheet over the last step,
+  // like the fixed-price checkout, rather than as a page of its own.
+  const lastStep = 2;
   const totalSteps = lastStep - firstStep + 1;
   const phone = composeQuickPhone(phoneCountry, phoneNational);
   const phoneOk = phoneNational.replace(/\D/g, "").length >= 7;
@@ -145,20 +157,23 @@ export function QuickBuyFlow({
     transferFirstName.trim().length >= 1 &&
     transferLastName.trim().length >= 1 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(transferEmail.trim());
-  // Café Campus adds a transfer step; clamp if the event switch shortens the flow.
-  const safeStep = Math.min(step, lastStep);
-  if (safeStep !== step) {
-    setStep(safeStep);
-  }
-  const isLast = safeStep === lastStep;
-  const stepIndex = safeStep - firstStep + 1;
-  const stepLabel = `Need a ticket · ${stepIndex} of ${totalSteps}`;
+  const isLast = step >= lastStep;
+  const stepIndex = Math.min(step, lastStep) - firstStep + 1;
+  const stepLabel = `Step ${stepIndex} of ${totalSteps}`;
+  const whenLine = lockedEvent
+    ? `${formatBetaEventWhenShort(nextListedWeekdayForEvent(lockedEvent))} · ${lockedEvent.venue}`
+    : null;
 
   const stepReady =
-    (safeStep === 0 && Boolean(eventSlug)) ||
-    safeStep === 1 ||
-    (safeStep === 2 && canContact) ||
-    (safeStep === 3 && transferOk);
+    (step === 0 && Boolean(eventSlug)) || step === 1 || (step >= 2 && canContact);
+  const submitLabel =
+    pending || redirecting
+      ? availability?.canCheckoutNow
+        ? "Checking out…"
+        : "Joining…"
+      : availability?.canCheckoutNow
+        ? "Continue to checkout"
+        : "Join waitlist";
 
   function goNext() {
     if (!stepReady || tapGuard || pending || isLast || redirecting) return;
@@ -183,25 +198,65 @@ export function QuickBuyFlow({
     setStep((s) => s - 1);
   }
 
+  const errorLine = state.error && (
+    <p role="alert" className="text-center text-[13.5px] text-urgency">
+      {state.error}
+    </p>
+  );
+
   return (
-    <AppFlowShell>
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </button>
+    <JourneyScreen
+      footer={
+        <>
+          {!transferOpen && errorLine}
+          {isLast && isCafeCampus ? (
+            <button
+              type="button"
+              disabled={!stepReady || pending || redirecting}
+              onClick={() => {
+                void saveContactDraftAction({ phone, instagram, name: "", email: "" });
+                setTransferOpen(true);
+              }}
+              className={`${BUTTON_CLASS} w-full`}
+            >
+              Continue
+            </button>
+          ) : (
+            <button
+              type={isLast ? "submit" : "button"}
+              form={isLast ? BUY_FORM_ID : undefined}
+              disabled={!stepReady || pending || tapGuard || redirecting}
+              onClick={() => {
+                if (!isLast) goNext();
+              }}
+              className={`${BUTTON_CLASS} w-full`}
+            >
+              {isLast ? submitLabel : "Continue"}
+            </button>
+          )}
+        </>
+      }
+    >
+      <FlyerHero
+        flyerUrl={lockedEvent?.flyerUrl}
+        onBack={onBack}
+        eyebrow="Need a ticket"
+        title={lockedEvent?.name ?? "Find a ticket"}
+        subtitle={whenLine}
+        size="sm"
+      />
 
       <form
+        id={BUY_FORM_ID}
         action={formAction}
-        className="relative mt-6 flex flex-col"
+        className="relative flex flex-col px-5 pb-8 pt-4 sm:px-6"
         onSubmit={(e) => {
           if (!isLast) {
             e.preventDefault();
             goNext();
+            return;
           }
+          if (isCafeCampus && !transferOk) e.preventDefault();
         }}
       >
         <input type="hidden" name="eventSlug" value={eventSlug} />
@@ -215,31 +270,35 @@ export function QuickBuyFlow({
           <input type="hidden" name="maxPriceEach" value={maxPriceEach.trim()} />
         )}
 
-        <div key={safeStep} className="flex flex-col gap-6">
-          {safeStep === 0 && (
+        <JourneyProgress current={stepIndex} total={totalSteps} />
+
+        <div key={step} className="mt-6 flex flex-col gap-6">
+          {step === 0 && (
             <>
               <StepHeading eyebrow={stepLabel} title="Choose an event" />
               <EventPicker events={events} value={eventSlug} onChange={setEventSlug} />
             </>
           )}
 
-          {safeStep === 1 && (
+          {step === 1 && (
             <>
-              <StepHeading eyebrow={stepLabel} title="Number of tickets" />
-              {eventLocked && lockedEvent && (
-                <p className="text-[13.5px] text-muted">
-                  For <span className="font-semibold text-ink">{lockedEvent.name}</span>
-                </p>
-              )}
+              <StepHeading eyebrow={stepLabel} title="How many tickets?" />
               <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
               {availability && (
-                <p
-                  className={`rounded-[14px] border px-4 py-3 text-[13px] leading-relaxed ${
+                <div
+                  className={`rounded-2xl px-4 py-3.5 text-[13px] leading-relaxed ${
                     availability.canCheckoutNow
-                      ? "border-[#6ee1ff]/35 bg-[#6ee1ff]/[0.08] text-ink"
-                      : "border-white/10 bg-white/[0.03] text-muted"
+                      ? "bg-brand/[0.08] text-ink ring-1 ring-brand/30"
+                      : "bg-white/[0.04] text-muted"
                   }`}
                 >
+                  <p className="font-ui mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                    {availability.canCheckoutNow
+                      ? "Available now"
+                      : availability.availableUnits > 0
+                        ? `${availability.availableUnits} listed · others ahead`
+                        : "Waitlist"}
+                  </p>
                   {availability.canCheckoutNow
                     ? quantity === 1
                       ? "A ticket looks available right now. Finish these steps to claim an exclusive hold — only one buyer gets each ticket, first to complete wins."
@@ -247,10 +306,10 @@ export function QuickBuyFlow({
                     : availability.availableUnits > 0
                       ? "Some tickets are listed, but others are ahead of you. Finish to join the waitlist; we’ll hold one exclusively when it’s your turn."
                       : "No tickets listed yet. Finish to join the waitlist — we’ll message you the moment one is held for you."}
-                </p>
+                </div>
               )}
               <Field
-                label="Enter the price you would pay per ticket (optional)"
+                label="The most you'd pay per ticket (optional)"
                 htmlFor="maxPriceEach"
               >
                 <input
@@ -265,22 +324,21 @@ export function QuickBuyFlow({
                   className={FIELD_CLASS}
                 />
               </Field>
-              <p className="text-[12.5px] text-muted">
-                We will only hold tickets at or below this amount. Leave blank if you have no
-                maximum.
+              <p className="-mt-3 text-[12.5px] text-muted">
+                We only hold tickets at or below this. Leave blank for no maximum.
               </p>
             </>
           )}
 
-          {safeStep === 2 && (
+          {step >= 2 && (
             <>
               <StepHeading
                 eyebrow={stepLabel}
-                title="Contact information"
+                title="How should we reach you?"
                 hint={
                   availability?.canCheckoutNow
                     ? "Finish these details to try for an exclusive hold. If someone else claims it first, you’ll stay on the waitlist."
-                    : "We will notify you when a ticket is held exclusively for you."
+                    : "We’ll message you the moment a ticket is held exclusively for you."
                 }
               />
               <ContactFields
@@ -293,79 +351,66 @@ export function QuickBuyFlow({
               />
             </>
           )}
-
-          {safeStep === 3 && isCafeCampus && (
-            <>
-              <StepHeading
-                eyebrow={stepLabel}
-                title="Ticket transfer details"
-                hint="Where we should send the Café Campus ticket after payment clears. Use the name and email exactly as they should appear."
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="First name" htmlFor="transferFirstName">
-                  <input
-                    id="transferFirstName"
-                    type="text"
-                    autoComplete="given-name"
-                    placeholder="Alex"
-                    value={transferFirstName}
-                    onChange={(e) => setTransferFirstName(e.target.value)}
-                    className={FIELD_CLASS}
-                  />
-                </Field>
-                <Field label="Last name" htmlFor="transferLastName">
-                  <input
-                    id="transferLastName"
-                    type="text"
-                    autoComplete="family-name"
-                    placeholder="Nguyen"
-                    value={transferLastName}
-                    onChange={(e) => setTransferLastName(e.target.value)}
-                    className={FIELD_CLASS}
-                  />
-                </Field>
-              </div>
-              <Field label="Email" htmlFor="transferEmail">
-                <input
-                  id="transferEmail"
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  placeholder="you@mail.mcgill.ca"
-                  value={transferEmail}
-                  onChange={(e) => setTransferEmail(e.target.value)}
-                  className={FIELD_CLASS}
-                />
-              </Field>
-            </>
-          )}
         </div>
-
-        {state.error && (
-          <p role="alert" className="mt-4 text-[13.5px] text-urgency">
-            {state.error}
-          </p>
-        )}
-
-        <button
-          type={isLast ? "submit" : "button"}
-          disabled={!stepReady || pending || tapGuard || redirecting}
-          onClick={() => {
-            if (!isLast) goNext();
-          }}
-          className={`${BUTTON_CLASS} relative z-10 mt-6 w-full shrink-0`}
-        >
-          {isLast
-            ? pending || redirecting
-              ? availability?.canCheckoutNow
-                ? "Checking out…"
-                : "Joining…"
-              : availability?.canCheckoutNow
-                ? "Continue to checkout"
-                : "Join waitlist"
-            : "Continue"}
-        </button>
       </form>
-    </AppFlowShell>
+
+      <BottomSheet
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        title="Ticket transfer"
+      >
+        <div className="flex flex-col gap-4 px-1 pb-2">
+          <p className="text-[14px] leading-relaxed text-muted">
+            Enter the name and email exactly as they should appear on the ticket. This is where
+            we&apos;ll send your Café Campus ticket once payment clears.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="First name" htmlFor="transferFirstName">
+              <input
+                id="transferFirstName"
+                type="text"
+                autoComplete="given-name"
+                placeholder="Alex"
+                value={transferFirstName}
+                onChange={(e) => setTransferFirstName(e.target.value)}
+                className={FIELD_CLASS}
+              />
+            </Field>
+            <Field label="Last name" htmlFor="transferLastName">
+              <input
+                id="transferLastName"
+                type="text"
+                autoComplete="family-name"
+                placeholder="Nguyen"
+                value={transferLastName}
+                onChange={(e) => setTransferLastName(e.target.value)}
+                className={FIELD_CLASS}
+              />
+            </Field>
+          </div>
+          <Field label="Email" htmlFor="transferEmail">
+            <input
+              id="transferEmail"
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              placeholder="you@mail.mcgill.ca"
+              value={transferEmail}
+              onChange={(e) => setTransferEmail(e.target.value)}
+              className={FIELD_CLASS}
+            />
+          </Field>
+          {errorLine}
+          <button
+            type="submit"
+            form={BUY_FORM_ID}
+            disabled={!transferOk || pending || redirecting}
+            className={`${BUTTON_CLASS} w-full`}
+          >
+            {submitLabel}
+          </button>
+        </div>
+      </BottomSheet>
+    </JourneyScreen>
   );
 }

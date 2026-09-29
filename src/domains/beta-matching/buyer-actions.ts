@@ -6,7 +6,6 @@ import {
   declareOfferPaymentSent,
   declineOffer,
   getOfferForBuyer,
-  reactivateSeat,
 } from "@/domains/beta-matching/service";
 import { GO_CONTACT_COOKIE } from "@/domains/beta-go/contacts";
 import { QUICK_BUYER_COOKIE } from "@/domains/beta-quick/shared";
@@ -86,49 +85,4 @@ export async function buyerDeclarePaymentSentAction(offerId: string): Promise<Of
     ok: true,
     message: "Got it — we're matching you with the seller and holding your payment.",
   };
-}
-
-export async function buyerReactivateSeatAction(seatKey: string): Promise<OfferActionState> {
-  const jar = await cookies();
-  const contactId = jar.get(GO_CONTACT_COOKIE)?.value ?? null;
-  const buyerIds = (jar.get(QUICK_BUYER_COOKIE)?.value ?? "").split(",").filter(Boolean);
-  const memberId = await getBetaSignupId();
-
-  let owns = false;
-  if (seatKey.startsWith("go:")) {
-    const leadId = seatKey.slice(3);
-    if (buyerIds.includes(leadId)) owns = true;
-    else if (contactId) {
-      const admin = createAdminClient();
-      const { data } = await admin
-        .from("beta_go_leads")
-        .select("contact_id, member_id")
-        .eq("id", leadId)
-        .maybeSingle();
-      if (data?.contact_id === contactId) owns = true;
-      if (memberId && data?.member_id === memberId) owns = true;
-    } else if (memberId) {
-      const admin = createAdminClient();
-      const { data } = await admin
-        .from("beta_go_leads")
-        .select("member_id")
-        .eq("id", leadId)
-        .maybeSingle();
-      if (data?.member_id === memberId) owns = true;
-    }
-  } else if (seatKey.startsWith("classic:") && memberId) {
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("beta_member_interests")
-      .select("member_id")
-      .eq("id", seatKey.slice(8))
-      .maybeSingle();
-    owns = data?.member_id === memberId;
-  }
-
-  if (!owns) return { error: "That waitlist seat isn't yours." };
-
-  const result = await reactivateSeat(seatKey);
-  if (!result.ok) return { error: result.error };
-  return { ok: true, message: "You're active again — we'll hold matching tickets for you." };
 }

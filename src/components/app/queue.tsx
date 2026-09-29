@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import type { QuickWaitlistEntry } from "@/domains/beta-quick/shared";
+import { useEffect, useState, useTransition } from "react";
+import { confirmTicketReceivedAction } from "@/domains/beta-quick/actions";
+import { buyerJourney } from "@/domains/beta-quick/journey";
+import type { ProfilePrefillData, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
+import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import { ArrowLeft } from "@/components/icons";
+import { AccountSetupEntry } from "./account-setup-entry";
+import { FlyerHero, JourneyScreen, LiveDots, useLiveRefresh } from "./journey";
 
 const QUEUE_WINDOW_MS = 20 * 60 * 1000;
 
@@ -25,13 +30,122 @@ export function isPredeterminedQueueEntry(entry: QuickWaitlistEntry): boolean {
 /**
  * Standalone `/queue` page — full-bleed like the fixed-price event screen.
  */
-export function QueueScreen({ entry }: { entry: QuickWaitlistEntry }) {
+export function QueueScreen({
+  entry,
+  accountSetup,
+}: {
+  entry: QuickWaitlistEntry;
+  /** Offered right after joining, when this visitor has no profile yet. */
+  accountSetup?: { prefill: ProfilePrefillData; setupPath: string } | null;
+}) {
+  if (!isPredeterminedQueueEntry(entry)) {
+    return <MarketplaceLineView entry={entry} accountSetup={accountSetup ?? null} />;
+  }
   return (
     <div className="fixed inset-0 z-[60] flex justify-center bg-base">
       <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden bg-base text-ink">
         <FixedPriceQueueView entry={entry} />
       </div>
     </div>
+  );
+}
+
+/**
+ * A marketplace buyer's place in line — the live screen they land on after
+ * joining, in place of the old text-only "you're on the waitlist" page. Once a
+ * ticket is held for them it points straight at the hold.
+ */
+function MarketplaceLineView({
+  entry,
+  accountSetup,
+}: {
+  entry: QuickWaitlistEntry;
+  accountSetup: { prefill: ProfilePrefillData; setupPath: string } | null;
+}) {
+  const journey = buyerJourney(entry);
+  const waiting = journey.stage === "waiting";
+  const refreshing = useLiveRefresh(waiting);
+  const ahead = Math.max(0, entry.position - 1);
+  const reach = entry.contactPhone
+    ? "by text"
+    : entry.contactInstagram
+      ? `on Instagram (@${entry.contactInstagram.replace(/^@+/, "")})`
+      : null;
+
+  return (
+    <JourneyScreen
+      footer={
+        <>
+          {!waiting && (
+            <Link href={journey.href} className={BUTTON_CLASS}>
+              {journey.stage === "held"
+                ? "Claim your ticket"
+                : journey.stage === "pay"
+                  ? "Send payment"
+                  : "View your ticket"}
+            </Link>
+          )}
+          <Link href="/" className={HOME_LINK_CLASS}>
+            Home
+          </Link>
+        </>
+      }
+    >
+      <FlyerHero
+        flyerUrl={entry.flyerUrl}
+        eyebrow={waiting ? "You're in line" : "Good news"}
+        title={entry.eventName}
+        subtitle={entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
+      />
+      <div className="px-5 pb-8 pt-2 sm:px-6">
+        {waiting ? (
+          <>
+            <div className="flex flex-col items-center py-4">
+              <p className="font-ui text-[88px] font-bold leading-none tabular-nums tracking-tight text-brand sm:text-[96px]">
+                #{entry.position}
+              </p>
+              <div className="mt-3">
+                <LiveDots active={refreshing} label="Live position" />
+              </div>
+            </div>
+            <p className="mt-4 text-[16px] leading-relaxed text-ink/90">
+              {ahead === 0
+                ? "You're at the front of the line."
+                : ahead === 1
+                  ? "There's 1 person ahead of you."
+                  : `There are ${ahead} people ahead of you.`}{" "}
+              When a ticket comes up at your price, we hold it just for you — nobody else can take
+              it while you decide.
+            </p>
+            <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
+              {reach ? `We'll message you ${reach} the moment it's yours. ` : ""}
+              You can close this page — your spot is saved on home.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="headline mt-4 text-[30px] leading-[1.1] tracking-tight text-ink">
+              {journey.stage === "held" ? "A ticket is held for you" : "You've got a ticket"}
+            </h2>
+            <p className="mt-3 text-[15px] leading-relaxed text-muted">
+              {journey.stage === "held"
+                ? "It's yours if you want it — answer before the hold runs out."
+                : "Open it to see where things are."}
+            </p>
+          </>
+        )}
+
+        {accountSetup && (
+          <AccountSetupEntry
+            intent="buy"
+            returnTo="/"
+            setupPath={accountSetup.setupPath}
+            prefill={accountSetup.prefill}
+            className="mt-10"
+          />
+        )}
+      </div>
+    </JourneyScreen>
   );
 }
 
@@ -278,10 +392,32 @@ function TransferredBody({
   entry: QuickWaitlistEntry;
   onBack?: () => void;
 }) {
+  const router = useRouter();
+  const [confirming, startConfirm] = useTransition();
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const email = entry.transferEmail;
   const goHome = onBack ?? (() => {
     window.location.assign("/");
   });
+  const received = Boolean(entry.buyerConfirmedReceivedAt);
+
+  function onConfirmReceived() {
+    setConfirmError(null);
+    startConfirm(async () => {
+      const result = await confirmTicketReceivedAction(entry.leadId);
+      if (result.error) {
+        setConfirmError(result.error);
+        return;
+      }
+      if (onBack) {
+        onBack();
+        router.refresh();
+      } else {
+        router.replace("/");
+        router.refresh();
+      }
+    });
+  }
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
@@ -346,7 +482,22 @@ function TransferredBody({
         </div>
       </div>
 
-      <div className="shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
+      <div className="flex shrink-0 flex-col gap-2 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-6">
+        {confirmError && (
+          <p role="alert" className="text-center text-[13px] text-urgency">
+            {confirmError}
+          </p>
+        )}
+        {!received && (
+          <button
+            type="button"
+            onClick={onConfirmReceived}
+            disabled={confirming}
+            className={`${BUTTON_CLASS} min-h-[52px] text-[15px] disabled:opacity-60`}
+          >
+            {confirming ? "Saving…" : "I got my ticket"}
+          </button>
+        )}
         {onBack ? (
           <button type="button" onClick={onBack} className={HOME_LINK_CLASS}>
             Home

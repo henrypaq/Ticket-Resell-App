@@ -1,6 +1,6 @@
 /**
  * Yellow-brand user lifecycle emails — shell + builders.
- * Parallel to admin-alert-templates / ops-transaction-templates.
+ * Parallel to ops-event-alerts (the ops inbox set).
  *
  * Layout: yellow page ground → white message card → black footer band.
  * No status pills/badges/chips. Escape every user/event string before HTML.
@@ -199,6 +199,11 @@ export type LifecycleEmailArgs = {
   appUrl: string;
   offerUrl?: string;
   payoutConfirmUrl?: string;
+  /** Fixed-price: the buyer's in-app ticket screen (`/queue?lead=…`). */
+  ticketUrl?: string;
+  /** Fixed-price: who the ticket is issued to. */
+  recipientName?: string | null;
+  recipientEmail?: string | null;
   flyerUrl?: string | null;
   eventDay?: string | null;
   eventCity?: string | null;
@@ -521,16 +526,70 @@ export function nextUpEmail(args: LifecycleEmailArgs): UserEmailContent {
   });
 }
 
-export function reactivateEmail(args: LifecycleEmailArgs): UserEmailContent {
-  const subject = `Waitlist reactivated — ${args.eventName}`;
-  const preheader = "We'll hold matching tickets for you.";
-  const text = `You're active on the ${args.eventName} waitlist again. We'll hold matching tickets for you.\n\n${args.appUrl}\n\n— mcgill.tickets`;
-  const bodyHtml = p(
-    `You're active on the ${strong(args.eventName)} waitlist again. We'll hold matching tickets for you.`,
-  );
-  return wrap(subject, text, preheader, "Waitlist reactivated.", bodyHtml, {
-    eventCard: eventCardFromArgs(args, "active again"),
-    cta: { label: "Open mcgill.tickets →", url: args.appUrl, variant: "inverse" },
+/* —— Fixed-price events: the buyer paid up front; ops confirms, then sends —— */
+
+function ticketsLabel(quantity: number | undefined): string {
+  return quantity && quantity > 1 ? `${quantity} tickets` : "ticket";
+}
+
+/** Ops confirmed the fixed-price buyer's Interac landed. */
+export function fixedPricePaidEmail(args: LifecycleEmailArgs): UserEmailContent {
+  const link = args.ticketUrl ?? args.appUrl;
+  const tickets = ticketsLabel(args.quantity);
+  const amount = args.price > 0 ? priceLabel(args.price) : null;
+  const subject = `Payment confirmed — ${args.eventName}`;
+  const preheader = "Your spot is locked in. We'll email your ticket.";
+  const paidLine = amount
+    ? `We received your Interac of ${amount} for your ${args.eventName} ${tickets}.`
+    : `We received your Interac for your ${args.eventName} ${tickets}.`;
+  const text = `${paidLine} Your spot in line is locked in.
+
+Nothing else to do — we'll email you as soon as your ticket is sent.
+
+${link}
+
+— mcgill.tickets`;
+  const bodyHtml = [
+    p(
+      amount
+        ? `We received your Interac of ${strong(amount)} for your ${strong(args.eventName)} ${escapeHtml(tickets)}. Your spot in line is locked in.`
+        : `We received your Interac for your ${strong(args.eventName)} ${escapeHtml(tickets)}. Your spot in line is locked in.`,
+    ),
+    p(`Nothing else to do — we'll email you as soon as your ticket is sent.`),
+  ].join("");
+  return wrap(subject, text, preheader, "Payment confirmed.", bodyHtml, {
+    eventCard: eventCardFromArgs(args, "paid"),
+    cta: { label: "View your spot →", url: link, variant: "primary" },
+  });
+}
+
+/** Ops sent the fixed-price ticket to the buyer's transfer email. */
+export function fixedPriceTicketSentEmail(args: LifecycleEmailArgs): UserEmailContent {
+  const link = args.ticketUrl ?? args.appUrl;
+  const tickets = ticketsLabel(args.quantity);
+  const to = args.recipientEmail?.trim() || null;
+  const name = args.recipientName?.trim() || null;
+  const subject = `Your ${args.eventName} ${tickets === "ticket" ? "ticket is" : "tickets are"} here`;
+  const preheader = to ? `Sent to ${to}.` : "Check your inbox for the transfer.";
+  const whereText = to
+    ? `We sent your ${args.eventName} ${tickets} to ${to}${name ? ` under ${name}` : ""}.`
+    : `We sent your ${args.eventName} ${tickets} to the email on your order.`;
+  const whereHtml = to
+    ? `We sent your ${strong(args.eventName)} ${escapeHtml(tickets)} to ${strong(to)}${name ? ` under ${strong(name)}` : ""}.`
+    : `We sent your ${strong(args.eventName)} ${escapeHtml(tickets)} to the email on your order.`;
+  const text = `${whereText} Look in spam if you don't see it within a few minutes.
+
+Open your ticket: ${link}
+
+— mcgill.tickets`;
+  const bodyHtml = [
+    p(whereHtml),
+    p(`Look in spam if you don't see it within a few minutes.`),
+  ].join("");
+  return wrap(subject, text, preheader, "Your ticket is here.", bodyHtml, {
+    eventCard: eventCardFromArgs(args, "ticket sent"),
+    cta: { label: "Open your ticket →", url: link, variant: "primary" },
+    footerNote: "Something wrong with the ticket? Just reply to this email.",
   });
 }
 
@@ -538,14 +597,14 @@ export function sellerListedEmail(args: LifecycleEmailArgs): UserEmailContent {
   const qtyLabel =
     args.quantity && args.quantity > 1 ? `${args.quantity} tickets are` : "ticket is";
   const subject = `Listing received — ${args.eventName}`;
-  const preheader = "We'll email you again when it sells.";
-  const text = `Thanks for listing on mcgill.tickets.\n\nYour ${qtyLabel} listed for ${args.eventName}. We match one buyer at a time: they pay us by Interac, then we pay you when the sale clears.\n\nWe'll email you again when it sells.\n\n${args.appUrl}\n\n— mcgill.tickets`;
+  const preheader = "We'll email you when your payout is sent.";
+  const text = `Thanks for listing on mcgill.tickets.\n\nYour ${qtyLabel} listed for ${args.eventName}. We match one buyer at a time: they pay us by Interac, then we pay you when the sale clears.\n\nWe'll email you when your payout is sent.\n\n${args.appUrl}\n\n— mcgill.tickets`;
   const bodyHtml = [
     p(`Thanks for listing on ${strong("mcgill.tickets")}.`),
     p(
       `Your ${escapeHtml(qtyLabel)} listed for ${strong(args.eventName)}. We match one buyer at a time: they pay us by Interac, then we pay you when the sale clears.`,
     ),
-    p(`We'll email you again when it sells.`),
+    p(`We'll email you when your payout is sent.`),
   ].join("");
   return wrap(subject, text, preheader, "Listing received.", bodyHtml, {
     eventCard: eventCardFromArgs(args, "listed to sell"),
@@ -553,33 +612,46 @@ export function sellerListedEmail(args: LifecycleEmailArgs): UserEmailContent {
   });
 }
 
-export function sellerSalePaidEmail(args: LifecycleEmailArgs): UserEmailContent {
-  const price = priceLabel(args.price);
-  const cafeCustody =
-    args.eventSlug === "cafe-campus" && args.transferEmail
-      ? `\n\nTransfer the Café Campus e-ticket to ${args.transferName ?? "McGill Tickets"} <${args.transferEmail}> so we can verify it and send it to the buyer. If it doesn't sell (or you request it), we transfer it back.`
-      : "";
-  const subject = `Sold — transfer your ${args.eventName} ticket`;
-  const preheader = "Please transfer within 30 minutes.";
-  const text = `A buyer paid ${price} for your ${args.eventName} ticket.\n\nPlease transfer the ticket within 30 minutes. Once we confirm the transfer, we release your Interac payout.${cafeCustody}\n\n${args.appUrl}\n\n— mcgill.tickets`;
-  const custodyHtml =
-    args.eventSlug === "cafe-campus" && args.transferEmail
-      ? p(
-          `Transfer the Café Campus e-ticket to ${strong(args.transferName ?? "McGill Tickets")} &lt;${escapeHtml(args.transferEmail)}&gt; so we can verify it and send it to the buyer. If it doesn't sell (or you request it), we transfer it back.`,
-        )
-      : "";
+/**
+ * Custody events (Café Campus): sent on posting. Confirms the posting and asks
+ * the seller to transfer the ticket to our account — ops can't verify (or
+ * sell) a ticket that never arrived.
+ */
+export function sellerListedCustodyEmail(args: LifecycleEmailArgs): UserEmailContent {
+  const tickets =
+    args.quantity && args.quantity > 1 ? `${args.quantity} tickets` : "ticket";
+  const toName = args.transferName?.trim() || "McGill Tickets";
+  const toEmail = args.transferEmail?.trim() || null;
+  const destText = toEmail ? `${toName} (${toEmail})` : toName;
+  const destHtml = toEmail
+    ? `${strong(toName)} (${strong(toEmail)})`
+    : strong(toName);
+  const subject = `Posting received — ${args.eventName}`;
+  const preheader = "Transfer your ticket to us so we can verify it.";
+  const text = [
+    `We've received your posting for your ${args.eventName} ${tickets}.`,
+    "",
+    `If you haven't yet, transfer the ${tickets} to ${destText} now. Our admin team verifies every ticket before it's offered to a buyer, and we can't verify one that hasn't arrived.`,
+    "",
+    "Once it sells, we transfer it to the buyer and send your Interac payout. If it doesn't sell, or there's a problem, we transfer it back to you.",
+    "",
+    args.appUrl,
+    "",
+    "— mcgill.tickets",
+  ].join("\n");
   const bodyHtml = [
+    p(`We've received your posting for your ${strong(args.eventName)} ${escapeHtml(tickets)}.`),
     p(
-      `A buyer paid ${strong(price)} for your ${strong(args.eventName)} ticket.`,
+      `If you haven't yet, transfer the ${escapeHtml(tickets)} to ${destHtml} now. Our admin team verifies every ticket before it's offered to a buyer, and we can't verify one that hasn't arrived.`,
     ),
     p(
-      `Please transfer the ticket within 30 minutes. Once we confirm the transfer, we release your Interac payout.`,
+      `Once it sells, we transfer it to the buyer and send your Interac payout. If it doesn't sell, or there's a problem, we transfer it back to you.`,
     ),
-    custodyHtml,
   ].join("");
-  return wrap(subject, text, preheader, "Sold — transfer your ticket.", bodyHtml, {
-    eventCard: eventCardFromArgs(args, "transfer now"),
+  return wrap(subject, text, preheader, "Posting received.", bodyHtml, {
+    eventCard: eventCardFromArgs(args, "awaiting verification"),
     cta: { label: "Open mcgill.tickets →", url: args.appUrl, variant: "inverse" },
+    footerNote: "Already transferred? You're all set — we'll email you once it's verified.",
   });
 }
 
@@ -626,9 +698,10 @@ export type LifecycleNotifyKind =
   | "ticket_forwarded"
   | "waitlist_joined"
   | "next_up"
-  | "reactivate"
+  | "fixed_price_paid"
+  | "fixed_price_ticket_sent"
   | "seller_listed"
-  | "seller_sale_paid"
+  | "seller_listed_custody"
   | "seller_ticket_received"
   | "seller_payout_released";
 
@@ -654,12 +727,14 @@ export function lifecycleEmail(
       return waitlistJoinedEmail(args);
     case "next_up":
       return nextUpEmail(args);
-    case "reactivate":
-      return reactivateEmail(args);
+    case "fixed_price_paid":
+      return fixedPricePaidEmail(args);
+    case "fixed_price_ticket_sent":
+      return fixedPriceTicketSentEmail(args);
     case "seller_listed":
       return sellerListedEmail(args);
-    case "seller_sale_paid":
-      return sellerSalePaidEmail(args);
+    case "seller_listed_custody":
+      return sellerListedCustodyEmail(args);
     case "seller_ticket_received":
       return sellerTicketReceivedEmail(args);
     case "seller_payout_released":

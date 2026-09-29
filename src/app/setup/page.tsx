@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { FinishAccountSetup } from "@/components/app/finish-account";
 import { loadProfilePrefill, loadSavedGoContact } from "@/domains/beta-quick/actions";
 import {
   ensureBetaProfileFromSession,
   loadBetaProfile,
 } from "@/domains/beta-signup/actions";
+import { sendWelcomeEmailOnce } from "@/domains/beta-signup/service";
 import { safeReturnPath } from "@/lib/safe-return-path";
 
 export const metadata: Metadata = {
@@ -52,6 +54,10 @@ export default async function SetupPage({
   );
 
   if (profile && hasPayout) {
+    // Nothing left to fill in, so this visit *is* setup completing — a Google
+    // sign-in with payout details already saved never submits the form.
+    const memberId = profile.id;
+    after(() => sendWelcomeEmailOnce(memberId));
     redirect(returnTo);
   }
 

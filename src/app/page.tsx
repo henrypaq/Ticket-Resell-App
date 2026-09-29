@@ -6,7 +6,6 @@ import { loadGoActivityForHub, loadQuickWaitlistForHub } from "@/domains/beta-qu
 import { loadBetaProfile } from "@/domains/beta-signup/actions";
 import { getTonightBetaEvents } from "@/domains/beta-events/catalog";
 import { currentNightlifeWeekday } from "@/lib/beta-events";
-import { platformTicketTransfer } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Buy & sell tickets · mcgill.tickets",
@@ -40,7 +39,6 @@ export default async function HomePage() {
         tonightDay={currentNightlifeWeekday()}
         waitlist={waitlist}
         activity={activity}
-        cafeTransfer={platformTicketTransfer()}
       />
     </AppShell>
   );

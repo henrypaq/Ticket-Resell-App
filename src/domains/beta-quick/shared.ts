@@ -8,8 +8,6 @@ export type QuickWaitlistEntry = {
   createdAt: string;
   contactPhone: string | null;
   contactInstagram: string | null;
-  /** Seat paused after strikes — buyer can reactivate. */
-  dormant: boolean;
   /** Live exclusive offer for this seat, if any. */
   activeOfferId: string | null;
   /** Fixed-price: buyer declared Interac sent. */
@@ -18,6 +16,8 @@ export type QuickWaitlistEntry = {
   paymentRecordedAt?: string | null;
   /** Fixed-price: ops confirmed ticket emailed/transferred to buyer. */
   ticketForwardedAt?: string | null;
+  /** Buyer tapped “I got my ticket” after the transfer — hides the home card. */
+  buyerConfirmedReceivedAt?: string | null;
   /** Fixed-price checkout total the buyer said they sent. */
   paymentAmount?: number | null;
   /** Ticket transfer destination email (fixed-price). */
@@ -26,6 +26,23 @@ export type QuickWaitlistEntry = {
   transferName?: string | null;
   /** Event flyer for queue / waitlist banners. */
   flyerUrl?: string | null;
+  /**
+   * Marketplace offers on this seat, newest first. Fixed-price seats have none —
+   * the lead itself is their transaction row.
+   */
+  offers?: BuyerOfferSummary[];
+};
+
+/** One marketplace offer (one ticket) on a buy lead, as the buyer sees it. */
+export type BuyerOfferSummary = {
+  id: string;
+  status: string;
+  priceEach: number;
+  offeredAt: string;
+  expiresAt: string;
+  paymentDueAt: string | null;
+  buyerDeclaredSentAt: string | null;
+  ticketTransferredAt: string | null;
 };
 
 /** Max tickets per /go buy waitlist or sell listing. */
@@ -52,6 +69,16 @@ export type GoActivityEntry = {
   sellerTicketSentAt?: string | null;
   /** Ops verified custody receipt. */
   ticketReceivedAt?: string | null;
+  /** Event flyer for the listing card / journey hero. */
+  flyerUrl?: string | null;
+  /** Tickets on this listing a buyer has claimed but not yet paid for. */
+  claimedCount?: number;
+  /** Tickets on this listing a buyer has paid for. */
+  soldCount?: number;
+  /** Of the sold tickets, how many have had their payout released. */
+  payoutReleasedCount?: number;
+  /** A released payout the seller hasn't confirmed landing yet, if any. */
+  payoutToConfirmOfferId?: string | null;
 };
 
 export type QuickActionState = {

@@ -23,7 +23,7 @@ export default function QrDisplayPage() {
         className="pointer-events-none absolute inset-x-0 top-0 h-[420px] opacity-70"
         style={{
           background:
-            "radial-gradient(55% 60% at 50% 0%, rgba(255,229,0,0.14) 0%, rgba(255,229,0,0.04) 45%, transparent 75%)",
+            "radial-gradient(55% 60% at 50% 0%, rgba(251,191,36,0.14) 0%, rgba(251,191,36,0.04) 45%, transparent 75%)",
         }}
       />
 

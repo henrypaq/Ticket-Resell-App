@@ -11,7 +11,6 @@ import {
   rankOfSeat,
   responseDeadline,
   seatEligibleForOffer,
-  shouldGoDormant,
 } from "./policy";
 
 const NOW = new Date("2026-09-14T20:00:00.000Z");
@@ -165,20 +164,12 @@ describe("seatEligibleForOffer", () => {
     maxPriceEach: null as number | null,
     unitPriceEach: 40,
     liveOfferCount: 0,
-    dormant: false,
     isSeller: false,
     declinedAtOrAbove: [] as number[],
   };
 
   it("allows an eligible seat", () => {
     expect(seatEligibleForOffer(base)).toEqual({ ok: true });
-  });
-
-  it("REJECTS dormant seats", () => {
-    expect(seatEligibleForOffer({ ...base, dormant: true })).toEqual({
-      ok: false,
-      reason: "dormant",
-    });
   });
 
   it("REJECTS the seller", () => {
@@ -227,26 +218,6 @@ describe("partialOfferCount", () => {
 
   it("accounts for live holds already on the seat", () => {
     expect(partialOfferCount({ seatQuantity: 2, liveOfferCount: 1, freeUnits: 5 })).toBe(1);
-  });
-});
-
-describe("shouldGoDormant", () => {
-  it("dormants after two no-response expiries (count includes this event)", () => {
-    expect(
-      shouldGoDormant({ event: "expired_no_response", noResponseStrikes: 2, unpaidStrikes: 0 }),
-    ).toBe(true);
-  });
-
-  it("does not dormant on the first no-response", () => {
-    expect(
-      shouldGoDormant({ event: "expired_no_response", noResponseStrikes: 1, unpaidStrikes: 0 }),
-    ).toBe(false);
-  });
-
-  it("dormants on a single unpaid expiry (expensive failure)", () => {
-    expect(
-      shouldGoDormant({ event: "expired_unpaid", noResponseStrikes: 0, unpaidStrikes: 1 }),
-    ).toBe(true);
   });
 });
 

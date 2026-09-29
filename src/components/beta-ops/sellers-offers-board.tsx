@@ -14,7 +14,6 @@ import {
   markOfferPaidAction,
   markOfferPaymentFailedAction,
   markTicketForwardedAction,
-  reactivateSeatAction,
   releaseSellerPayoutAction,
   releaseUnitToOpenAction,
 } from "@/domains/beta-ops/actions";
@@ -375,7 +374,6 @@ function OfferActionsRow({ offer: o }: { offer: OpsOfferRow }) {
             onClick={() => releaseSellerPayoutAction(o.id)}
           />
         )}
-        <ActionButton label="Reactivate seat" onClick={() => reactivateSeatAction(o.seat_key)} />
       </div>
     </div>
   );

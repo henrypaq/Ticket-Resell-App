@@ -13,24 +13,30 @@ import {
 import {
   dismissPastSellLeadsAction,
   leaveWaitlistLeadAction,
-  removeSellLeadAction,
   updateWaitlistLeadAction,
 } from "@/domains/beta-quick/actions";
-import { buyerReactivateSeatAction } from "@/domains/beta-matching/buyer-actions";
+import {
+  buyerJourney,
+  isWalletStage,
+  sellerHasSale,
+  sellerJourney,
+  type BuyerJourney,
+  type SellerStage,
+} from "@/domains/beta-quick/journey";
 import type { GoActivityEntry, QuickActionState, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
-import { BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/forms/field-styles";
+import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import {
   STARRY_SELL_BUTTON_CLASS,
   StarryButtonStars,
 } from "@/components/forms/starry-button";
-import { ArrowLeft, ChevronRight, InstagramIcon, MoreVerticalIcon, SnapchatIcon } from "@/components/icons";
+import { ArrowLeft, ChevronRight, InstagramIcon, SnapchatIcon } from "@/components/icons";
 import { COUNTRY_CODES } from "@/lib/country-codes";
 import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./flow-fields";
 import { EventIntentView, EventPoster } from "./event-pieces";
 import { FixedPriceEventScreen } from "./fixed-price-event";
 import { EventRequestSection } from "./event-request";
-import { CafeCampusTransferCard } from "./cafe-campus-transfer-card";
+import { TicketStubCard, type StubTone } from "./journey";
 import {
   FixedPriceQueueEmbedded,
   isPredeterminedQueueEntry,
@@ -59,13 +65,11 @@ export function AppHome({
   tonightDay,
   waitlist,
   activity,
-  cafeTransfer,
 }: {
   tonight: BetaEvent[];
   tonightDay: BetaWeekday;
   waitlist: QuickWaitlistEntry[];
   activity: GoActivityEntry[];
-  cafeTransfer?: { name: string; email: string } | null;
 }) {
   const [selected, setSelected] = useState<{ event: BetaEvent; day: BetaWeekday } | null>(null);
   const [editing, setEditing] = useState<QuickWaitlistEntry | null>(null);
@@ -101,17 +105,30 @@ export function AppHome({
   }
 
   const sellActivity = activity.filter((a) => a.intent === "sell");
-  const activeSells = sellActivity.filter(
-    (a) => a.status !== "done" && a.status !== "cancelled" && !isPastNightlife(a.createdAt),
-  );
+  // A listing with a buyer on it is never "unsold", however old it is —
+  // sweeping it into the past-unsold notice would offer to cancel a sale.
+  const sellCards = sellActivity
+    .map((entry) => ({ entry, journey: sellerJourney(entry) }))
+    .filter(({ entry, journey }) => {
+      if (journey.stage === "closed") return false;
+      if (journey.stage === "paid_out") return Boolean(entry.payoutToConfirmOfferId);
+      return sellerHasSale(entry) || !isPastNightlife(entry.createdAt);
+    });
   const pastUnsoldSells = sellActivity.filter(
-    (a) => a.status !== "done" && a.status !== "cancelled" && isPastNightlife(a.createdAt),
+    (a) =>
+      a.status !== "done" &&
+      a.status !== "cancelled" &&
+      isPastNightlife(a.createdAt) &&
+      !sellerHasSale(a),
   );
   const doneSells = sellActivity.filter((a) => a.status === "done");
   const totalProceeds = doneSells.reduce((sum, a) => sum + (a.proceedsCad ?? 0), 0);
   const totalNet = doneSells.reduce((sum, a) => sum + (a.netVsPaidCad ?? 0), 0);
-  const transferredTickets = waitlist.filter((e) => Boolean(e.ticketForwardedAt));
-  const openWaitlist = waitlist.filter((e) => !e.ticketForwardedAt);
+  const buyJourneys = waitlist.map((entry) => ({ entry, journey: buyerJourney(entry) }));
+  const walletTickets = buyJourneys.filter(({ journey }) => isWalletStage(journey.stage));
+  const openWaitlist = buyJourneys
+    .filter(({ journey }) => journey.stage === "waiting" || journey.stage === "queue")
+    .map(({ entry }) => entry);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -126,25 +143,15 @@ export function AppHome({
       </header>
 
       <div className="relative mt-5 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {transferredTickets.length > 0 && (
+        {walletTickets.length > 0 && (
           <section className="relative shrink-0">
-            <p className="section-header text-emerald-400/80">Ticket transferred</p>
-            <ul className="mt-2 flex flex-col gap-1.5">
-              {transferredTickets.map((entry) => (
-                <li key={entry.leadId}>
-                  <Link
-                    href={`/queue?lead=${entry.leadId}&event=${encodeURIComponent(entry.eventSlug)}`}
-                    className="flex w-full items-center gap-2.5 rounded-[12px] border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/15 active:bg-emerald-500/20"
-                  >
-                    <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-emerald-100">
-                      {entry.eventName}
-                      <span className="text-emerald-200/50">
-                        {" · "}
-                        {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
-                      </span>
-                    </p>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-emerald-300/70" />
-                  </Link>
+            <p className="section-header">
+              {walletTickets.length === 1 ? "Your ticket" : "Your tickets"}
+            </p>
+            <ul className={WALLET_RAIL_CLASS}>
+              {walletTickets.map(({ entry, journey }) => (
+                <li key={entry.leadId} className="shrink-0">
+                  <BuyerTicketCard entry={entry} journey={journey} />
                 </li>
               ))}
             </ul>
@@ -162,10 +169,7 @@ export function AppHome({
                     onClick={() => setEditing(entry)}
                     className="flex w-full items-center gap-3.5 rounded-[16px] bg-card px-3.5 py-3 text-left transition-colors hover:bg-[#1c1c20] active:bg-[#1c1c20]"
                   >
-                    <WaitlistPositionBadge
-                      position={entry.position}
-                      highlight={Boolean(entry.activeOfferId)}
-                    />
+                    <WaitlistPositionBadge position={entry.position} />
                     <div className="min-w-0 flex-1">
                       <p className="font-ui truncate text-[15px] font-semibold tracking-tight text-ink">
                         {isPredeterminedQueueEntry(entry)
@@ -176,63 +180,36 @@ export function AppHome({
                         {entry.eventName}
                         {" · "}
                         {entry.quantity === 1 ? "1 ticket" : `${entry.quantity} tickets`}
-                        {entry.dormant
-                          ? " · paused"
-                          : entry.activeOfferId
-                            ? " · ticket held — claim / pay"
-                            : isPredeterminedQueueEntry(entry)
-                              ? entry.paymentRecordedAt
-                                ? entry.position <= 1
-                                  ? " · sending your ticket"
-                                  : " · payment confirmed"
-                                : entry.buyerDeclaredSentAt
-                                  ? " · Interac sent — in queue"
-                                  : null
-                              : entry.status === "matched"
-                                ? " · matched"
-                                : entry.status === "done"
-                                  ? " · completed"
-                                  : null}
+                        {isPredeterminedQueueEntry(entry) && entry.buyerDeclaredSentAt
+                          ? " · Interac sent — in queue"
+                          : null}
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
                   </button>
-                  {entry.activeOfferId && (
-                    <Link
-                      href={`/offer/${entry.activeOfferId}`}
-                      className={`${BUTTON_CLASS} min-h-[48px] text-[14px]`}
-                    >
-                      Open payment / claim
-                    </Link>
-                  )}
-                  {entry.dormant && !entry.activeOfferId && (
-                    <ReactivateSeatButton seatKey={`go:${entry.leadId}`} />
-                  )}
                 </li>
               ))}
             </ul>
           </section>
         )}
 
-        {(activeSells.length > 0 || pastUnsoldSells.length > 0 || doneSells.length > 0) && (
+        {(sellCards.length > 0 || pastUnsoldSells.length > 0 || doneSells.length > 0) && (
           <section className="relative shrink-0">
-            {activeSells.length > 0 && (
+            {sellCards.length > 0 && (
               <>
                 <p className="section-header">Your tickets for sale</p>
-                <ul className="mt-2.5 flex flex-col gap-2">
-                  {activeSells.map((entry) => (
-                    <SellListingRow
-                      key={entry.leadId}
-                      entry={entry}
-                      cafeTransfer={cafeTransfer}
-                    />
+                <ul className={WALLET_RAIL_CLASS}>
+                  {sellCards.map(({ entry, journey }) => (
+                    <li key={entry.leadId} className="shrink-0">
+                      <SellerTicketCard entry={entry} stage={journey.stage} />
+                    </li>
                   ))}
                 </ul>
               </>
             )}
 
             {pastUnsoldSells.length > 0 && (
-              <div className={activeSells.length > 0 ? "mt-3" : ""}>
+              <div className={sellCards.length > 0 ? "mt-3" : ""}>
                 <PastUnsoldSellNotice pastUnsoldSells={pastUnsoldSells} />
               </div>
             )}
@@ -330,6 +307,71 @@ export function AppHome({
   );
 }
 
+const WALLET_RAIL_CLASS =
+  "-mx-5 mt-2 flex gap-2.5 overflow-x-auto px-5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6";
+
+function ticketCount(n: number): string {
+  return n === 1 ? "1 ticket" : `${n} tickets`;
+}
+
+/** One purchase in the home wallet — the card's look follows the journey stage. */
+function BuyerTicketCard({ entry, journey }: { entry: QuickWaitlistEntry; journey: BuyerJourney }) {
+  const price = journey.offer ? `$${journey.offer.priceEach.toFixed(0)}` : null;
+  const card: { status: string; detail: string; cta: string; tone: StubTone } =
+    journey.stage === "held"
+      ? { status: "Held for you", detail: `${price} · answer before it expires`, cta: "Claim ticket", tone: "brand" }
+      : journey.stage === "pay"
+        ? { status: "Pay now", detail: `${price} · send your Interac`, cta: "Pay", tone: "brand" }
+        : journey.stage === "payment_sent"
+          ? { status: "Payment sent", detail: "We're matching your Interac", cta: "View", tone: "sky" }
+          : journey.stage === "review"
+            ? { status: "Under review", detail: "We're checking your payment", cta: "View", tone: "sky" }
+            : journey.stage === "confirmed"
+              ? { status: "Confirmed", detail: `${ticketCount(entry.quantity)} · on its way`, cta: "View ticket", tone: "sky" }
+              : {
+                  status: "Transferred",
+                  detail: entry.transferEmail
+                    ? `${ticketCount(entry.quantity)} · ${entry.transferEmail}`
+                    : ticketCount(entry.quantity),
+                  cta: "View ticket",
+                  tone: "emerald",
+                };
+  return (
+    <TicketStubCard
+      href={journey.href}
+      flyerUrl={entry.flyerUrl}
+      title={entry.eventName}
+      {...card}
+    />
+  );
+}
+
+/** One listing in the home "for sale" rail; opens the seller journey. */
+function SellerTicketCard({ entry, stage }: { entry: GoActivityEntry; stage: SellerStage }) {
+  const each = entry.askEach != null ? `$${entry.askEach.toFixed(0)} each` : "";
+  const qty = `×${entry.quantity}${each ? ` · ${each}` : ""}`;
+  const card: { status: string; detail: string; cta: string; tone: StubTone } =
+    stage === "send"
+      ? { status: "Send ticket", detail: "Send it to us to go live", cta: "Send ticket", tone: "brand" }
+      : stage === "checking"
+        ? { status: "Checking", detail: "We're verifying your ticket", cta: "View", tone: "sky" }
+        : stage === "claimed"
+          ? { status: "Buyer paying", detail: qty, cta: "View", tone: "sky" }
+          : stage === "sold"
+            ? { status: "Sold", detail: "Your payout is on its way", cta: "View", tone: "emerald" }
+            : stage === "paid_out"
+              ? { status: "Paid out", detail: "Confirm the money landed", cta: "Confirm", tone: "emerald" }
+              : { status: "Live", detail: qty, cta: "View listing", tone: "neutral" };
+  return (
+    <TicketStubCard
+      href={`/listing/${entry.leadId}`}
+      flyerUrl={entry.flyerUrl}
+      title={entry.eventName}
+      {...card}
+    />
+  );
+}
+
 /** Compact position indicator — the number is the visual anchor. */
 function WaitlistPositionBadge({
   position,
@@ -366,173 +408,6 @@ function WaitlistPositionBadge({
         </span>
       )}
     </div>
-  );
-}
-
-function ReactivateSeatButton({ seatKey }: { seatKey: string }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <div className="flex flex-col gap-1">
-      <button
-        type="button"
-        disabled={pending}
-        className={`${SECONDARY_BUTTON_CLASS} min-h-[44px] text-[14px]`}
-        onClick={() => {
-          setError(null);
-          start(async () => {
-            const r = await buyerReactivateSeatAction(seatKey);
-            if (r.error) setError(r.error);
-            else router.refresh();
-          });
-        }}
-      >
-        {pending ? "…" : "Reactivate waitlist seat"}
-      </button>
-      {error && (
-        <p role="alert" className="text-[12.5px] text-urgency">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function SellListingRow({
-  entry,
-  cafeTransfer,
-}: {
-  entry: GoActivityEntry;
-  cafeTransfer?: { name: string; email: string } | null;
-}) {
-  const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const showCustody =
-    Boolean(cafeTransfer) &&
-    entry.eventSlug === "cafe-campus" &&
-    entry.status !== "cancelled" &&
-    entry.status !== "done";
-
-  function onRemove() {
-    const ok = window.confirm(
-      entry.status === "done"
-        ? `Remove this sold ${entry.eventName} ticket from your list?`
-        : `Remove your ${entry.eventName} ticket listing? Buyers won’t see it anymore.`,
-    );
-    if (!ok) {
-      setMenuOpen(false);
-      return;
-    }
-    setError(null);
-    start(async () => {
-      const result = await removeSellLeadAction(entry.leadId);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      setMenuOpen(false);
-      router.refresh();
-    });
-  }
-
-  const statusLine =
-    entry.saleStage === "payout_released"
-      ? " · sold · payment released"
-      : entry.saleStage === "awaiting_transfer"
-        ? " · sold — transfer the ticket"
-        : entry.ticketReceivedAt
-          ? " · ticket received by us"
-          : entry.sellerTicketSentAt
-            ? " · transfer confirmed — waiting on us"
-            : entry.status === "done"
-              ? " · sold"
-              : entry.status === "matched"
-                ? " · matched"
-                : " · listed";
-
-  return (
-    <li className="relative rounded-[14px] bg-card px-3.5 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="font-ui truncate text-[14.5px] font-semibold tracking-tight text-ink">
-            {entry.eventName}
-          </p>
-          <p className="mt-0.5 text-[12.5px] leading-snug text-muted">
-            ×{entry.quantity}
-            {entry.askEach != null ? ` · $${entry.askEach.toFixed(0)} each` : ""}
-            {statusLine}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-start gap-2">
-          {entry.status === "done" && entry.proceedsCad != null && (
-            <p className="font-ui text-right text-[13px] font-semibold tabular-nums tracking-tight text-ink">
-              ${entry.proceedsCad.toFixed(0)}
-              {entry.netVsPaidCad != null && entry.netVsPaidCad !== 0 && (
-                <span className="mt-0.5 block text-[11px] font-medium text-muted">
-                  {entry.netVsPaidCad > 0 ? "+" : ""}
-                  ${entry.netVsPaidCad.toFixed(0)} vs paid
-                </span>
-              )}
-            </p>
-          )}
-          <div className="relative">
-            <button
-              type="button"
-              aria-label="Listing options"
-              aria-expanded={menuOpen}
-              aria-haspopup="menu"
-              disabled={pending}
-              onClick={() => setMenuOpen((o) => !o)}
-              className="flex h-8 w-8 items-center justify-center rounded-[10px] text-muted transition-colors hover:bg-white/10 hover:text-ink disabled:opacity-50"
-            >
-              <MoreVerticalIcon className="h-5 w-5" />
-            </button>
-            {menuOpen && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close menu"
-                  className="fixed inset-0 z-20 cursor-default"
-                  onClick={() => setMenuOpen(false)}
-                />
-                <div
-                  role="menu"
-                  className="absolute right-0 top-9 z-30 min-w-[148px] overflow-hidden rounded-[12px] bg-[#1c1c20] py-1 shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    disabled={pending}
-                    onClick={onRemove}
-                    className="font-ui flex w-full px-3.5 py-2.5 text-left text-[13.5px] font-semibold text-urgency hover:bg-white/[0.06] disabled:opacity-50"
-                  >
-                    {pending ? "Removing…" : "Remove"}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-      {error && (
-        <p role="alert" className="mt-2 text-[12.5px] text-urgency">
-          {error}
-        </p>
-      )}
-      {showCustody && cafeTransfer && !entry.sellerTicketSentAt && (
-        <div className="mt-3 border-t border-white/10 pt-3">
-          <CafeCampusTransferCard
-            name={cafeTransfer.name}
-            email={cafeTransfer.email}
-            compact
-            sellLeadId={entry.leadId}
-          />
-        </div>
-      )}
-    </li>
   );
 }
 
@@ -737,15 +612,9 @@ function WaitlistEditView({
     });
   }
 
-  const statusHint = entry.dormant
-    ? "Paused — reactivate from home to get holds again."
-    : entry.activeOfferId
-      ? "A ticket is held for you — claim or pay from home."
-      : entry.status === "matched"
-        ? "Matched — we’ll notify you."
-        : entry.status === "done"
-          ? "Completed."
-          : "We’ll notify you when a ticket is held for you.";
+  // Only seats still waiting reach this view — held and paid seats open their
+  // journey from the wallet instead.
+  const statusHint = "We’ll notify you when a ticket is held for you.";
 
   return (
     <div className="relative flex flex-col gap-7">

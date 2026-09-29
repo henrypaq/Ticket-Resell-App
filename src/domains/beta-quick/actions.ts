@@ -20,7 +20,10 @@ import {
   type GoActivityEntry,
 } from "@/domains/beta-quick/shared";
 import {
+  confirmTicketReceived,
+  countWaitingBuyers,
   getGoActivity,
+  getSellListingEntry,
   getLeadIdentityHints,
   getQuickWaitlistEntries,
   leaveWaitlistLead,
@@ -306,6 +309,20 @@ export async function leaveWaitlistLeadAction(
   return { ok: true };
 }
 
+export async function confirmTicketReceivedAction(
+  leadId: string,
+): Promise<QuickActionState> {
+  const { contactId, memberId } = await currentIdentity();
+  const result = await confirmTicketReceived({
+    leadId,
+    contactId,
+    memberId,
+    allowedLeadIds: await readBuyerLeadIds(),
+  });
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
 export async function removeSellLeadAction(leadId: string): Promise<QuickActionState> {
   const { contactId, memberId } = await currentIdentity();
   const result = await removeSellLead({
@@ -485,6 +502,20 @@ async function sellerOwnsLead(sellLeadId: string): Promise<boolean> {
   if (contactId && data.contact_id === contactId) return true;
   if (memberId && data.member_id === memberId) return true;
   return false;
+}
+
+/**
+ * One of this visitor's sell listings for the seller journey page, plus how
+ * many buyers are waiting on the event. Null when it isn't theirs.
+ */
+export async function loadSellListingForSeller(
+  leadId: string,
+): Promise<{ entry: GoActivityEntry; waitingBuyers: number } | null> {
+  if (!(await sellerOwnsLead(leadId))) return null;
+  const entry = await getSellListingEntry(leadId);
+  if (!entry) return null;
+  const waitingBuyers = await countWaitingBuyers(entry.eventSlug).catch(() => 0);
+  return { entry, waitingBuyers };
 }
 
 /** Seller confirms Café / platform ticket transfer for ops custody queue. */

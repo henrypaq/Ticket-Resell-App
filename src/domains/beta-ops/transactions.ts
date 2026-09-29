@@ -3,6 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getTicketEvidenceSignedUrls } from "@/domains/beta-ops/service";
 import { loadBetaCatalog } from "@/domains/beta-events/catalog";
+import { notifyBuyLead, notifySellLead } from "@/domains/beta-matching/notify";
 import type {
   OpsCompletedItem,
   OpsFixedPriceTxnItem,
@@ -402,7 +403,8 @@ export async function declareSellerTicketSent(
   if (error) return { ok: false, error: error.message };
   const outcome = (data ?? {}) as { ok?: boolean; error?: string };
   if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not record the transfer." };
-  // No ops email here — ops only gets buyer payment-declared + seller listed.
+  // No email here: the seller already got "posting received" when they listed,
+  // and ops picks the transfer up on the Transactions queue.
   return { ok: true, id: sellLeadId };
 }
 
@@ -430,8 +432,7 @@ export async function markSellTicketReceived(
   if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not confirm receipt." };
   if (alreadyReceived) return { ok: true, id: sellLeadId };
 
-  const { notifySellLead } = await import("@/domains/beta-matching/notify");
-  void notifySellLead({
+  notifySellLead({
     kind: "seller_ticket_received",
     sellLeadId,
     priceEach: lead.ask_each != null ? Number(lead.ask_each) : 0,
@@ -458,8 +459,12 @@ export async function markFixedPricePaymentReceived(
     p_actor_label: recordedBy.slice(0, 120),
   });
   if (error) return { ok: false, error: error.message };
-  const outcome = (data ?? {}) as { ok?: boolean; error?: string };
+  const outcome = (data ?? {}) as { ok?: boolean; error?: string; already?: boolean };
   if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not record the payment." };
+  // `already` guards a double-click from emailing the buyer twice.
+  if (!outcome.already) {
+    notifyBuyLead({ kind: "fixed_price_paid", buyLeadId: leadId });
+  }
   return { ok: true, id: leadId };
 }
 
@@ -477,7 +482,10 @@ export async function markFixedPriceTicketForwarded(
     p_actor_label: actorLabel.slice(0, 120),
   });
   if (error) return { ok: false, error: error.message };
-  const outcome = (data ?? {}) as { ok?: boolean; error?: string };
+  const outcome = (data ?? {}) as { ok?: boolean; error?: string; already?: boolean };
   if (!outcome.ok) return { ok: false, error: outcome.error ?? "Could not mark the ticket sent." };
+  if (!outcome.already) {
+    notifyBuyLead({ kind: "fixed_price_ticket_sent", buyLeadId: leadId });
+  }
   return { ok: true, id: leadId };
 }

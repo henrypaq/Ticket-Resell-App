@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
+import { defer } from "@/lib/defer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUnifiedPositionForSignup } from "@/domains/beta-queue/unified";
 import { INTEREST_OPTIONS } from "@/lib/beta-events";
@@ -226,23 +227,67 @@ export async function submitBetaSignup(input: BetaSignupInput): Promise<BetaSign
     email: input.email,
   });
 
-  // Welcome email only on first insert (not idempotent resubmit).
-  if (data?.id && input.email) {
-    void sendSignupWelcomeEmail({
-      email: input.email,
-      name: input.name,
-      interestedEvents: input.interestedEvents,
-    }).catch(() => {});
+  return { ok: true, id: signupId };
+}
+
+/**
+ * Welcome email, sent once per member when they finish account setup.
+ *
+ * `welcome_emailed_at` is the claim: only the call that flips it from null
+ * sends, so re-submitting setup (or finishing it on two devices) can't send a
+ * second one. A failed send releases the claim so the next completion retries.
+ * Soft-fail throughout — never throws into the setup flow.
+ */
+export async function sendWelcomeEmailOnce(memberId: string): Promise<void> {
+  const admin = createAdminClient();
+  const { data: claimed, error } = await admin
+    .from("beta_members")
+    .update({ welcome_emailed_at: new Date().toISOString() })
+    .eq("id", memberId)
+    .is("welcome_emailed_at", null)
+    .select("id, name, email, interested_events")
+    .maybeSingle();
+
+  if (error) {
+    console.warn(
+      JSON.stringify({ level: "warn", msg: "welcome_email_claim_failed", memberId, error: error.message }),
+    );
+    return;
+  }
+  if (!claimed?.email) return;
+
+  let sent = false;
+  try {
+    const result = await sendSignupWelcomeEmail({
+      email: claimed.email as string,
+      name: (claimed.name as string | null) ?? "",
+      interestedEvents: (claimed.interested_events as string[] | null) ?? [],
+    });
+    sent = result.ok;
+    if (!result.ok) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: result.skipped ? "welcome_email_skipped_unconfigured" : "welcome_email_failed",
+          memberId,
+          error: result.error,
+        }),
+      );
+    }
+  } catch (err) {
+    console.warn(JSON.stringify({ level: "warn", msg: "welcome_email_threw", memberId, error: String(err) }));
   }
 
-  return { ok: true, id: signupId };
+  if (!sent) {
+    await admin.from("beta_members").update({ welcome_emailed_at: null }).eq("id", memberId);
+  }
 }
 
 async function sendSignupWelcomeEmail(args: {
   email: string;
   name: string;
   interestedEvents: string[];
-}): Promise<void> {
+}) {
   const { sendEmail } = await import("@/lib/email/resend");
   const { signupWelcomeEmail } = await import("@/lib/email/user-notification-templates");
   const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
@@ -262,7 +307,7 @@ async function sendSignupWelcomeEmail(args: {
     appUrl: origin,
     sellUrl: `${origin}/sell`,
   });
-  await sendEmail({
+  return sendEmail({
     to: args.email,
     subject: copy.subject,
     text: copy.text,
@@ -463,11 +508,13 @@ export async function submitBetaEventRequest(
   });
   if (error) return { ok: false, error: "Couldn't send that request. Try again." };
 
-  void sendEventRequestConfirmation({
+  defer(() =>
+    sendEventRequestConfirmation({
     memberId: signupId,
     requestedName: input.name,
     details: input.details || null,
-  }).catch(() => {});
+  }),
+  );
 
   return { ok: true };
 }

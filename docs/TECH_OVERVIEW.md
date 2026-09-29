@@ -282,8 +282,6 @@ MATCHING_DEFAULTS
   openWindowMs           2 h     to doors → no exclusivity at all
   exclusivityMaxRanks    3       ranks tried before the unit opens up
   exclusivityBudgetMs   60 min   max wall-clock a unit stays off-market
-  noResponseStrikesToDormant  2
-  unpaidStrikesToDormant      1  ← accept-then-ghost is the expensive failure
 ```
 
 **Three modes, chosen by distance to doors** (`matchingModeAt`):
@@ -307,12 +305,12 @@ minutes total, whichever comes first. After that `nextAllocationAction`
 returns `"open"` instead of `"next_rank"` and the ticket stops being hoarded
 by the queue.
 
-**Dormancy** is the answer to "what about the person who never replies?" Two
-no-responses (or one accept-then-ghost) marks the seat dormant in
-`beta_queue_seat_state`. A dormant seat **keeps its rank** but stops having
-tickets held for it, until the buyer taps to reactivate — which stamps
-`reactivated_at`, and strikes are only counted forward from that point. That's
-what makes dormancy recoverable without deleting history.
+**No dormancy.** A seat that misses a hold (or accepts and never pays) stays
+eligible for the next ticket — a waitlist spot is live until the buyer leaves
+it. Seats used to go dormant after strikes and need reactivating; that was
+removed on 2026-09-29. `beta_queue_seat_state.dormant_at`/`reactivated_at` are
+kept for history but nothing reads or writes them. The exclusivity budget
+above is what stops a non-responder from parking a ticket.
 
 ### 6.5 The offer state machine
 
@@ -405,8 +403,8 @@ load unit → available?
   ↓ compute doors → mode; if "open", skip (no exclusive hold near doors)
   ↓ sum exclusivity spend for this unit; if budget exhausted, skip
   ↓ walk the real queue oldest-first:
-        loadSeatMeta  (quantity, price ceiling, dormancy, live offers, strikes)
-        seatEligibleForOffer → dormant? seller? seat cap? price ceiling?
+        loadSeatMeta  (quantity, price ceiling, live offers, price declines)
+        seatEligibleForOffer → seller? seat cap? price ceiling?
                                previously declined at ≥ this price?
         → first eligible seat wins
   ↓ allocate_offer RPC (atomic)
@@ -658,7 +656,7 @@ platform Interac path (buyer → us → seller).
 | `beta_member_interests` | the "classic" waitlist seat source, merged into the same queue |
 | `beta_ticket_units` | one row per sellable ticket. Unique `(sell_lead_id, unit_index)` |
 | `beta_offers` | one `(unit, seat)` allocation + both clocks + payment audit fields. `seat_key` is a **generated stored column** from whichever FK is set |
-| `beta_queue_seat_state` | dormancy / reactivation, keyed by `seat_key` |
+| `beta_queue_seat_state` | historical dormancy / reactivation stamps (no longer read), keyed by `seat_key` |
 | `beta_queue_config` | per-event fake-front padding |
 | `beta_member_event_requests` | "my event isn't listed" requests |
 | `analytics_events` | append-only event log |
@@ -730,7 +728,7 @@ could be exhaustively tested without infrastructure.
 
 | File | Covers |
 |---|---|
-| `beta-matching/policy.test.ts` (34) | clocks, modes, eligibility, budget, dormancy, next-action |
+| `beta-matching/policy.test.ts` (34) | clocks, modes, eligibility, budget, next-action |
 | `matching/doors.test.ts` (18) | doors resolution incl. DST boundaries |
 | `compliance/pricing.test.ts` (13) | price cap **including explicit violation cases** |
 | `lib/beta-events.test.ts` (11) | nightlife date math, the 6 AM rule |
