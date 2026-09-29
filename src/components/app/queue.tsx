@@ -9,6 +9,7 @@ import type { ProfilePrefillData, QuickWaitlistEntry } from "@/domains/beta-quic
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import { ArrowLeft } from "@/components/icons";
 import { AccountSetupEntry } from "./account-setup-entry";
+import { WaitlistSpotCard } from "./waitlist-edit";
 import { FlyerHero, JourneyScreen, LiveDots, useLiveRefresh } from "./journey";
 
 const QUEUE_WINDOW_MS = 20 * 60 * 1000;
@@ -121,6 +122,9 @@ function MarketplaceLineView({
               {reach ? `We'll message you ${reach} the moment it's yours. ` : ""}
               You can close this page — your spot is saved on home.
             </p>
+            <div className="mt-6">
+              <WaitlistSpotCard entry={entry} />
+            </div>
           </>
         ) : (
           <>
@@ -176,18 +180,7 @@ function FixedPriceQueueView({
   entry: QuickWaitlistEntry;
   onBack?: () => void;
 }) {
-  const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    if (entry.ticketForwardedAt) return;
-    const id = window.setInterval(() => {
-      setRefreshing(true);
-      router.refresh();
-      window.setTimeout(() => setRefreshing(false), 900);
-    }, 8_000);
-    return () => window.clearInterval(id);
-  }, [entry.ticketForwardedAt, router]);
+  useLiveRefresh(!entry.ticketForwardedAt);
 
   if (entry.ticketForwardedAt) {
     return <TransferredBody entry={entry} onBack={onBack} />;
@@ -251,9 +244,9 @@ function FixedPriceQueueView({
               aria-hidden
               title="Live updating"
             >
-              <LiveDot delay="0ms" active={refreshing} />
-              <LiveDot delay="150ms" active={refreshing} />
-              <LiveDot delay="300ms" active={refreshing} />
+              <LiveDot delay="0s" />
+              <LiveDot delay="0.45s" />
+              <LiveDot delay="0.9s" />
             </span>
           </div>
           <p className="mt-4 text-[13px] font-semibold uppercase tracking-[0.16em] text-muted">
@@ -294,12 +287,11 @@ function FixedPriceQueueView({
   );
 }
 
-function LiveDot({ delay, active }: { delay: string; active: boolean }) {
+/** Same steady wave as the shared LiveDots (see `.live-dot` in globals.css). */
+function LiveDot({ delay }: { delay: string; active?: boolean }) {
   return (
     <span
-      className={`h-1.5 w-1.5 rounded-full bg-brand ${
-        active ? "animate-bounce" : "animate-pulse opacity-60"
-      }`}
+      className="live-dot h-1.5 w-1.5 rounded-full bg-brand"
       style={{ animationDelay: delay }}
     />
   );

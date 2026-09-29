@@ -145,3 +145,33 @@ body {
     animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
   }
 }
+
+/*
+ * "This page is live" dots — one steady wave, always running, so a screen
+ * that's quietly polling never looks frozen. Each dot takes the same curve,
+ * offset by a third of the cycle.
+ */
+@keyframes live-dot-wave {
+  0%,
+  70%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0) scale(0.85);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1);
+  }
+}
+
+.live-dot {
+  animation: live-dot-wave 1.35s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+    opacity: 0.7;
+  }
+}

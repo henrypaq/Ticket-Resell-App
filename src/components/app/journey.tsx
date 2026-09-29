@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ArrowLeft, ChevronRight } from "@/components/icons";
 
 /**
@@ -230,22 +230,28 @@ export function useLiveRefresh(enabled: boolean, intervalMs = 8_000): boolean {
   return refreshing;
 }
 
-/** Three brand dots — pulse at rest, bounce while a refresh is in flight. */
+/**
+ * Three brand dots in a steady wave — the same motion whether or not a refresh
+ * is in flight, so the page reads as continuously live rather than twitchy.
+ * `active` only lifts the label while a refresh lands.
+ */
 export function LiveDots({ active, label = "Live" }: { active: boolean; label?: string }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="inline-flex items-center gap-1" aria-hidden>
-        {["0ms", "150ms", "300ms"].map((delay) => (
+      <span className="inline-flex items-center gap-[5px]" aria-hidden>
+        {[0, 0.45, 0.9].map((delay) => (
           <span
             key={delay}
-            className={`h-1.5 w-1.5 rounded-full bg-brand ${
-              active ? "animate-bounce" : "animate-pulse opacity-60"
-            }`}
-            style={{ animationDelay: delay }}
+            className="live-dot h-1.5 w-1.5 rounded-full bg-brand"
+            style={{ animationDelay: `${delay}s` }}
           />
         ))}
       </span>
-      <span className="font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+      <span
+        className={`font-ui text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors duration-500 ${
+          active ? "text-ink/80" : "text-muted"
+        }`}
+      >
         {label}
       </span>
     </span>
@@ -308,46 +314,90 @@ export type StubTone = "brand" | "emerald" | "neutral" | "sky";
 
 const STUB_TONES: Record<
   StubTone,
-  { card: string; pill: string; fade: string; cta: string; line: string; notch: string }
+  { edge: string; top: string; bottom: string; pill: string; cta: string; line: string }
 > = {
-  brand: {
-    card: "border-brand/30 bg-brand/[0.07] hover:bg-brand/[0.11]",
-    pill: "text-brand",
-    fade: "to-[#1a160b]",
-    cta: "text-brand",
-    line: "border-brand/30",
-    notch: "border-brand/30",
-  },
   emerald: {
-    card: "border-emerald-500/25 bg-emerald-500/[0.08] hover:bg-emerald-500/[0.12]",
+    edge: "rgba(52, 211, 153, 0.5)",
+    top: "#11271d",
+    bottom: "#0c1a14",
     pill: "text-emerald-300",
-    fade: "to-[#0e1a14]",
     cta: "text-emerald-300",
-    line: "border-emerald-500/30",
-    notch: "border-emerald-500/25",
+    line: "border-emerald-400/35",
+  },
+  brand: {
+    edge: "rgba(251, 191, 36, 0.5)",
+    top: "#261f0d",
+    bottom: "#19150b",
+    pill: "text-brand",
+    cta: "text-brand",
+    line: "border-brand/35",
   },
   sky: {
-    card: "border-sky-400/25 bg-sky-400/[0.07] hover:bg-sky-400/[0.11]",
+    edge: "rgba(56, 189, 248, 0.45)",
+    top: "#0f2230",
+    bottom: "#0b161e",
     pill: "text-sky-300",
-    fade: "to-[#0c141a]",
     cta: "text-sky-300",
-    line: "border-sky-400/30",
-    notch: "border-sky-400/25",
+    line: "border-sky-400/35",
   },
   neutral: {
-    card: "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
+    edge: "rgba(255, 255, 255, 0.16)",
+    top: "#1c1c1f",
+    bottom: "#141416",
     pill: "text-ink/80",
-    fade: "to-[#141416]",
     cta: "text-ink/80",
     line: "border-white/15",
-    notch: "border-white/10",
   },
 };
 
+/** Card geometry — fixed so the ticket outline can be drawn as one exact path. */
+const STUB_W = 200;
+const STUB_H = 156;
+/** Height of the call-to-action stub; the notches sit on its top edge. */
+const STUB_CTA_H = 40;
+const STUB_RADIUS = 14;
+const NOTCH_R = 7;
+
+/**
+ * The ticket silhouette: a rounded rectangle with a half-circle bitten out of
+ * each side at the tear line. `inset` shrinks it evenly so a 1px stroke can sit
+ * fully inside the shape.
+ */
+function ticketPath(inset = 0): string {
+  const w = STUB_W - inset;
+  const h = STUB_H - inset;
+  const o = inset;
+  const r = STUB_RADIUS - inset;
+  const n = NOTCH_R + inset;
+  const ny = STUB_H - STUB_CTA_H;
+  return [
+    `M ${o + r} ${o}`,
+    `H ${w - r}`,
+    `A ${r} ${r} 0 0 1 ${w} ${o + r}`,
+    `V ${ny - n}`,
+    `A ${n} ${n} 0 0 0 ${w} ${ny + n}`,
+    `V ${h - r}`,
+    `A ${r} ${r} 0 0 1 ${w - r} ${h}`,
+    `H ${o + r}`,
+    `A ${r} ${r} 0 0 1 ${o} ${h - r}`,
+    `V ${ny + n}`,
+    `A ${n} ${n} 0 0 0 ${o} ${ny - n}`,
+    `V ${o + r}`,
+    `A ${r} ${r} 0 0 1 ${o + r} ${o}`,
+    "Z",
+  ].join(" ");
+}
+
+const TICKET_FILL_PATH = ticketPath(0);
+const TICKET_STROKE_PATH = ticketPath(0.5);
+
 /**
  * A ticket drawn as a ticket: flyer strip with a status pill, the details,
- * a perforated tear line, and a call-to-action stub. Used for every buyer and
- * seller stage on home so the wallet reads as one set.
+ * a perforated tear line with real notches cut out of both sides, and a
+ * call-to-action stub. The silhouette is one SVG path (fill + 1px stroke) and
+ * the content is clipped to the same path, so corners and notches stay crisp
+ * in every browser. Used for every buyer and seller stage on home so the
+ * wallet reads as one set.
  */
 export function TicketStubCard({
   href,
@@ -369,43 +419,74 @@ export function TicketStubCard({
   ariaLabel?: string;
 }) {
   const t = STUB_TONES[tone];
+  const gradientId = `ticket-fill-${useId().replace(/:/g, "")}`;
   return (
     <Link
       href={href}
       aria-label={ariaLabel ?? `${title} — ${status}`}
-      className={`group relative flex w-[200px] flex-col overflow-hidden rounded-[14px] border transition-colors active:scale-[0.99] ${t.card}`}
+      className="group relative block shrink-0 transition-[transform,filter] hover:brightness-110 active:scale-[0.99]"
+      style={{ width: STUB_W, height: STUB_H }}
     >
-      <div className="relative h-[52px] w-full overflow-hidden">
-        {flyerUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={flyerUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" />
-        ) : (
-          <div className="absolute inset-0 bg-white/[0.05]" />
-        )}
-        <div aria-hidden className={`absolute inset-0 bg-gradient-to-b from-transparent ${t.fade}`} />
-        <span
-          className={`font-ui absolute left-2.5 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] backdrop-blur-sm ${t.pill}`}
+      <svg
+        aria-hidden
+        className="absolute inset-0"
+        width={STUB_W}
+        height={STUB_H}
+        viewBox={`0 0 ${STUB_W} ${STUB_H}`}
+      >
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={t.top} />
+            <stop offset="100%" stopColor={t.bottom} />
+          </linearGradient>
+        </defs>
+        <path d={TICKET_FILL_PATH} fill={`url(#${gradientId})`} />
+      </svg>
+
+      <div
+        className="relative flex h-full flex-col"
+        style={{ clipPath: `path('${TICKET_FILL_PATH}')` }}
+      >
+        <div className="relative h-[56px] w-full shrink-0 overflow-hidden">
+          {flyerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={flyerUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-75" />
+          ) : null}
+          <div
+            aria-hidden
+            className="absolute inset-0"
+            style={{ background: `linear-gradient(180deg, transparent 20%, ${t.top} 100%)` }}
+          />
+          <span
+            className={`font-ui absolute left-2.5 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] backdrop-blur-sm ${t.pill}`}
+          >
+            {status}
+          </span>
+        </div>
+
+        <div className="min-h-0 flex-1 px-3.5 pt-1.5">
+          <p className="headline truncate text-[14.5px] leading-tight text-ink">{title}</p>
+          <p className="mt-1 truncate text-[11.5px] text-ink/55">{detail}</p>
+        </div>
+
+        <div
+          className={`font-ui flex shrink-0 items-center justify-between border-t border-dashed text-[12.5px] font-semibold ${t.line} ${t.cta}`}
+          style={{ height: STUB_CTA_H, marginLeft: NOTCH_R + 5, marginRight: NOTCH_R + 5 }}
         >
-          {status}
-        </span>
+          {cta}
+          <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        </div>
       </div>
 
-      <div className="px-3 pb-3 pt-2">
-        <p className="headline truncate text-[14px] leading-tight text-ink">{title}</p>
-        <p className="mt-1 truncate text-[11.5px] text-muted">{detail}</p>
-      </div>
-
-      {/* Tear line with side notches cut into the page background. */}
-      <div aria-hidden className="relative h-0">
-        <span className={`absolute -left-[7px] -top-[7px] h-[14px] w-[14px] rounded-full border bg-base ${t.notch}`} />
-        <span className={`absolute -right-[7px] -top-[7px] h-[14px] w-[14px] rounded-full border bg-base ${t.notch}`} />
-        <div className={`mx-3 border-t border-dashed ${t.line}`} />
-      </div>
-
-      <div className={`font-ui flex items-center justify-between px-3 py-2.5 text-[12.5px] font-semibold ${t.cta}`}>
-        {cta}
-        <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-      </div>
+      <svg
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        width={STUB_W}
+        height={STUB_H}
+        viewBox={`0 0 ${STUB_W} ${STUB_H}`}
+      >
+        <path d={TICKET_STROKE_PATH} fill="none" stroke={t.edge} strokeWidth={1} />
+      </svg>
     </Link>
   );
 }

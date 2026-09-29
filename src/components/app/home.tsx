@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,11 +10,7 @@ import {
   type BetaEvent,
   type BetaWeekday,
 } from "@/lib/beta-events";
-import {
-  dismissPastSellLeadsAction,
-  leaveWaitlistLeadAction,
-  updateWaitlistLeadAction,
-} from "@/domains/beta-quick/actions";
+import { dismissPastSellLeadsAction } from "@/domains/beta-quick/actions";
 import {
   buyerJourney,
   isWalletStage,
@@ -23,36 +19,18 @@ import {
   type BuyerJourney,
   type SellerStage,
 } from "@/domains/beta-quick/journey";
-import type { GoActivityEntry, QuickActionState, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
-import { QUICK_MAX_TICKETS } from "@/domains/beta-quick/shared";
+import type { GoActivityEntry, QuickWaitlistEntry } from "@/domains/beta-quick/shared";
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import {
   STARRY_SELL_BUTTON_CLASS,
   StarryButtonStars,
 } from "@/components/forms/starry-button";
-import { ArrowLeft, ChevronRight, InstagramIcon, SnapchatIcon } from "@/components/icons";
-import { COUNTRY_CODES } from "@/lib/country-codes";
-import { ContactFields, DEFAULT_COUNTRY_ISO2, QuantityStepper, composeQuickPhone } from "./flow-fields";
+import { ChevronRight, InstagramIcon, SnapchatIcon } from "@/components/icons";
 import { EventIntentView, EventPoster } from "./event-pieces";
 import { FixedPriceEventScreen } from "./fixed-price-event";
 import { EventRequestSection } from "./event-request";
 import { TicketStubCard, type StubTone } from "./journey";
-import {
-  FixedPriceQueueEmbedded,
-  isPredeterminedQueueEntry,
-} from "./queue";
-
-function splitSavedPhone(e164: string | null | undefined): { iso2: string; national: string } {
-  if (!e164) return { iso2: DEFAULT_COUNTRY_ISO2, national: "" };
-  const digits = e164.replace(/\D/g, "");
-  const sorted = [...COUNTRY_CODES].sort((a, b) => b.dial.length - a.dial.length);
-  for (const c of sorted) {
-    if (digits.startsWith(c.dial) && digits.length > c.dial.length) {
-      return { iso2: c.iso2, national: digits.slice(c.dial.length) };
-    }
-  }
-  return { iso2: DEFAULT_COUNTRY_ISO2, national: digits };
-}
+import { isPredeterminedQueueEntry } from "./queue";
 
 /**
  * Home. Deliberately shows tonight only — the whole board lives behind
@@ -72,18 +50,7 @@ export function AppHome({
   activity: GoActivityEntry[];
 }) {
   const [selected, setSelected] = useState<{ event: BetaEvent; day: BetaWeekday } | null>(null);
-  const [editing, setEditing] = useState<QuickWaitlistEntry | null>(null);
   const hasTonight = tonight.length > 0;
-
-  if (editing) {
-    const live = waitlist.find((e) => e.leadId === editing.leadId) ?? editing;
-    if (isPredeterminedQueueEntry(live)) {
-      return (
-        <FixedPriceQueueEmbedded entry={live} onBack={() => setEditing(null)} />
-      );
-    }
-    return <WaitlistEditView entry={live} onBack={() => setEditing(null)} />;
-  }
 
   if (selected) {
     if (selected.event.fixedPriceEach != null) {
@@ -145,7 +112,7 @@ export function AppHome({
       <div className="relative mt-5 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {walletTickets.length > 0 && (
           <section className="relative shrink-0">
-            <p className="section-header">
+            <p className="section-header text-emerald-400/80">
               {walletTickets.length === 1 ? "Your ticket" : "Your tickets"}
             </p>
             <ul className={WALLET_RAIL_CLASS}>
@@ -164,9 +131,9 @@ export function AppHome({
             <ul className="mt-2.5 flex flex-col gap-2">
               {openWaitlist.map((entry) => (
                 <li key={entry.leadId} className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(entry)}
+                  {/* Every seat opens its live waitlist page, where it can also be edited. */}
+                  <Link
+                    href={`/queue?lead=${entry.leadId}&event=${encodeURIComponent(entry.eventSlug)}`}
                     className="flex w-full items-center gap-3.5 rounded-[16px] bg-card px-3.5 py-3 text-left transition-colors hover:bg-[#1c1c20] active:bg-[#1c1c20]"
                   >
                     <WaitlistPositionBadge position={entry.position} />
@@ -186,7 +153,7 @@ export function AppHome({
                       </p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
-                  </button>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -554,158 +521,6 @@ function PastUnsoldSellNotice({
           {dismissPending ? "Removing…" : "Got it"}
         </button>
       </div>
-    </div>
-  );
-}
-
-function WaitlistEditView({
-  entry,
-  onBack,
-}: {
-  entry: QuickWaitlistEntry;
-  onBack: () => void;
-}) {
-  const router = useRouter();
-  const savedPhone = splitSavedPhone(entry.contactPhone);
-  const [quantity, setQuantity] = useState(
-    Math.min(QUICK_MAX_TICKETS, Math.max(1, entry.quantity)),
-  );
-  const [phoneCountry, setPhoneCountry] = useState(savedPhone.iso2);
-  const [phoneNational, setPhoneNational] = useState(savedPhone.national);
-  const [instagram, setInstagram] = useState(entry.contactInstagram ?? "");
-  const [leaveError, setLeaveError] = useState<string | null>(null);
-  const [leavePending, startLeave] = useTransition();
-  const [state, formAction, pending] = useActionState(
-    updateWaitlistLeadAction,
-    {} as QuickActionState,
-  );
-
-  const phone = composeQuickPhone(phoneCountry, phoneNational);
-  const phoneOk = phoneNational.replace(/\D/g, "").length >= 7;
-  const igOk = instagram.replace(/^@+/, "").trim().length >= 2;
-  const canSave = phoneOk || igOk;
-
-  const igNormalized = instagram.replace(/^@+/, "").trim();
-  const savedIg = (entry.contactInstagram ?? "").replace(/^@+/, "").trim();
-  const dirty =
-    quantity !== Math.min(QUICK_MAX_TICKETS, Math.max(1, entry.quantity)) ||
-    phone !== (entry.contactPhone ?? "") ||
-    igNormalized !== savedIg;
-
-  useEffect(() => {
-    if (state.ok) {
-      onBack();
-      router.refresh();
-    }
-  }, [state.ok, onBack, router]);
-
-  function onLeave() {
-    setLeaveError(null);
-    startLeave(async () => {
-      const result = await leaveWaitlistLeadAction(entry.leadId);
-      if (result.error) {
-        setLeaveError(result.error);
-        return;
-      }
-      onBack();
-      router.refresh();
-    });
-  }
-
-  // Only seats still waiting reach this view — held and paid seats open their
-  // journey from the wallet instead.
-  const statusHint = "We’ll notify you when a ticket is held for you.";
-
-  return (
-    <div className="relative flex flex-col gap-7">
-      <button
-        type="button"
-        onClick={onBack}
-        className="font-ui inline-flex items-center gap-2 self-start text-[13.5px] font-semibold text-muted"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </button>
-
-      <div className="flex items-start gap-4">
-        <p
-          className="font-ui shrink-0 text-[52px] font-bold leading-none tracking-tight tabular-nums text-brand sm:text-[56px]"
-          aria-label={`Position ${entry.position} in waitlist`}
-        >
-          {entry.position}
-        </p>
-        <div className="min-w-0 flex-1 pt-1">
-          <p className="section-header">Waitlist position</p>
-          <h1 className="headline mt-1.5 text-[22px] leading-[1.15] tracking-tight sm:text-[24px]">
-            {entry.eventName}
-          </h1>
-          <p className="mt-1.5 text-[13.5px] leading-snug text-muted">{statusHint}</p>
-        </div>
-      </div>
-
-      <form action={formAction} className="flex flex-col gap-6">
-        <input type="hidden" name="leadId" value={entry.leadId} />
-        <input type="hidden" name="quantity" value={quantity} />
-        <input type="hidden" name="contactPhone" value={phone} />
-        <input type="hidden" name="contactInstagram" value={igNormalized} />
-
-        <div>
-          <p className="font-ui mb-3 text-[13.5px] font-semibold tracking-tight text-ink">
-            Number of tickets (max {QUICK_MAX_TICKETS})
-          </p>
-          <QuantityStepper value={quantity} onChange={setQuantity} max={QUICK_MAX_TICKETS} />
-        </div>
-
-        <div>
-          <p className="font-ui mb-3 text-[13.5px] font-semibold tracking-tight text-ink">
-            Contact information
-          </p>
-          <ContactFields
-            phoneCountry={phoneCountry}
-            phoneNational={phoneNational}
-            instagram={instagram}
-            onPhoneCountry={setPhoneCountry}
-            onPhoneNational={setPhoneNational}
-            onInstagram={setInstagram}
-            hintAbove
-            hint="Enter at least one contact method below."
-          />
-        </div>
-
-        {(state.error || leaveError) && (
-          <p role="alert" className="text-[13.5px] text-urgency">
-            {state.error ?? leaveError}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={!canSave || !dirty || pending || leavePending}
-          className={`font-ui flex min-h-[52px] w-full items-center justify-center rounded-[14px] border-0 px-8 text-[15px] font-semibold tracking-tight transition-opacity ${
-            canSave && dirty && !pending && !leavePending
-              ? "bg-brand text-black hover:opacity-90"
-              : "cursor-not-allowed bg-brand/30 text-black/40"
-          }`}
-        >
-          {pending ? "Saving…" : "Save changes"}
-        </button>
-      </form>
-
-      <button
-        type="button"
-        onClick={onLeave}
-        disabled={pending || leavePending}
-        className="font-ui text-[14px] font-semibold text-urgency underline decoration-dotted underline-offset-4 disabled:opacity-50"
-      >
-        {leavePending ? "Leaving…" : "Leave this waitlist"}
-      </button>
-
-      <Link
-        href={`/buy?event=${encodeURIComponent(entry.eventSlug)}`}
-        className="font-ui text-center text-[13px] font-semibold text-muted underline decoration-dotted underline-offset-4"
-      >
-        Or update via “I need a ticket”
-      </Link>
     </div>
   );
 }
