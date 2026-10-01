@@ -253,6 +253,12 @@ export async function allocateNextForUnit(args: {
   unitId: string;
   now?: Date;
   doorsAt?: Date | null;
+  /**
+   * Offers this sweep already created, keyed by seat. A 2-ticket listing
+   * allocates each unit in turn; without this, both units can read "0 held"
+   * and both land on a buyer who only asked for one.
+   */
+  grantedThisPass?: Map<string, number>;
 }): Promise<MatchingResult> {
   const now = args.now ?? new Date();
   const admin = createAdminClient();
@@ -309,12 +315,14 @@ export async function allocateNextForUnit(args: {
       (seller.contactId != null && seller.contactId === meta.contactId) ||
       (seller.memberId != null && seller.memberId === meta.memberId);
 
+    const granted = args.grantedThisPass?.get(seat.key) ?? 0;
+    const held = meta.liveOfferCount + granted;
     const eligibility = seatEligibleForOffer({
       seatKey: seat.key,
       quantity: meta.quantity,
       maxPriceEach: meta.maxPriceEach,
       unitPriceEach: Number(unit.price_each),
-      liveOfferCount: meta.liveOfferCount,
+      liveOfferCount: held,
       isSeller,
       declinedAtOrAbove: meta.declinedAtOrAbove,
     });
@@ -322,7 +330,7 @@ export async function allocateNextForUnit(args: {
 
     const count = partialOfferCount({
       seatQuantity: meta.quantity,
-      liveOfferCount: meta.liveOfferCount,
+      liveOfferCount: held,
       freeUnits: 1,
     });
     if (count < 1) continue;
@@ -343,6 +351,11 @@ export async function allocateNextForUnit(args: {
     });
 
     if (rpcError) {
+      // Another unit just filled this seat. Try the next person for this ticket.
+      if (rpcError.message.includes("OFFER_SEAT_CAP_EXCEEDED")) {
+        args.grantedThisPass?.set(seat.key, meta.quantity);
+        continue;
+      }
       console.warn(
         JSON.stringify({
           level: "warn",
@@ -355,6 +368,8 @@ export async function allocateNextForUnit(args: {
     }
 
     if (!offerId) continue;
+
+    args.grantedThisPass?.set(seat.key, granted + 1);
 
     void logEvent({
       type: "waitlist_offer_sent",
@@ -715,8 +730,10 @@ export async function allocateAvailableUnitsForEvent(
 
   const offered: string[] = [];
   const skipped: string[] = [];
+  // Shared across units so a 2-ticket listing is two tickets, not one bundle.
+  const grantedThisPass = new Map<string, number>();
   for (const u of liveUnits.slice(0, 20)) {
-    const result = await allocateNextForUnit({ unitId: u.id, now });
+    const result = await allocateNextForUnit({ unitId: u.id, now, grantedThisPass });
     if (result.ok && result.id) offered.push(result.id);
     else if (result.ok && result.skipped) skipped.push(`${u.id}:${result.skipped}`);
   }
