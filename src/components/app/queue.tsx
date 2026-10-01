@@ -110,18 +110,23 @@ function MarketplaceLineView({
                 <LiveDots active={refreshing} label="Live position" />
               </div>
             </div>
-            <p className="mt-4 text-[16px] leading-relaxed text-ink/90">
-              {entry.onTonight === false
-                ? `This was your place on ${formatNightStamp(entry.createdAt)}. That night has passed, so it doesn't carry into tonight's line.`
-                : ahead === 0
-                  ? "You're at the front of the line for tonight."
+            {entry.onTonight === false ? (
+              <p className="mt-4 text-[16px] leading-relaxed text-ink/90">
+                This was your place on {formatNightStamp(entry.createdAt)}. That night has passed.
+              </p>
+            ) : entry.holdAheadExpiresAt ? (
+              <div className="mt-4">
+                <HoldAheadLine expiresAt={entry.holdAheadExpiresAt} peopleAhead={ahead} />
+              </div>
+            ) : (
+              <p className="mt-4 text-[16px] leading-relaxed text-ink/90">
+                {ahead === 0
+                  ? "You're first for tonight."
                   : ahead === 1
-                    ? "There's 1 person ahead of you tonight."
-                    : `There are ${ahead} people ahead of you tonight.`}{" "}
-              {entry.onTonight === false
-                ? "Join again from home if you still need a ticket for tonight."
-                : "When a ticket comes up at your price, we hold it just for you — nobody else can take it while you decide."}
-            </p>
+                    ? "1 person ahead of you tonight."
+                    : `${ahead} people ahead of you tonight.`}
+              </p>
+            )}
             <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
               {reach ? `We'll message you ${reach} the moment it's yours. ` : ""}
               You can close this page — your spot is saved on home.
@@ -555,4 +560,52 @@ function formatCountdown(ms: number): string {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/** Live line under a waitlist seat: time left on the hold ahead, and who it moves to. */
+export function HoldAheadLine({
+  expiresAt,
+  peopleAhead,
+  compact = false,
+}: {
+  expiresAt: string;
+  peopleAhead: number;
+  compact?: boolean;
+}) {
+  const deadline = Date.parse(expiresAt);
+  const remaining = useCountdown(Number.isFinite(deadline) ? deadline : Date.now());
+  const clock = formatCountdown(remaining);
+  const people =
+    peopleAhead <= 0
+      ? null
+      : peopleAhead === 1
+        ? "1 person ahead"
+        : `${peopleAhead} people ahead`;
+  const outcome =
+    remaining <= 0
+      ? "Moving to the next person."
+      : peopleAhead <= 1
+        ? "If they don't accept, it's yours."
+        : "If they don't accept, it goes to the next person.";
+
+  return (
+    <p
+      className={
+        compact
+          ? "mt-0.5 truncate text-[12.5px] leading-snug text-muted"
+          : "text-[16px] leading-relaxed text-ink/90"
+      }
+    >
+      <span className="font-ui font-semibold tabular-nums text-ink">{clock}</span>
+      {" left"}
+      {people ? (
+        <>
+          {" · "}
+          <span className="font-ui font-semibold tabular-nums text-ink">{people}</span>
+        </>
+      ) : null}
+      {". "}
+      {outcome}
+    </p>
+  );
 }

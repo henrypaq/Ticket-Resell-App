@@ -74,10 +74,6 @@ export function SellersOffersBoard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Sellers</h1>
-          <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
-            Tonight is only {tonightLabel}. Listings from earlier nights stay under Previous days
-            and are not counted as tickets for sale tonight.
-          </p>
         </div>
         <BackfillButton />
       </div>
@@ -88,7 +84,7 @@ export function SellersOffersBoard({
         defaultOpen
       >
         {tonight.length === 0 ? (
-          <p className="text-xs text-zinc-500">No active sellers for tonight.</p>
+          <p className="text-xs text-zinc-500">None</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {tonight.map((lead) => (

@@ -30,7 +30,7 @@ import { EventIntentView, EventPoster } from "./event-pieces";
 import { FixedPriceEventScreen } from "./fixed-price-event";
 import { EventRequestSection } from "./event-request";
 import { TicketStubCard, type StubTone } from "./journey";
-import { isPredeterminedQueueEntry } from "./queue";
+import { HoldAheadLine, isPredeterminedQueueEntry } from "./queue";
 
 /**
  * Home. Deliberately shows tonight only — the whole board lives behind
@@ -157,6 +157,13 @@ export function AppHome({
                           ? " · Interac sent — in queue"
                           : null}
                       </p>
+                      {entry.holdAheadExpiresAt ? (
+                        <HoldAheadLine
+                          compact
+                          expiresAt={entry.holdAheadExpiresAt}
+                          peopleAhead={Math.max(0, entry.position - 1)}
+                        />
+                      ) : null}
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted/70" />
                   </Link>

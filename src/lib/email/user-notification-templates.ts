@@ -192,6 +192,8 @@ export type LifecycleEmailArgs = {
   price: number;
   offerId?: string;
   deadline?: string;
+  /** Minutes the person ahead has to accept, for the next-up note. */
+  holdMinutes?: number;
   eventSlug?: string | null;
   transferName?: string;
   transferEmail?: string;
@@ -516,10 +518,12 @@ export function waitlistJoinedEmail(args: LifecycleEmailArgs): UserEmailContent 
 
 export function nextUpEmail(args: LifecycleEmailArgs): UserEmailContent {
   const subject = `You're next — ${args.eventName}`;
-  const preheader = "No action needed yet.";
-  const text = `You're next in line for ${args.eventName} if the current hold falls through. No action needed yet.\n\n— mcgill.tickets`;
+  const minutes = args.holdMinutes && args.holdMinutes > 0 ? args.holdMinutes : 10;
+  const preheader = `They have ${minutes} minutes. If they don't accept, it's yours.`;
+  const line = `You're next for ${args.eventName}. They have ${minutes} minutes to accept. If they don't, it's yours.`;
+  const text = `${line}\n\n— mcgill.tickets`;
   const bodyHtml = p(
-    `You're next in line for ${strong(args.eventName)} if the current hold falls through. No action needed yet.`,
+    `You're next for ${strong(args.eventName)}. They have ${strong(`${minutes} minutes`)} to accept. If they don't, it's yours.`,
   );
   return wrap(subject, text, preheader, "You're next.", bodyHtml, {
     eventCard: eventCardFromArgs(args, "next in line"),

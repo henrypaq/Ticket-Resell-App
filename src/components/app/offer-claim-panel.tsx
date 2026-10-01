@@ -248,8 +248,7 @@ export function OfferClaimPanel({
             </p>
           </div>
           <Lead>
-            Nobody else can buy this ticket while it&apos;s held for you. Answer before the timer
-            runs out or it moves to the next person in line.
+            If you don&apos;t accept before the timer runs out, it goes to the next person.
           </Lead>
           <div className="mt-6">
             <CountdownDisplay

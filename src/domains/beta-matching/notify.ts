@@ -7,6 +7,7 @@
 
 import "server-only";
 
+import { MATCHING_DEFAULTS } from "@/domains/beta-matching/policy";
 import { defer } from "@/lib/defer";
 import { sendEmail } from "@/lib/email/resend";
 import {
@@ -273,6 +274,8 @@ async function sendNotify(
     flyerUrl: event ? absoluteFlyerUrl(event.flyerUrl, origin) : null,
     eventDay: event ? betaEventDayLabel(event) : null,
     eventCity: event?.city ?? null,
+    holdMinutes:
+      kind === "next_up" ? Math.round(MATCHING_DEFAULTS.responseMs / 60_000) : undefined,
   });
 
   // SMS intentionally off until Twilio is productized.

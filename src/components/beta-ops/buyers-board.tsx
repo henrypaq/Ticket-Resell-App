@@ -18,7 +18,6 @@ import {
 import { formatNightStamp } from "@/lib/beta-events";
 import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 export type BuyerOfferRow = {
   id: string;
@@ -68,10 +67,6 @@ export function BuyersBoard({
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Buyers</h1>
-        <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
-          Tonight is only {tonightLabel}. Anyone who joined on an earlier night is under Previous
-          days, and they are not ahead in tonight&apos;s line.
-        </p>
       </div>
 
       <DayDrawer
@@ -80,7 +75,7 @@ export function BuyersBoard({
         defaultOpen
       >
         {tonight.length === 0 ? (
-          <p className="text-xs text-zinc-500">No active buyers for tonight.</p>
+          <p className="text-xs text-zinc-500">None</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {tonight.map((entry) => (
@@ -174,32 +169,42 @@ function BuyerRow({
     });
   }
 
+  const matched = liveOffers.length > 0;
+  const headline = liveOffers[0];
+
   return (
-    <li className="rounded-lg bg-zinc-950/50">
+    <li
+      className={`overflow-hidden rounded-xl ${
+        matched
+          ? "bg-amber-400/[0.08] ring-1 ring-amber-300/50"
+          : "bg-zinc-950/50 ring-1 ring-white/[0.04]"
+      }`}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2.5 px-3 py-2 text-left focus:outline-none"
+        className="flex w-full items-center gap-3 px-3 py-3 text-left focus:outline-none"
         aria-expanded={open}
       >
-        <span className="w-7 shrink-0 text-[11px] font-semibold tabular-nums text-zinc-500">
-          #{entry.displayedPosition}
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-ui text-[15px] font-bold tabular-nums ${
+            matched ? "bg-amber-300 text-zinc-950" : "bg-zinc-900 text-zinc-400"
+          }`}
+        >
+          {entry.displayedPosition}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="truncate text-[12px] font-medium text-zinc-200">{label}</span>
-            <Badge variant="subtle" className="px-1.5 py-0 text-[9px]">
+            <span className="truncate text-[14px] font-semibold text-zinc-100">{label}</span>
+            <span className="rounded-full bg-zinc-900 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-300">
               ×{entry.quantity}
-            </Badge>
-            {liveOffers.length > 0 && (
-              <Badge variant="accent" className="px-1.5 py-0 text-[9px]">
-                {liveOffers[0]!.status}
-              </Badge>
-            )}
+            </span>
+            {headline && <OfferPill status={headline.status} />}
           </div>
-          <p className="mt-0.5 truncate text-[10px] text-zinc-500">
-            {formatNightStamp(entry.createdAt)} · {entry.eventName} · {entry.source}
-            {entry.status !== "classic" ? ` · ${entry.status}` : ""}
+          <p className="mt-0.5 truncate text-[12px] text-zinc-400">
+            {entry.eventName}
+            <span className="text-zinc-600"> · </span>
+            {formatNightStamp(entry.createdAt)}
           </p>
         </div>
         <span className="shrink-0 text-zinc-500">
@@ -208,20 +213,20 @@ function BuyerRow({
       </button>
 
       {open && (
-        <div className="space-y-2 border-t border-zinc-800/60 px-3 pb-2.5 pt-2">
-          <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
+        <div className="space-y-3 border-t border-white/[0.06] px-3 pb-3 pt-3">
+          <div className="flex flex-wrap items-center gap-2 text-[12px] text-zinc-300">
             {href && (
               <a
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sky-300 hover:underline"
+                className="rounded-full bg-zinc-100 px-3 py-1 text-[12px] font-semibold text-zinc-950"
                 onClick={(e) => e.stopPropagation()}
               >
                 Contact
               </a>
             )}
-            {entry.email && <span className="truncate">{entry.email}</span>}
+            {entry.email && <span className="truncate text-zinc-400">{entry.email}</span>}
             <OpsDeleteButton
               confirmMessage={`Remove ${label} from ${entry.eventName}?`}
               onConfirm={() => deleteWaitlistEntryAction(entry.source, entry.id)}
@@ -229,7 +234,7 @@ function BuyerRow({
           </div>
 
           {entry.goLead && (
-            <div className="flex flex-wrap gap-1">
+            <div className="grid grid-cols-5 gap-1">
               {LEAD_STATUSES.map((s) => (
                 <Button
                   key={s}
@@ -237,7 +242,9 @@ function BuyerRow({
                   size="sm"
                   variant={entry.status === s ? "default" : "outline"}
                   disabled={pending}
-                  className="h-6 px-2 text-[10px] uppercase"
+                  className={`h-8 px-1 text-[10px] capitalize ${
+                    entry.status === s ? "bg-zinc-100 text-zinc-950" : "text-zinc-400"
+                  }`}
                   onClick={() => setStatus(s)}
                 >
                   {s}
@@ -246,42 +253,10 @@ function BuyerRow({
             </div>
           )}
 
-          {offers.length === 0 ? (
-            <p className="text-[10px] text-zinc-600">No exclusive offers yet for this seat.</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5">
+          {offers.length > 0 && (
+            <ul className="flex flex-col gap-2">
               {offers.map((o) => (
-                <li
-                  key={o.id}
-                  className="rounded-md bg-zinc-900/70 px-2 py-1.5 text-[11px] text-zinc-300"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary" className="text-[10px]">
-                      {o.status}
-                    </Badge>
-                    <span>
-                      rank {o.rank} · ${Number(o.price_each).toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 font-mono text-[10px] text-zinc-500">
-                    exp {new Date(o.expires_at).toLocaleString()}
-                    {o.buyer_declared_sent_at ? " · says sent" : ""}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {o.status === "offered" && (
-                      <>
-                        <MiniAction label="Accept" onClick={() => acceptOfferAction(o.id)} />
-                        <MiniAction
-                          label="Pass"
-                          onClick={() => declineOfferAction(o.id, "price")}
-                        />
-                      </>
-                    )}
-                    {(o.status === "accepted" || o.status === "offered") && (
-                      <MarkPaidMini offerId={o.id} amount={Number(o.price_each)} />
-                    )}
-                  </div>
-                </li>
+                <OfferCard key={o.id} offer={o} />
               ))}
             </ul>
           )}
@@ -289,6 +264,81 @@ function BuyerRow({
       )}
     </li>
   );
+}
+
+function OfferCard({ offer }: { offer: BuyerOfferRow }) {
+  const price = Number(offer.price_each);
+  const tone = offerTone(offer.status);
+  return (
+    <li className={`rounded-xl px-3.5 py-3 ${tone}`}>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <OfferPill status={offer.status} />
+          <p className="font-ui mt-1 text-[32px] font-bold leading-none tabular-nums text-zinc-50">
+            ${Number.isFinite(price) ? price.toFixed(0) : "—"}
+          </p>
+        </div>
+        <p className="pb-1 text-right text-[12px] text-zinc-300">
+          {shortWhen(offer.expires_at)}
+          {offer.buyer_declared_sent_at ? " · sent" : ""}
+        </p>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {offer.status === "offered" && (
+          <>
+            <MiniAction label="Accept" onClick={() => acceptOfferAction(offer.id)} />
+            <MiniAction label="Pass" onClick={() => declineOfferAction(offer.id, "price")} />
+          </>
+        )}
+        {(offer.status === "accepted" || offer.status === "offered") && (
+          <MarkPaidMini offerId={offer.id} amount={price} />
+        )}
+      </div>
+    </li>
+  );
+}
+
+function OfferPill({ status }: { status: string }) {
+  const live = status === "offered" || status === "accepted" || status === "paid";
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+        status === "paid"
+          ? "bg-emerald-400 text-zinc-950"
+          : live
+            ? "bg-amber-300 text-zinc-950"
+            : "bg-zinc-800 text-zinc-300"
+      }`}
+    >
+      {offerLabel(status)}
+    </span>
+  );
+}
+
+function offerLabel(status: string) {
+  if (status === "needs_review") return "Review";
+  if (status === "expired_no_response" || status === "expired_unpaid") return "Expired";
+  if (status === "payment_failed") return "Failed";
+  return status.replace(/_/g, " ");
+}
+
+function offerTone(status: string) {
+  if (status === "paid") return "bg-emerald-400/10 ring-1 ring-emerald-300/40";
+  if (status === "offered" || status === "accepted") return "bg-amber-300/10 ring-1 ring-amber-300/35";
+  if (status === "needs_review") return "bg-sky-400/10 ring-1 ring-sky-300/30";
+  return "bg-zinc-900/80 ring-1 ring-white/[0.04]";
+}
+
+function shortWhen(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-US", {
+    timeZone: "America/Toronto",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function contactLabel(entry: OpsWaitlistEntry) {
@@ -325,7 +375,7 @@ function MiniAction({
       size="sm"
       variant="outline"
       disabled={pending}
-      className="h-6 px-2 text-[10px]"
+      className="h-9 rounded-lg px-3 text-[13px] font-semibold"
       onClick={() => {
         start(async () => {
           const r = await onClick();
@@ -348,7 +398,7 @@ function MarkPaidMini({ offerId, amount }: { offerId: string; amount: number }) 
       size="sm"
       variant="outline"
       disabled={pending}
-      className="h-6 px-2 text-[10px]"
+      className="h-9 rounded-lg px-3 text-[13px] font-semibold"
       onClick={() => {
         const raw = window.prompt("E-transfer amount (CAD)", String(amount));
         if (raw === null) return;

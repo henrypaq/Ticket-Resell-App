@@ -225,74 +225,35 @@ export function formatNightStamp(isoOrDate: string | Date = new Date()): string 
 
 type NightScopedEvent = Pick<BetaEvent, "days" | "extraDateKeys">;
 
-function scheduledDateKeys(event: NightScopedEvent | undefined): string[] {
-  return (event?.extraDateKeys ?? []).filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k));
-}
-
 /**
- * A listing or waitlist seat belongs to one nightlife date.
- *
- * Recurring venues (Café Campus every Tue–Sat) reset each night: a ticket
- * listed on the 24th is not inventory on the 30th, and someone who joined
- * that night is not ahead of tonight's line.
- *
- * A one-off show keeps a single line until its scheduled date passes. People
- * who joined earlier still belong to that show, and only that show.
- *
- * Interest with no dates stays on one ongoing line.
+ * A lead or listing belongs to exactly one nightlife date: the night it was
+ * created. Café, a one-off, and an undated interest all follow that rule, so
+ * a 10/09 Piknik signup is not in the 30/09 line.
  */
 export function belongsToNightlifeDate(
   createdAtIso: string,
-  event: NightScopedEvent | undefined,
+  _event: NightScopedEvent | undefined,
   nightDateKey: string,
 ): boolean {
   const created = nightlifeDateKeyFromIso(createdAtIso);
-  if (!created) return false;
-  const extras = scheduledDateKeys(event);
-  if (!event || event.days.length > 0 || extras.length === 0) {
-    if (event && event.days.length === 0 && extras.length === 0) return true;
-    return created === nightDateKey;
-  }
-  if (!extras.includes(nightDateKey)) return false;
-  return created <= nightDateKey;
+  return created != null && created === nightDateKey;
 }
 
-/**
- * Live for matching, public counts, and ops "tonight": tonight's nightlife
- * date for recurring venues, or the next scheduled one-off that hasn't passed.
- */
+/** Live for matching, public counts, and ops "tonight". */
 export function belongsToLiveNight(
   createdAtIso: string,
   event: NightScopedEvent | undefined,
   now: Date = new Date(),
 ): boolean {
-  const extras = scheduledDateKeys(event);
-  if (event && event.days.length === 0 && extras.length > 0) {
-    const tonight = nightlifeDateKey(now);
-    const upcoming = extras.filter((k) => k >= tonight).sort();
-    if (upcoming.length === 0) return false;
-    return belongsToNightlifeDate(createdAtIso, event, upcoming[0]!);
-  }
-  if (event && event.days.length === 0 && extras.length === 0) return true;
   return belongsToNightlifeDate(createdAtIso, event, nightlifeDateKey(now));
 }
 
-/**
- * Two seats share a queue number when they're for the same night.
- * One-offs and undated interest share one line; recurring venues do not.
- */
+/** Two seats share a queue number only when they joined the same night. */
 export function sameQueueCohort(
   aCreatedAt: string,
   bCreatedAt: string,
-  event: NightScopedEvent | undefined,
+  _event: NightScopedEvent | undefined,
 ): boolean {
-  const extras = scheduledDateKeys(event);
-  if (event && event.days.length === 0) return true;
-  if (!event && extras.length === 0) {
-    const a = nightlifeDateKeyFromIso(aCreatedAt);
-    const b = nightlifeDateKeyFromIso(bCreatedAt);
-    return a != null && a === b;
-  }
   const a = nightlifeDateKeyFromIso(aCreatedAt);
   const b = nightlifeDateKeyFromIso(bCreatedAt);
   return a != null && a === b;

@@ -83,8 +83,8 @@ describe("ops waitlist and sellers partitioning", () => {
 
     const { active, past } = partitionWaitlistEntries(entries, saturdayNow);
 
-    expect(past.map((e) => e.id)).toEqual(["thursday-lead", "friday-lead"]);
-    expect(active.map((e) => e.id)).toEqual(["sunday-lead", "saturday-lead"]);
+    expect(past.map((e) => e.id)).toEqual(["thursday-lead", "friday-lead", "sunday-lead"]);
+    expect(active.map((e) => e.id)).toEqual(["saturday-lead"]);
   });
 
   it("keeps a 24/09 café buyer out of tonight on 30/09", () => {

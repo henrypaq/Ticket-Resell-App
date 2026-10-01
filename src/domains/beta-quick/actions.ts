@@ -475,6 +475,7 @@ export async function loadBuyAvailabilityAction(
   availableUnits: number;
   demandAhead: number;
   canCheckoutNow: boolean;
+  averagePriceEach: number | null;
 } | null> {
   const slug = (eventSlug || "").trim();
   if (!slug || slug.length > 80) return null;

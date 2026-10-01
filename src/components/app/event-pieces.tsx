@@ -41,6 +41,7 @@ export function EventIntentView({
     availableUnits: number;
     demandAhead: number;
     canCheckoutNow: boolean;
+    averagePriceEach: number | null;
   } | null>(null);
 
   useEffect(() => {
@@ -62,7 +63,11 @@ export function EventIntentView({
       footer={
         <>
           <Link href={buyHref} className={`${BUTTON_CLASS} w-full`}>
-            I need a ticket
+            {availability == null
+              ? "I need a ticket"
+              : availability.canCheckoutNow
+                ? "Get ticket"
+                : "Join waitlist"}
           </Link>
           <Link href={sellHref} className={`${STARRY_SELL_BUTTON_CLASS} min-h-[52px]`}>
             <StarryButtonStars />
@@ -85,12 +90,9 @@ export function EventIntentView({
         )}
         {showBlurb && <p className="text-[14.5px] leading-relaxed text-muted">{event.blurb}</p>}
 
-        <ListedTonight
+        <TicketAvailability
           units={availability?.availableUnits ?? null}
-          waiting={availability?.demandAhead ?? null}
-          ready={Boolean(availability?.canCheckoutNow)}
-          tonight={night.isTonight}
-          whenLabel={formatBetaEventWhenShort(day)}
+          averagePrice={availability?.averagePriceEach ?? null}
         />
 
         {/*
@@ -107,57 +109,36 @@ export function EventIntentView({
   );
 }
 
-function ListedTonight({
+export function TicketAvailability({
   units,
-  waiting,
-  ready,
-  tonight,
-  whenLabel,
+  averagePrice,
 }: {
   units: number | null;
-  waiting: number | null;
-  ready: boolean;
-  tonight: boolean;
-  whenLabel: string;
+  averagePrice: number | null;
 }) {
-  const n = units ?? 0;
-  const hasTickets = n > 0;
-  const noun = n === 1 ? "ticket listed" : "tickets listed";
+  if (units == null) return null;
+  const hasTickets = units > 0;
   return (
     <div
       className={`rounded-[22px] px-5 py-5 ${
         hasTickets ? "bg-brand/[0.12] ring-1 ring-brand/45" : "bg-white/[0.04] ring-1 ring-white/10"
       }`}
     >
-      <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
-        {tonight ? "Listed tonight" : `Listed · ${whenLabel}`}
+      <p
+        className={`font-ui text-[64px] font-bold leading-none tabular-nums tracking-tight ${
+          hasTickets ? "text-brand" : "text-ink/35"
+        }`}
+      >
+        {units}
       </p>
-      <div className="mt-1 flex items-end gap-3">
-        <p
-          className={`font-ui text-[68px] font-bold leading-none tabular-nums tracking-tight ${
-            hasTickets ? "text-brand" : "text-ink/35"
-          }`}
-        >
-          {units == null ? "–" : n}
-        </p>
-        <p className={`mb-2.5 max-w-[12ch] text-[15px] font-medium leading-tight ${hasTickets ? "text-ink" : "text-muted"}`}>
-          {units == null ? "Checking this night" : noun}
-        </p>
-      </div>
-      {waiting != null && waiting > 0 && (
-        <p className="mt-1 text-[13.5px] font-medium text-ink/80">
-          {waiting} {waiting === 1 ? "person" : "people"} already in line for this night
+      <p className="mt-1 text-[16px] font-medium text-ink">
+        {units === 1 ? "ticket available" : "tickets available"}
+      </p>
+      {averagePrice != null && (
+        <p className="mt-3 text-[15px] text-ink">
+          Average ticket price: {formatCad(averagePrice)}
         </p>
       )}
-      <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
-        {units == null
-          ? "Checking what's listed for this night…"
-          : ready
-            ? "A ticket is up for this night. The first buyer to finish gets it held just for them."
-            : hasTickets
-              ? "These tickets are for this night only. Others are ahead, so join and we'll hold one when it's your turn."
-              : "Nothing listed for this night yet. Join the line and we'll message you the moment a ticket is held for you."}
-      </p>
     </div>
   );
 }
@@ -190,7 +171,7 @@ export function EventPoster({
         />
         {listedCount > 0 && (
           <span className="font-ui absolute right-1.5 top-1.5 rounded-full bg-brand px-2 py-1 text-[11px] font-bold leading-none tabular-nums text-black shadow-[0_4px_14px_rgba(0,0,0,0.35)]">
-            {listedCount} listed
+            {listedCount} available
           </span>
         )}
         <div className="absolute inset-x-0 bottom-0 p-2 text-left">

@@ -22,6 +22,7 @@ import {
   composeQuickPhone,
 } from "./flow-fields";
 import { FixedPriceEventScreen } from "./fixed-price-event";
+import { TicketAvailability } from "./event-pieces";
 import { logFlowCompleted, useBetaFlowStepLog } from "./use-beta-flow-log";
 
 const initial: QuickActionState = {};
@@ -72,14 +73,18 @@ export function QuickBuyFlow({
   const [transferFirstName, setTransferFirstName] = useState("");
   const [transferLastName, setTransferLastName] = useState("");
   const [transferEmail, setTransferEmail] = useState("");
-  const [maxPriceEach, setMaxPriceEach] = useState("");
   const [transferOpen, setTransferOpen] = useState(false);
   const [state, formAction, pending] = useActionState(submitQuickBuyAction, initial);
   // Keyed by the slug it was fetched for, so switching events can't show the
   // previous night's numbers and the stale value needs no reset effect.
   const [availabilityFor, setAvailabilityFor] = useState<{
     slug: string;
-    data: { availableUnits: number; demandAhead: number; canCheckoutNow: boolean };
+    data: {
+      availableUnits: number;
+      demandAhead: number;
+      canCheckoutNow: boolean;
+      averagePriceEach: number | null;
+    };
   } | null>(null);
   const availability = availabilityFor?.slug === eventSlug ? availabilityFor.data : null;
 
@@ -169,10 +174,10 @@ export function QuickBuyFlow({
   const submitLabel =
     pending || redirecting
       ? availability?.canCheckoutNow
-        ? "Checking out…"
+        ? "Getting ticket…"
         : "Joining…"
       : availability?.canCheckoutNow
-        ? "Continue to checkout"
+        ? "Get ticket"
         : "Join waitlist";
 
   function goNext() {
@@ -266,10 +271,6 @@ export function QuickBuyFlow({
         <input type="hidden" name="transferFirstName" value={transferFirstName.trim()} />
         <input type="hidden" name="transferLastName" value={transferLastName.trim()} />
         <input type="hidden" name="transferEmail" value={transferEmail.trim()} />
-        {maxPriceEach.trim() !== "" && (
-          <input type="hidden" name="maxPriceEach" value={maxPriceEach.trim()} />
-        )}
-
         <JourneyProgress current={stepIndex} total={totalSteps} />
 
         <div key={step} className="mt-6 flex flex-col gap-6">
@@ -284,75 +285,16 @@ export function QuickBuyFlow({
             <>
               <StepHeading eyebrow={stepLabel} title="How many tickets?" />
               <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
-              {availability && (
-                <div
-                  className={`rounded-[22px] px-5 py-4 ${
-                    availability.availableUnits > 0
-                      ? "bg-brand/[0.12] text-ink ring-1 ring-brand/45"
-                      : "bg-white/[0.04] text-muted ring-1 ring-white/10"
-                  }`}
-                >
-                  <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
-                    Listed tonight
-                  </p>
-                  <div className="mt-1 flex items-end gap-3">
-                    <p
-                      className={`font-ui text-[56px] font-bold leading-none tabular-nums tracking-tight ${
-                        availability.availableUnits > 0 ? "text-brand" : "text-ink/35"
-                      }`}
-                    >
-                      {availability.availableUnits}
-                    </p>
-                    <p className="mb-2 text-[14px] font-medium leading-tight text-ink">
-                      {availability.availableUnits === 1 ? "ticket for this night" : "tickets for this night"}
-                    </p>
-                  </div>
-                  <p className="mt-1 text-[13.5px] leading-relaxed text-muted">
-                    {availability.canCheckoutNow
-                      ? quantity === 1
-                        ? "A ticket is up right now. Finish these steps to claim an exclusive hold — only one buyer gets each ticket."
-                        : `${quantity} tickets are up right now. Finish to claim exclusive holds — each ticket goes to only one buyer.`
-                      : availability.availableUnits > 0
-                        ? "These are tonight's tickets only. Others are already in line, so finish to join and we'll hold one when it's your turn."
-                        : availability.demandAhead > 0
-                          ? `${availability.demandAhead} ${availability.demandAhead === 1 ? "person is" : "people are"} already in line for tonight. Finish to join behind them.`
-                          : "Nothing listed for tonight yet. Finish to join — you'll be first in line until someone lists a ticket."}
-                  </p>
-                </div>
-              )}
-              <Field
-                label="The most you'd pay per ticket (optional)"
-                htmlFor="maxPriceEach"
-              >
-                <input
-                  id="maxPriceEach"
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  placeholder="e.g. 40"
-                  value={maxPriceEach}
-                  onChange={(e) => setMaxPriceEach(e.target.value)}
-                  className={FIELD_CLASS}
-                />
-              </Field>
-              <p className="-mt-3 text-[12.5px] text-muted">
-                We only hold tickets at or below this. Leave blank for no maximum.
-              </p>
+              <TicketAvailability
+                units={availability?.availableUnits ?? null}
+                averagePrice={availability?.averagePriceEach ?? null}
+              />
             </>
           )}
 
           {step >= 2 && (
             <>
-              <StepHeading
-                eyebrow={stepLabel}
-                title="How should we reach you?"
-                hint={
-                  availability?.canCheckoutNow
-                    ? "Finish these details to try for an exclusive hold. If someone else claims it first, you’ll stay on the waitlist."
-                    : "We’ll message you the moment a ticket is held exclusively for you."
-                }
-              />
+              <StepHeading eyebrow={stepLabel} title="How should we reach you?" />
               <ContactFields
                 phoneCountry={phoneCountry}
                 phoneNational={phoneNational}

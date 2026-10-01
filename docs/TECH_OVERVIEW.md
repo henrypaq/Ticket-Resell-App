@@ -275,9 +275,10 @@ Pure functions, no I/O, no clock of their own. Every entry point takes `now`.
 
 ```
 MATCHING_DEFAULTS
-  responseMs            45 min   offered → accept/decline
+  responseMs            10 min   offered → accept/decline
   paymentMs              2 h     accepted → paid
-  shortResponseMs       20 min   both clocks, inside the short window
+  shortResponseMs       10 min   accept clock, inside the short window
+  shortPaymentMs        20 min   payment clock, inside the short window
   shortWindowMs          6 h     to doors → short clocks
   openWindowMs           2 h     to doors → no exclusivity at all
   exclusivityMaxRanks    3       ranks tried before the unit opens up
@@ -287,7 +288,7 @@ MATCHING_DEFAULTS
 **Three modes, chosen by distance to doors** (`matchingModeAt`):
 
 - `exclusive` — full clocks, one holder at a time.
-- `short_window` (≤6 h) — clocks compress to 20 minutes.
+- `short_window` (≤6 h) — accept clock stays 10 minutes; payment clock is 20 minutes.
 - `open` (≤2 h) — exclusivity is suspended entirely. `acceptOffer` refuses:
   *"Too close to doors — claim only when payment is confirmed."* First money
   wins, because parking a ticket on an unpaid promise an hour before doors
@@ -318,7 +319,7 @@ above is what stops a non-responder from parking a ticket.
                     ┌──── live (occupies the unit) ────┐
   allocate  ──→  offered ──accept──→ accepted ──ops confirms──→ paid
                     │                   │                        │
-                    │ 45 min            │ 2 h                    └→ payout_released_at
+                    │ 10 min            │ 2 h                    └→ payout_released_at
                     ↓                   ↓
           expired_no_response     expired_unpaid        needs_review (ambiguous payment)
                     │                   │

@@ -168,25 +168,12 @@ describe("beta-events and nightlife date calculations", () => {
     expect(sameQueueCohort(joinedTonight, "2026-09-30T23:00:00Z", cafe)).toBe(true);
   });
 
-  it("drops a one-off after its scheduled date and keeps early joiners until then", () => {
-    const show: BetaEvent = {
-      slug: "one-night",
-      name: "One night",
-      venue: "Venue",
-      city: "Montreal",
-      blurb: "",
-      flyerUrl: "/flyers/cafe-campus.jpg",
-      days: [],
-      extraDateKeys: ["2026-09-24"],
-      supported: true,
-    };
-    const september30 = new Date("2026-09-30T22:00:00Z");
-    expect(belongsToLiveNight("2026-09-20T18:00:00Z", show, september30)).toBe(false);
-    expect(belongsToLiveNight("2026-09-24T18:00:00Z", show, new Date("2026-09-24T22:00:00Z"))).toBe(
-      true,
-    );
-    expect(belongsToLiveNight("2026-09-20T18:00:00Z", show, new Date("2026-09-24T22:00:00Z"))).toBe(
-      true,
-    );
+  it("keeps other events' earlier nights out of tonight", () => {
+    const piknik = betaEventBySlug("piknik-electronik");
+    const wednesday = new Date("2026-09-30T22:00:00Z");
+    expect(belongsToLiveNight("2026-09-10T18:00:00Z", piknik, wednesday)).toBe(false);
+    expect(belongsToLiveNight("2026-09-14T22:00:00Z", undefined, wednesday)).toBe(false);
+    expect(belongsToLiveNight("2026-09-30T18:00:00Z", piknik, wednesday)).toBe(true);
+    expect(sameQueueCohort("2026-09-10T18:00:00Z", "2026-09-30T18:00:00Z", piknik)).toBe(false);
   });
 });

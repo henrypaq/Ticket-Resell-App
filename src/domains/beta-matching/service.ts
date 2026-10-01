@@ -750,6 +750,7 @@ export async function previewBuyAvailability(
   availableUnits: number;
   demandAhead: number;
   canCheckoutNow: boolean;
+  averagePriceEach: number | null;
 }> {
   const qty = Math.max(1, Math.min(2, Math.floor(quantity) || 1));
   const admin = createAdminClient();
@@ -763,19 +764,28 @@ export async function previewBuyAvailability(
   const [{ data: unitRows }, seats] = await Promise.all([
     admin
       .from("beta_ticket_units")
-      .select("created_at")
+      .select("created_at, price_each")
       .eq("event_slug", eventSlug)
       .eq("status", "available"),
     listUnifiedQueueSeats(eventSlug, now),
   ]);
 
+  const nightUnits = (unitRows ?? []).filter((row) => onThisNight(String(row.created_at)));
+  const prices = nightUnits
+    .map((row) => Number(row.price_each))
+    .filter((price) => Number.isFinite(price) && price >= 0);
+  const averagePriceEach =
+    prices.length > 0
+      ? Math.round((prices.reduce((sum, price) => sum + price, 0) / prices.length) * 100) / 100
+      : null;
   const nightSeats = seats.filter((seat) => onThisNight(seat.createdAt));
-  const available = (unitRows ?? []).filter((row) => onThisNight(String(row.created_at))).length;
+  const available = nightUnits.length;
   if (nightSeats.length === 0) {
     return {
       availableUnits: available,
       demandAhead: 0,
       canCheckoutNow: available >= qty,
+      averagePriceEach,
     };
   }
 
@@ -799,6 +809,7 @@ export async function previewBuyAvailability(
     availableUnits: available,
     demandAhead,
     canCheckoutNow: surplus >= qty,
+    averagePriceEach,
   };
 }
 

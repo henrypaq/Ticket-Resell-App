@@ -873,6 +873,21 @@ export async function getQuickWaitlistEntries(
     .in("buy_lead_id", ids)
     .order("offered_at", { ascending: false });
 
+  const eventSlugs = [...new Set(mine.map((r) => r.event_slug as string))];
+  const { data: liveHolds } = await admin
+    .from("beta_offers")
+    .select("event_slug, seat_key, expires_at")
+    .in("event_slug", eventSlugs)
+    .eq("status", "offered")
+    .gt("expires_at", new Date().toISOString());
+  const holdsBySlug = new Map<string, { seatKey: string; expiresAt: string }[]>();
+  for (const hold of liveHolds ?? []) {
+    const slug = hold.event_slug as string;
+    const list = holdsBySlug.get(slug) ?? [];
+    list.push({ seatKey: hold.seat_key as string, expiresAt: hold.expires_at as string });
+    holdsBySlug.set(slug, list);
+  }
+
   const offersByLead = new Map<string, BuyerOfferSummary[]>();
   for (const o of allOffers ?? []) {
     const leadId = o.buy_lead_id as string;
@@ -915,6 +930,18 @@ export async function getQuickWaitlistEntries(
     );
     const event = bySlug.get(row.event_slug) ?? betaEventBySlug(row.event_slug);
     const offers = offersByLead.get(row.id) ?? [];
+    let holdAheadExpiresAt: string | null = null;
+    if (onTonight) {
+      const myIndex = liveSeats.findIndex((seat) => seat.source === "go" && seat.id === row.id);
+      if (myIndex > 0) {
+        const aheadKeys = new Set(liveSeats.slice(0, myIndex).map((seat) => seat.key));
+        const soonest = (holdsBySlug.get(row.event_slug) ?? [])
+          .filter((hold) => aheadKeys.has(hold.seatKey))
+          .map((hold) => hold.expiresAt)
+          .sort()[0];
+        holdAheadExpiresAt = soonest ?? null;
+      }
+    }
     entries.push({
       leadId: row.id,
       eventSlug: row.event_slug,
@@ -928,6 +955,7 @@ export async function getQuickWaitlistEntries(
       contactInstagram: (row.contact_instagram as string | null) ?? null,
       activeOfferId:
         offers.find((o) => o.status === "offered" || o.status === "accepted")?.id ?? null,
+      holdAheadExpiresAt,
       buyerDeclaredSentAt: (row.buyer_declared_sent_at as string | null) ?? null,
       paymentRecordedAt: (row.payment_recorded_at as string | null) ?? null,
       ticketForwardedAt:

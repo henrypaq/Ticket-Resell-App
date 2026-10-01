@@ -12,6 +12,11 @@ export type QuickWaitlistEntry = {
   contactInstagram: string | null;
   /** Live exclusive offer for this seat, if any. */
   activeOfferId: string | null;
+  /**
+   * Soonest live accept-hold on someone ahead in tonight's line.
+   * Null when nobody ahead is currently deciding.
+   */
+  holdAheadExpiresAt?: string | null;
   /** Fixed-price: buyer declared Interac sent. */
   buyerDeclaredSentAt?: string | null;
   /** Fixed-price: ops confirmed Interac received. */

@@ -31,7 +31,7 @@ export type MatchingMode = "exclusive" | "short_window" | "open";
 /** Defaults from the approved design. Tunable but not scattered as magic numbers. */
 export const MATCHING_DEFAULTS = {
   /** Response clock: offered → accept/decline. */
-  responseMs: 45 * 60_000,
+  responseMs: 10 * 60_000,
   /** Payment clock: accepted → paid. */
   paymentMs: 2 * 60 * 60_000,
   /** Max exclusive ranks before the unit opens wider. */
@@ -42,8 +42,10 @@ export const MATCHING_DEFAULTS = {
   shortWindowMs: 6 * 60 * 60_000,
   /** Inside this window → skip exclusivity (open / first money wins). */
   openWindowMs: 2 * 60 * 60_000,
-  /** Response clock when inside the short window. */
-  shortResponseMs: 20 * 60_000,
+  /** Response clock when inside the short window. Same 10 minutes — near doors must not get a longer accept window. */
+  shortResponseMs: 10 * 60_000,
+  /** Payment clock when inside the short window. Separate from the accept window. */
+  shortPaymentMs: 20 * 60_000,
 } as const;
 
 export type OfferClockSnapshot = {
@@ -92,7 +94,7 @@ export function paymentDeadline(args: { now: Date; mode: MatchingMode }): Date |
   if (args.mode === "open") return null;
   const ms =
     args.mode === "short_window"
-      ? MATCHING_DEFAULTS.shortResponseMs
+      ? MATCHING_DEFAULTS.shortPaymentMs
       : MATCHING_DEFAULTS.paymentMs;
   return new Date(args.now.getTime() + ms);
 }
