@@ -87,6 +87,50 @@ describe("ops waitlist and sellers partitioning", () => {
     expect(active.map((e) => e.id)).toEqual(["sunday-lead", "saturday-lead"]);
   });
 
+  it("keeps a 24/09 café buyer out of tonight on 30/09", () => {
+    const wednesday = new Date("2026-09-30T22:00:00Z");
+    const entries: OpsWaitlistEntry[] = [
+      {
+        id: "sep-24",
+        source: "go",
+        name: "Earlier night",
+        email: null,
+        eventSlug: "cafe-campus",
+        eventName: "Café Campus",
+        eventDays: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        quantity: 1,
+        displayedPosition: 13,
+        contactPhone: null,
+        contactInstagram: null,
+        status: "new",
+        acquisitionChannel: null,
+        adminNotes: null,
+        createdAt: "2026-09-24T22:00:00Z",
+      },
+      {
+        id: "sep-30",
+        source: "go",
+        name: "Tonight",
+        email: null,
+        eventSlug: "cafe-campus",
+        eventName: "Café Campus",
+        eventDays: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        quantity: 2,
+        displayedPosition: 1,
+        contactPhone: null,
+        contactInstagram: null,
+        status: "new",
+        acquisitionChannel: null,
+        adminNotes: null,
+        createdAt: "2026-09-30T20:00:00Z",
+      },
+    ];
+
+    const { active, past } = partitionWaitlistEntries(entries, wednesday);
+    expect(active.map((e) => e.id)).toEqual(["sep-30"]);
+    expect(past.map((e) => e.id)).toEqual(["sep-24"]);
+  });
+
   it("partitions seller leads into active vs past", () => {
     const leads = [
       { id: "1", createdAt: "2026-09-11T20:10:00Z" }, // Friday
@@ -153,7 +197,18 @@ describe("ops waitlist and sellers partitioning", () => {
       },
     ];
 
-    const groups = groupOpsWaitlistByEventDate(activeEntries, saturdayNow);
+    const groups = groupOpsWaitlistByEventDate(
+      [
+        ...activeEntries,
+        {
+          ...activeEntries[0]!,
+          id: "fri-cafe",
+          name: "Friday leftover",
+          createdAt: "2026-09-11T20:00:00Z",
+        },
+      ],
+      saturdayNow,
+    );
 
     // Should NOT contain Thursday or Friday groups
     expect(groups.some((g) => g.key.includes("Thursday"))).toBe(false);
@@ -163,6 +218,8 @@ describe("ops waitlist and sellers partitioning", () => {
     const satGroup = groups.find((g) => g.eventSlug === "cafe-campus" && g.isTonight);
     expect(satGroup).toBeDefined();
     expect(satGroup?.dateKey).toBe("2026-09-12");
+    expect(satGroup?.entries.map((e) => e.id)).toEqual(["sat-cafe"]);
+    expect(groups.some((g) => g.entries.some((e) => e.id === "fri-cafe"))).toBe(false);
 
     // Unscheduled one-offs (empty days) land in the interest bucket, not a dated night
     expect(groups.some((g) => g.eventSlug === "piknik-electronik" && g.dateKey !== "9999-99-99")).toBe(

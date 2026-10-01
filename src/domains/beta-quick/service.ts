@@ -12,10 +12,11 @@ import { notifyBuyLead, notifySellLead } from "@/domains/beta-matching/notify";
 import {
   getFakeFrontMap,
   listUnifiedQueueSeats,
+  listUnifiedQueueSeatsUnscoped,
   positionInSeats,
 } from "@/domains/beta-queue/unified";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
-import { betaEventBySlug } from "@/lib/beta-events";
+import { belongsToLiveNight, betaEventBySlug, sameQueueCohort } from "@/lib/beta-events";
 import { getBetaEventBySlug, loadBetaCatalog } from "@/domains/beta-events/catalog";
 import { SERVICE_FEE_CAD } from "@/lib/compliance/fees";
 import { defer } from "@/lib/defer";
@@ -862,7 +863,7 @@ export async function getQuickWaitlistEntries(
 
   if (error || !mine?.length) return [];
 
-  const seatsByEvent = new Map<string, Awaited<ReturnType<typeof listUnifiedQueueSeats>>>();
+  const seatsByEvent = new Map<string, Awaited<ReturnType<typeof listUnifiedQueueSeatsUnscoped>>>();
   const entries: QuickWaitlistEntry[] = [];
   const { data: allOffers } = await admin
     .from("beta_offers")
@@ -896,14 +897,22 @@ export async function getQuickWaitlistEntries(
     if (row.status === "cancelled") continue;
     // Fulfilled predetermined seats leave the live waitlist (still returned so
     // home can show the transferred row). They no longer take a queue slot —
-    // listUnifiedQueueSeats already excludes status=done.
+    // the seat query already excludes status=done.
     let seats = seatsByEvent.get(row.event_slug);
     if (!seats) {
-      seats = await listUnifiedQueueSeats(row.event_slug);
+      seats = await listUnifiedQueueSeatsUnscoped(row.event_slug);
       seatsByEvent.set(row.event_slug, seats);
     }
+    const eventForNight = bySlug.get(row.event_slug) ?? betaEventBySlug(row.event_slug);
+    const liveSeats = seats.filter((seat) => belongsToLiveNight(seat.createdAt, eventForNight));
+    const cohort = seats.filter((seat) => sameQueueCohort(row.created_at, seat.createdAt, eventForNight));
+    const onTonight = liveSeats.some((seat) => seat.source === "go" && seat.id === row.id);
     const fakeFront = fakeFronts.get(row.event_slug) ?? 0;
-    const pos = positionInSeats(seats, (s) => s.source === "go" && s.id === row.id, fakeFront);
+    const pos = positionInSeats(
+      onTonight ? liveSeats : cohort,
+      (s) => s.source === "go" && s.id === row.id,
+      fakeFront,
+    );
     const event = bySlug.get(row.event_slug) ?? betaEventBySlug(row.event_slug);
     const offers = offersByLead.get(row.id) ?? [];
     entries.push({
@@ -912,6 +921,7 @@ export async function getQuickWaitlistEntries(
       eventName: event?.name ?? row.event_slug,
       quantity: Math.min(QUICK_MAX_TICKETS, Math.max(1, Number(row.quantity) || 1)),
       position: pos?.displayed ?? 1 + fakeFront,
+      onTonight,
       status: row.status,
       createdAt: row.created_at,
       contactPhone: (row.contact_phone as string | null) ?? null,

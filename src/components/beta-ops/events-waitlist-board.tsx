@@ -19,6 +19,7 @@ import {
 import {
   BETA_WEEKDAYS,
   eventDayDateKey,
+  formatNightStamp,
   nightlifeDateKey,
   type BetaEvent,
   type BetaWeekday,
@@ -56,23 +57,23 @@ function partitionCatalogForBoard(events: CatalogRow[]): {
   for (const event of events) {
     const slots: { dateKey: string; label: string }[] = [];
 
-    if (event.extraDateKeys?.length) {
-      for (const dateKey of event.extraDateKeys) {
-        const [y, m, d] = dateKey.split("-").map(Number);
-        if (!y || !m || !d) continue;
-        const label = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-          timeZone: "UTC",
-        });
-        slots.push({ dateKey, label });
-      }
-    } else if (event.days.length) {
-      for (const day of event.days as BetaWeekday[]) {
-        const schedule = eventDayDateKey(day, now);
-        slots.push({ dateKey: schedule.dateKey, label: schedule.label });
-      }
+    for (const day of event.days as BetaWeekday[]) {
+      const schedule = eventDayDateKey(day, now);
+      if (schedule.isPast) continue;
+      slots.push({ dateKey: schedule.dateKey, label: schedule.label });
+    }
+    for (const dateKey of event.extraDateKeys ?? []) {
+      if (dateKey < currentKey) continue;
+      const [y, m, d] = dateKey.split("-").map(Number);
+      if (!y || !m || !d) continue;
+      const label = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        timeZone: "UTC",
+      });
+      if (slots.some((slot) => slot.dateKey === dateKey)) continue;
+      slots.push({ dateKey, label });
     }
 
     const upcomingSlots = slots
@@ -106,10 +107,12 @@ function partitionCatalogForBoard(events: CatalogRow[]): {
 export function EventsWaitlistBoard({
   events,
   waitlistBySlug,
+  pastWaitlistBySlug = {},
   fakeFrontSlot,
 }: {
   events: CatalogRow[];
   waitlistBySlug: Record<string, OpsWaitlistEntry[]>;
+  pastWaitlistBySlug?: Record<string, OpsWaitlistEntry[]>;
   fakeFrontSlot?: React.ReactNode;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
@@ -224,7 +227,7 @@ export function EventsWaitlistBoard({
                   <EventWaitlistRow
                     key={`past-${event.source}-${event.slug}`}
                     event={event}
-                    waitlist={waitlistBySlug[event.slug] ?? []}
+                    waitlist={pastWaitlistBySlug[event.slug] ?? []}
                   />
                 ))}
               </ul>
@@ -596,7 +599,7 @@ function WaitlistMemberRow({ entry }: { entry: OpsWaitlistEntry }) {
             <span className="truncate text-xs font-medium text-zinc-200">{label}</span>
           )}
           <p className="mt-0.5 text-[10px] text-zinc-500">
-            {entry.source} · ×{entry.quantity}
+            {formatNightStamp(entry.createdAt)} · {entry.source} · ×{entry.quantity}
             {entry.status !== "classic" ? ` · ${entry.status}` : ""}
           </p>
         </div>
@@ -922,9 +925,19 @@ function FixedPriceFields({
 }
 
 function formatSchedule(event: BetaEvent): string {
-  const days = event.days as BetaWeekday[];
-  if (days.length) return days.map((d) => d.slice(0, 3)).join(", ");
+  const now = new Date();
+  const currentKey = nightlifeDateKey(now);
+  const upcomingDays = (event.days as BetaWeekday[])
+    .map((day) => eventDayDateKey(day, now))
+    .filter((schedule) => !schedule.isPast);
+  const upcomingExtras = (event.extraDateKeys ?? []).filter((key) => key >= currentKey);
+  if (upcomingDays.length > 0) {
+    const next = upcomingDays[0]!;
+    return upcomingDays.length === 1 ? next.label : `${next.label} · +${upcomingDays.length - 1} nights`;
+  }
+  if (upcomingExtras.length > 0) return upcomingExtras.join(", ");
   if (event.extraDateKeys?.length) return event.extraDateKeys.join(", ");
+  if (event.days.length) return (event.days as BetaWeekday[]).map((d) => d.slice(0, 3)).join(", ");
   return "";
 }
 

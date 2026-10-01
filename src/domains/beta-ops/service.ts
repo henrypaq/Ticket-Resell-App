@@ -3,7 +3,8 @@ import "server-only";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
-import { betaEventBySlug, INTEREST_OPTIONS } from "@/lib/beta-events";
+import { betaEventBySlug, INTEREST_OPTIONS, sameQueueCohort } from "@/lib/beta-events";
+import { loadBetaCatalog } from "@/domains/beta-events/catalog";
 import { parseEvidencePaths } from "@/lib/verification/ticket-evidence";
 import { defaultFakeFront, getFakeFrontMap, listAllUnifiedQueueSeats, positionInSeats } from "@/domains/beta-queue/unified";
 import { requireBetaOpsSession } from "./auth";
@@ -258,10 +259,10 @@ function eventDaysForSlug(slug: string): string[] {
   return betaEventBySlug(slug)?.days ?? [];
 }
 
-/** Classic waitlist interests + /go buy leads — shared queue ranks. */
+/** Classic waitlist interests + /go buy leads — ranks within that night's line. */
 export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
   const admin = createAdminClient();
-  const [fakeFronts, seatsByEvent, interestsResult, goLeads] = await Promise.all([
+  const [fakeFronts, seatsByEvent, interestsResult, goLeads, catalog] = await Promise.all([
     getFakeFrontMap(),
     listAllUnifiedQueueSeats(),
     admin
@@ -273,7 +274,16 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
       .order("created_at", { ascending: false })
       .limit(300),
     listQuickLeads({ intent: "buy" }),
+    loadBetaCatalog(),
   ]);
+
+  const eventBySlug = new Map(catalog.map((event) => [event.slug, event]));
+  const cohort = (slug: string, createdAt: string) => {
+    const event = eventBySlug.get(slug) ?? betaEventBySlug(slug);
+    return (seatsByEvent.get(slug) ?? []).filter((seat) =>
+      sameQueueCohort(createdAt, seat.createdAt, event),
+    );
+  };
 
   const interests = interestsResult.data ?? [];
 
@@ -283,7 +293,7 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
       | null
       | { name: string; email: string; phone: string | null; acquisition_channel: string | null }[];
     const person = Array.isArray(signup) ? signup[0] : signup;
-    const seats = seatsByEvent.get(row.event_slug) ?? [];
+    const seats = cohort(row.event_slug, row.created_at);
     const fake = fakeFronts.get(row.event_slug) ?? defaultFakeFront(row.event_slug);
     const pos = positionInSeats(seats, (s) => s.source === "classic" && s.id === row.id, fake);
     return {
@@ -292,8 +302,8 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
       name: person?.name ?? null,
       email: person?.email ?? null,
       eventSlug: row.event_slug,
-      eventName: betaEventBySlug(row.event_slug)?.name ?? row.event_slug,
-      eventDays: eventDaysForSlug(row.event_slug),
+      eventName: eventBySlug.get(row.event_slug)?.name ?? betaEventBySlug(row.event_slug)?.name ?? row.event_slug,
+      eventDays: eventBySlug.get(row.event_slug)?.days ?? eventDaysForSlug(row.event_slug),
       quantity: 1,
       displayedPosition: pos?.displayed ?? 1 + fake,
       contactPhone: row.contact_phone || person?.phone || null,
@@ -306,13 +316,14 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
   });
 
   const goEntries: OpsWaitlistEntry[] = goLeads.map((lead) => {
-    const seats = seatsByEvent.get(lead.eventSlug) ?? [];
+    const seats = cohort(lead.eventSlug, lead.createdAt);
     const fake = fakeFronts.get(lead.eventSlug) ?? defaultFakeFront(lead.eventSlug);
     const pos = positionInSeats(seats, (s) => s.source === "go" && s.id === lead.id, fake);
     const transferName = [lead.transferFirstName, lead.transferLastName]
       .filter(Boolean)
       .join(" ")
       .trim();
+    const event = eventBySlug.get(lead.eventSlug);
     return {
       id: lead.id,
       source: "go" as const,
@@ -320,7 +331,7 @@ export async function listOpsWaitlistEntries(): Promise<OpsWaitlistEntry[]> {
       email: lead.transferEmail,
       eventSlug: lead.eventSlug,
       eventName: lead.eventName,
-      eventDays: eventDaysForSlug(lead.eventSlug),
+      eventDays: event?.days ?? eventDaysForSlug(lead.eventSlug),
       quantity: lead.quantity,
       displayedPosition: pos?.displayed ?? 1 + fake,
       contactPhone: lead.contactPhone,
@@ -513,8 +524,9 @@ export async function getPastOpsData(): Promise<{
     evidenceUrls: evidenceUrlLists[i] ?? [],
   }));
 
-  const { past: pastWaitlist } = partitionWaitlistEntries(waitlistEntries);
-  const { past: pastSellers } = partitionSellerLeads(sellerEntries);
+  const catalog = await loadBetaCatalog();
+  const { past: pastWaitlist } = partitionWaitlistEntries(waitlistEntries, new Date(), catalog);
+  const { past: pastSellers } = partitionSellerLeads(sellerEntries, new Date(), catalog);
 
   return {
     pastWaitlist,

@@ -286,26 +286,38 @@ export function QuickBuyFlow({
               <QuantityStepper value={quantity} onChange={setQuantity} max={2} />
               {availability && (
                 <div
-                  className={`rounded-2xl px-4 py-3.5 text-[13px] leading-relaxed ${
-                    availability.canCheckoutNow
-                      ? "bg-brand/[0.08] text-ink ring-1 ring-brand/30"
-                      : "bg-white/[0.04] text-muted"
+                  className={`rounded-[22px] px-5 py-4 ${
+                    availability.availableUnits > 0
+                      ? "bg-brand/[0.12] text-ink ring-1 ring-brand/45"
+                      : "bg-white/[0.04] text-muted ring-1 ring-white/10"
                   }`}
                 >
-                  <p className="font-ui mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    {availability.canCheckoutNow
-                      ? "Available now"
-                      : availability.availableUnits > 0
-                        ? `${availability.availableUnits} listed · others ahead`
-                        : "Waitlist"}
+                  <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+                    Listed tonight
                   </p>
-                  {availability.canCheckoutNow
-                    ? quantity === 1
-                      ? "A ticket looks available right now. Finish these steps to claim an exclusive hold — only one buyer gets each ticket, first to complete wins."
-                      : `${quantity} tickets look available right now. Finish to claim exclusive holds — each ticket goes to only one buyer.`
-                    : availability.availableUnits > 0
-                      ? "Some tickets are listed, but others are ahead of you. Finish to join the waitlist; we’ll hold one exclusively when it’s your turn."
-                      : "No tickets listed yet. Finish to join the waitlist — we’ll message you the moment one is held for you."}
+                  <div className="mt-1 flex items-end gap-3">
+                    <p
+                      className={`font-ui text-[56px] font-bold leading-none tabular-nums tracking-tight ${
+                        availability.availableUnits > 0 ? "text-brand" : "text-ink/35"
+                      }`}
+                    >
+                      {availability.availableUnits}
+                    </p>
+                    <p className="mb-2 text-[14px] font-medium leading-tight text-ink">
+                      {availability.availableUnits === 1 ? "ticket for this night" : "tickets for this night"}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-[13.5px] leading-relaxed text-muted">
+                    {availability.canCheckoutNow
+                      ? quantity === 1
+                        ? "A ticket is up right now. Finish these steps to claim an exclusive hold — only one buyer gets each ticket."
+                        : `${quantity} tickets are up right now. Finish to claim exclusive holds — each ticket goes to only one buyer.`
+                      : availability.availableUnits > 0
+                        ? "These are tonight's tickets only. Others are already in line, so finish to join and we'll hold one when it's your turn."
+                        : availability.demandAhead > 0
+                          ? `${availability.demandAhead} ${availability.demandAhead === 1 ? "person is" : "people are"} already in line for tonight. Finish to join behind them.`
+                          : "Nothing listed for tonight yet. Finish to join — you'll be first in line until someone lists a ticket."}
+                  </p>
                 </div>
               )}
               <Field

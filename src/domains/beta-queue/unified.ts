@@ -1,7 +1,9 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getBetaEventBySlug } from "@/domains/beta-events/catalog";
 import { defaultFakeFront, getFakeFront, getFakeFrontMap } from "@/domains/beta-queue/padding";
+import { belongsToLiveNight } from "@/lib/beta-events";
 
 /**
  * One shared waitlist queue per event across classic (`beta_member_interests`)
@@ -30,8 +32,8 @@ export type UnifiedQueueStats = {
   nextDisplayedPosition: number;
 };
 
-/** Chronological seats for one event (oldest first). */
-export async function listUnifiedQueueSeats(
+/** Chronological seats for one event (oldest first), every night. */
+export async function listUnifiedQueueSeatsUnscoped(
   eventSlug: string,
 ): Promise<UnifiedQueueSeat[]> {
   const admin = createAdminClient();
@@ -75,6 +77,22 @@ export async function listUnifiedQueueSeats(
     return a.key.localeCompare(b.key);
   });
   return seats;
+}
+
+/**
+ * Seats that still count for this event's live night.
+ * Recurring venues only include people who joined tonight; a one-off keeps
+ * its line until that show date passes. Previous nights are not ahead of you.
+ */
+export async function listUnifiedQueueSeats(
+  eventSlug: string,
+  now: Date = new Date(),
+): Promise<UnifiedQueueSeat[]> {
+  const [seats, event] = await Promise.all([
+    listUnifiedQueueSeatsUnscoped(eventSlug),
+    getBetaEventBySlug(eventSlug),
+  ]);
+  return seats.filter((seat) => belongsToLiveNight(seat.createdAt, event, now));
 }
 
 /** All seats across events, oldest first within each slug. */

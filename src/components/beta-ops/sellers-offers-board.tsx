@@ -22,6 +22,7 @@ import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
 import type { SellerEventEntry } from "@/components/beta-ops/sellers-board";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatNightStamp } from "@/lib/beta-events";
 
 export type OpsOfferRow = {
   id: string;
@@ -57,11 +58,13 @@ export function SellersOffersBoard({
   previous,
   units,
   offers,
+  tonightLabel,
 }: {
   tonight: SellerEventEntry[];
   previous: SellerEventEntry[];
   units: OpsUnitRow[];
   offers: OpsOfferRow[];
+  tonightLabel: string;
 }) {
   const unitsBySell = groupBy(units, (u) => u.sell_lead_id);
   const offersByUnit = groupBy(offers, (o) => o.unit_id);
@@ -72,14 +75,15 @@ export function SellersOffersBoard({
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Sellers</h1>
           <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
-            Tap a seller to see their ticket units and exclusive offers.
+            Tonight is only {tonightLabel}. Listings from earlier nights stay under Previous days
+            and are not counted as tickets for sale tonight.
           </p>
         </div>
         <BackfillButton />
       </div>
 
       <DayDrawer
-        title="Tonight"
+        title={`Tonight · ${tonightLabel}`}
         summary={`${tonight.length} seller${tonight.length === 1 ? "" : "s"}`}
         defaultOpen
       >
@@ -200,7 +204,7 @@ function SellerOffersRow({
             </Badge>
           </div>
           <p className="mt-0.5 truncate text-[10px] text-zinc-500">
-            {lead.eventName}
+            {formatNightStamp(lead.createdAt)} · {lead.eventName}
             {units.length > 0 ? ` · ${units.length} unit${units.length === 1 ? "" : "s"}` : ""}
             {offerCount > 0 ? ` · ${offerCount} offer${offerCount === 1 ? "" : "s"}` : ""}
           </p>

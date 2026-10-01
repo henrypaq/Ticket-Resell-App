@@ -43,11 +43,14 @@ export function AppHome({
   tonightDay,
   waitlist,
   activity,
+  listedBySlug = {},
 }: {
   tonight: BetaEvent[];
   tonightDay: BetaWeekday;
   waitlist: QuickWaitlistEntry[];
   activity: GoActivityEntry[];
+  /** Tickets listed for tonight, by event slug. Earlier nights are not included. */
+  listedBySlug?: Record<string, number>;
 }) {
   const [selected, setSelected] = useState<{ event: BetaEvent; day: BetaWeekday } | null>(null);
   const hasTonight = tonight.length > 0;
@@ -94,7 +97,10 @@ export function AppHome({
   const buyJourneys = waitlist.map((entry) => ({ entry, journey: buyerJourney(entry) }));
   const walletTickets = buyJourneys.filter(({ journey }) => isWalletStage(journey.stage));
   const openWaitlist = buyJourneys
-    .filter(({ journey }) => journey.stage === "waiting" || journey.stage === "queue")
+    .filter(
+      ({ entry, journey }) =>
+        (journey.stage === "waiting" || journey.stage === "queue") && entry.onTonight !== false,
+    )
     .map(({ entry }) => entry);
 
   return (
@@ -225,6 +231,7 @@ export function AppHome({
                   key={event.slug}
                   event={event}
                   day={tonightDay}
+                  listedCount={listedBySlug[event.slug] ?? 0}
                   onSelect={() => setSelected({ event, day: tonightDay })}
                 />
               ))}

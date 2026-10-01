@@ -10,6 +10,7 @@ import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import { ArrowLeft } from "@/components/icons";
 import { AccountSetupEntry } from "./account-setup-entry";
 import { WaitlistSpotCard } from "./waitlist-edit";
+import { formatNightStamp } from "@/lib/beta-events";
 import { FlyerHero, JourneyScreen, LiveDots, useLiveRefresh } from "./journey";
 
 const QUEUE_WINDOW_MS = 20 * 60 * 1000;
@@ -110,13 +111,16 @@ function MarketplaceLineView({
               </div>
             </div>
             <p className="mt-4 text-[16px] leading-relaxed text-ink/90">
-              {ahead === 0
-                ? "You're at the front of the line."
-                : ahead === 1
-                  ? "There's 1 person ahead of you."
-                  : `There are ${ahead} people ahead of you.`}{" "}
-              When a ticket comes up at your price, we hold it just for you — nobody else can take
-              it while you decide.
+              {entry.onTonight === false
+                ? `This was your place on ${formatNightStamp(entry.createdAt)}. That night has passed, so it doesn't carry into tonight's line.`
+                : ahead === 0
+                  ? "You're at the front of the line for tonight."
+                  : ahead === 1
+                    ? "There's 1 person ahead of you tonight."
+                    : `There are ${ahead} people ahead of you tonight.`}{" "}
+              {entry.onTonight === false
+                ? "Join again from home if you still need a ticket for tonight."
+                : "When a ticket comes up at your price, we hold it just for you — nobody else can take it while you decide."}
             </p>
             <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
               {reach ? `We'll message you ${reach} the moment it's yours. ` : ""}

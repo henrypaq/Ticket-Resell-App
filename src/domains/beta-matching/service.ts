@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { listUnifiedQueueSeats } from "@/domains/beta-queue/unified";
+import { belongsToLiveNight, belongsToNightlifeDate } from "@/lib/beta-events";
 import { logEvent } from "@/lib/analytics/log";
 import { resolveDoorsAtForEvent } from "@/domains/matching/doors";
 import { notifyOfferSeat, notifySellLead } from "@/domains/beta-matching/notify";
@@ -258,7 +259,7 @@ export async function allocateNextForUnit(args: {
 
   const { data: unit, error } = await admin
     .from("beta_ticket_units")
-    .select("id, sell_lead_id, event_slug, unit_index, price_each, status")
+    .select("id, sell_lead_id, event_slug, unit_index, price_each, status, created_at")
     .eq("id", args.unitId)
     .maybeSingle();
 
@@ -271,6 +272,9 @@ export async function allocateNextForUnit(args: {
   // hold would ask someone who already paid to "claim and pay" again.
   const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
   const event = await getBetaEventBySlug(unit.event_slug);
+  if (!belongsToLiveNight(String(unit.created_at), event, now)) {
+    return { ok: true, skipped: "past_night" };
+  }
   if (event?.fixedPriceEach != null) {
     return { ok: true, skipped: "fixed_price_manual" };
   }
@@ -695,17 +699,23 @@ export async function allocateAvailableUnitsForEvent(
   await reconcileExpiredOffers(now).catch(() => {});
 
   const admin = createAdminClient();
+  const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
+  const event = await getBetaEventBySlug(eventSlug);
   const { data: units } = await admin
     .from("beta_ticket_units")
-    .select("id")
+    .select("id, created_at")
     .eq("event_slug", eventSlug)
     .eq("status", "available")
     .order("created_at", { ascending: true })
-    .limit(20);
+    .limit(200);
+
+  const liveUnits = (units ?? []).filter((unit) =>
+    belongsToLiveNight(String(unit.created_at), event, now),
+  );
 
   const offered: string[] = [];
   const skipped: string[] = [];
-  for (const u of units ?? []) {
+  for (const u of liveUnits.slice(0, 20)) {
     const result = await allocateNextForUnit({ unitId: u.id, now });
     if (result.ok && result.id) offered.push(result.id);
     else if (result.ok && result.skipped) skipped.push(`${u.id}:${result.skipped}`);
@@ -734,6 +744,8 @@ export async function getLiveOfferIdForBuyLead(buyLeadId: string): Promise<strin
 export async function previewBuyAvailability(
   eventSlug: string,
   quantity: number,
+  now: Date = new Date(),
+  nightDateKey?: string,
 ): Promise<{
   availableUnits: number;
   demandAhead: number;
@@ -741,18 +753,25 @@ export async function previewBuyAvailability(
 }> {
   const qty = Math.max(1, Math.min(2, Math.floor(quantity) || 1));
   const admin = createAdminClient();
+  const { getBetaEventBySlug } = await import("@/domains/beta-events/catalog");
+  const event = await getBetaEventBySlug(eventSlug);
+  const onThisNight = (createdAt: string) =>
+    nightDateKey
+      ? belongsToNightlifeDate(createdAt, event, nightDateKey)
+      : belongsToLiveNight(createdAt, event, now);
 
-  const [{ count: availableUnits }, seats] = await Promise.all([
+  const [{ data: unitRows }, seats] = await Promise.all([
     admin
       .from("beta_ticket_units")
-      .select("id", { count: "exact", head: true })
+      .select("created_at")
       .eq("event_slug", eventSlug)
       .eq("status", "available"),
-    listUnifiedQueueSeats(eventSlug),
+    listUnifiedQueueSeats(eventSlug, now),
   ]);
 
-  const available = availableUnits ?? 0;
-  if (seats.length === 0) {
+  const nightSeats = seats.filter((seat) => onThisNight(seat.createdAt));
+  const available = (unitRows ?? []).filter((row) => onThisNight(String(row.created_at))).length;
+  if (nightSeats.length === 0) {
     return {
       availableUnits: available,
       demandAhead: 0,
@@ -760,7 +779,7 @@ export async function previewBuyAvailability(
     };
   }
 
-  const seatKeys = seats.map((s) => s.key);
+  const seatKeys = nightSeats.map((s) => s.key);
   const { data: liveOffers } = await admin
     .from("beta_offers")
     .select("seat_key")
@@ -770,7 +789,7 @@ export async function previewBuyAvailability(
 
   const heldSeats = new Set((liveOffers ?? []).map((r) => r.seat_key as string));
   let demandAhead = 0;
-  for (const seat of seats) {
+  for (const seat of nightSeats) {
     if (heldSeats.has(seat.key)) continue;
     demandAhead += Math.max(1, seat.quantity);
   }
@@ -781,6 +800,34 @@ export async function previewBuyAvailability(
     demandAhead,
     canCheckoutNow: surplus >= qty,
   };
+}
+
+/** Available tickets that belong to tonight, keyed by event slug. */
+export async function listedCountsBySlug(
+  slugs: string[],
+  now: Date = new Date(),
+): Promise<Record<string, number>> {
+  const unique = [...new Set(slugs.map((s) => s.trim()).filter(Boolean))];
+  if (unique.length === 0) return {};
+  const admin = createAdminClient();
+  const { loadBetaCatalog } = await import("@/domains/beta-events/catalog");
+  const [catalog, { data: rows }] = await Promise.all([
+    loadBetaCatalog(),
+    admin
+      .from("beta_ticket_units")
+      .select("event_slug, created_at")
+      .in("event_slug", unique)
+      .eq("status", "available"),
+  ]);
+  const bySlug = new Map(catalog.map((event) => [event.slug, event]));
+  const counts: Record<string, number> = {};
+  for (const slug of unique) counts[slug] = 0;
+  for (const row of rows ?? []) {
+    const slug = String(row.event_slug);
+    if (!belongsToLiveNight(String(row.created_at), bySlug.get(slug), now)) continue;
+    counts[slug] = (counts[slug] ?? 0) + 1;
+  }
+  return counts;
 }
 
 /**

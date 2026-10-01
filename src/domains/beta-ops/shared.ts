@@ -1,10 +1,13 @@
 import {
+  BETA_EVENTS,
+  belongsToLiveNight,
   betaEventBySlug,
   eventDayDateKey,
   eventListedOnNight,
-  isPastNightlife,
+  nightlifeDateKeyFromIso,
   supportedBetaEvents,
   INTEREST_OPTIONS,
+  type BetaEvent,
   type BetaWeekday,
 } from "../../lib/beta-events";
 
@@ -107,37 +110,28 @@ export type OpsWaitlistGroup = {
   ticketDemand: number;
 };
 
+function eventFromCatalog(slug: string, events: BetaEvent[]): BetaEvent | undefined {
+  return events.find((event) => event.slug === slug) ?? betaEventBySlug(slug);
+}
+
 /**
- * Partitions waitlist entries into active (tonight or upcoming) vs past (Thursday, Friday, etc.).
+ * Tonight vs previous nights.
+ * Recurring venues only keep people who joined this nightlife date.
+ * A one-off stays in tonight until its scheduled date passes.
+ * Undated interest stays active.
  */
 export function partitionWaitlistEntries(
   entries: OpsWaitlistEntry[],
   now: Date = new Date(),
+  events: BetaEvent[] = BETA_EVENTS,
 ): { active: OpsWaitlistEntry[]; past: OpsWaitlistEntry[] } {
   const active: OpsWaitlistEntry[] = [];
   const past: OpsWaitlistEntry[] = [];
 
   for (const entry of entries) {
-    const isPastCreation = isPastNightlife(entry.createdAt, now);
-    const event = betaEventBySlug(entry.eventSlug);
-
-    if (isPastCreation) {
-      if (!event || !event.days || event.days.length === 0) {
-        // Interest-only option (e.g. stereo) — interest remains active
-        active.push(entry);
-      } else {
-        // If event has days that already passed (e.g. Thursday or Friday):
-        const hasPassedDay = event.days.some((d) => eventDayDateKey(d, now).isPast);
-        if (hasPassedDay) {
-          past.push(entry);
-        } else {
-          // Future event (e.g. Piknik Électronik on Sunday)
-          active.push(entry);
-        }
-      }
-    } else {
-      active.push(entry);
-    }
+    const event = eventFromCatalog(entry.eventSlug, events);
+    if (belongsToLiveNight(entry.createdAt, event, now)) active.push(entry);
+    else past.push(entry);
   }
 
   return { active, past };
@@ -145,19 +139,22 @@ export function partitionWaitlistEntries(
 
 /**
  * Partitions seller leads into active (tonight/upcoming) vs past.
+ * Leads with an event slug use the same night rule as the waitlist.
  */
-export function partitionSellerLeads<T extends { createdAt: string }>(
+export function partitionSellerLeads<T extends { createdAt: string; eventSlug?: string }>(
   leads: T[],
   now: Date = new Date(),
+  events: BetaEvent[] = BETA_EVENTS,
 ): { active: T[]; past: T[] } {
   const active: T[] = [];
   const past: T[] = [];
   for (const lead of leads) {
-    if (isPastNightlife(lead.createdAt, now)) {
-      past.push(lead);
-    } else {
-      active.push(lead);
-    }
+    const event = lead.eventSlug ? eventFromCatalog(lead.eventSlug, events) : undefined;
+    const live = lead.eventSlug
+      ? belongsToLiveNight(lead.createdAt, event, now)
+      : belongsToLiveNight(lead.createdAt, undefined, now);
+    if (live) active.push(lead);
+    else past.push(lead);
   }
   return { active, past };
 }
@@ -215,14 +212,28 @@ export function groupOpsWaitlistByEventDate(
     }
   }
 
-  // 2. Add groups for any interest options or other entries present
+  // 2. Add groups for any interest options or other entries present.
+  // A person belongs on the night they joined — never on every future date
+  // the venue also runs.
   for (const entry of entries) {
-    // Check if an upcoming group already exists for this event
-    const existingKey = [...groupMap.keys()].find((k) => k.startsWith(`${entry.eventSlug}::`));
-    if (existingKey) {
-      const g = groupMap.get(existingKey)!;
-      g.entries.push(entry);
-      g.ticketDemand += entry.quantity;
+    const event = betaEventBySlug(entry.eventSlug);
+    const createdKey = nightlifeDateKeyFromIso(entry.createdAt);
+    const dated = [...groupMap.values()].filter(
+      (g) => g.eventSlug === entry.eventSlug && g.dateKey !== "9999-99-99",
+    );
+    const exact = createdKey ? dated.find((g) => g.dateKey === createdKey) : undefined;
+    const oneOff =
+      dated.length === 1 &&
+      event != null &&
+      event.days.length === 0 &&
+      (event.extraDateKeys?.length ?? 0) > 0 &&
+      belongsToLiveNight(entry.createdAt, event, now);
+    const target = exact ?? (oneOff ? dated[0] : undefined);
+    if (target) {
+      target.entries.push(entry);
+      target.ticketDemand += entry.quantity;
+    } else if (dated.length > 0) {
+      // Joined on a night that is not one of the upcoming cards.
     } else {
       // Interest-only or unscheduled event
       const key = `${entry.eventSlug}::interest`;

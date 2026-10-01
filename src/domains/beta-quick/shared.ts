@@ -4,6 +4,8 @@ export type QuickWaitlistEntry = {
   eventName: string;
   quantity: number;
   position: number;
+  /** False when this seat is for a previous night and no longer in tonight's line. */
+  onTonight?: boolean;
   status: string;
   createdAt: string;
   contactPhone: string | null;

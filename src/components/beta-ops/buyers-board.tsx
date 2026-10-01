@@ -15,6 +15,7 @@ import {
   type LeadStatus,
   type OpsWaitlistEntry,
 } from "@/domains/beta-ops/shared";
+import { formatNightStamp } from "@/lib/beta-events";
 import { OpsDeleteButton } from "@/components/beta-ops/delete-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,10 +44,12 @@ export function BuyersBoard({
   tonight,
   previous,
   offers,
+  tonightLabel,
 }: {
   tonight: OpsWaitlistEntry[];
   previous: OpsWaitlistEntry[];
   offers: BuyerOfferRow[];
+  tonightLabel: string;
 }) {
   const offersByBuyer = new Map<string, BuyerOfferRow[]>();
   for (const o of offers) {
@@ -66,13 +69,13 @@ export function BuyersBoard({
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Buyers</h1>
         <p className="mt-1 text-xs text-zinc-400 sm:text-sm">
-          Waitlist people — tap one to see holds and payment status. Event queues live under
-          Events.
+          Tonight is only {tonightLabel}. Anyone who joined on an earlier night is under Previous
+          days, and they are not ahead in tonight&apos;s line.
         </p>
       </div>
 
       <DayDrawer
-        title="Tonight"
+        title={`Tonight · ${tonightLabel}`}
         summary={`${tonight.length} buyer${tonight.length === 1 ? "" : "s"}`}
         defaultOpen
       >
@@ -195,7 +198,7 @@ function BuyerRow({
             )}
           </div>
           <p className="mt-0.5 truncate text-[10px] text-zinc-500">
-            {entry.eventName} · {entry.source}
+            {formatNightStamp(entry.createdAt)} · {entry.eventName} · {entry.source}
             {entry.status !== "classic" ? ` · ${entry.status}` : ""}
           </p>
         </div>

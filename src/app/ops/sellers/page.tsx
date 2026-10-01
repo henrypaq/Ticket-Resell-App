@@ -10,12 +10,13 @@ import type { SellerEventEntry } from "@/components/beta-ops/sellers-board";
 import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { getTicketEvidenceSignedUrls, listQuickLeads } from "@/domains/beta-ops/service";
 import { partitionSellerLeads } from "@/domains/beta-ops/shared";
+import { loadBetaCatalog } from "@/domains/beta-events/catalog";
 import {
   listRecentOffers,
   listUnitsForSellLeads,
   reconcileExpiredOffers,
 } from "@/domains/beta-matching/service";
-import { betaEventBySlug } from "@/lib/beta-events";
+import { betaEventBySlug, formatNightStamp } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
   title: "Sellers · Ops · mcgill.tickets",
@@ -29,7 +30,10 @@ export default async function OpsSellersPage() {
 
   await reconcileExpiredOffers().catch(() => {});
 
-  const leads = await listQuickLeads({ intent: "sell" });
+  const [leads, catalog] = await Promise.all([
+    listQuickLeads({ intent: "sell" }),
+    loadBetaCatalog(),
+  ]);
   const evidenceUrlLists = await Promise.all(
     leads.map((lead) => getTicketEvidenceSignedUrls(lead.ticketEvidencePath)),
   );
@@ -40,7 +44,7 @@ export default async function OpsSellersPage() {
     evidenceUrls: evidenceUrlLists[i] ?? [],
   }));
 
-  const { active: tonight, past: previous } = partitionSellerLeads(entries);
+  const { active: tonight, past: previous } = partitionSellerLeads(entries, new Date(), catalog);
   tonight.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   previous.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -59,6 +63,7 @@ export default async function OpsSellersPage() {
       <SellersOffersBoard
         tonight={tonight}
         previous={previous}
+        tonightLabel={formatNightStamp()}
         units={units as OpsUnitRow[]}
         offers={scopedOffers}
       />

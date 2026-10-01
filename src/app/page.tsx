@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app/shell";
 import { loadGoActivityForHub, loadQuickWaitlistForHub } from "@/domains/beta-quick/actions";
 import { loadBetaProfile } from "@/domains/beta-signup/actions";
 import { getTonightBetaEvents } from "@/domains/beta-events/catalog";
+import { listedCountsBySlug } from "@/domains/beta-matching/service";
 import { currentNightlifeWeekday } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default async function HomePage() {
     loadGoActivityForHub(),
     getTonightBetaEvents(),
   ]);
+  const listedBySlug = await listedCountsBySlug(tonight.map((event) => event.slug));
 
   return (
     <AppShell initials={initialsFromName(profile?.name)}>
@@ -39,6 +41,7 @@ export default async function HomePage() {
         tonightDay={currentNightlifeWeekday()}
         waitlist={waitlist}
         activity={activity}
+        listedBySlug={listedBySlug}
       />
     </AppShell>
   );

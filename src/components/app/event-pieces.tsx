@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { loadBuyAvailabilityAction } from "@/domains/beta-quick/actions";
-import { formatBetaEventWhenShort, type BetaEvent, type BetaWeekday } from "@/lib/beta-events";
+import {
+  eventDayDateKey,
+  formatBetaEventWhenShort,
+  type BetaEvent,
+  type BetaWeekday,
+} from "@/lib/beta-events";
 import { FlyerHero, JourneyScreen } from "./journey";
 import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import {
@@ -31,6 +36,7 @@ export function EventIntentView({
 }) {
   const buyHref = `/buy?event=${encodeURIComponent(event.slug)}`;
   const sellHref = `/sell?event=${encodeURIComponent(event.slug)}`;
+  const night = eventDayDateKey(day);
   const [availability, setAvailability] = useState<{
     availableUnits: number;
     demandAhead: number;
@@ -39,13 +45,13 @@ export function EventIntentView({
 
   useEffect(() => {
     let cancelled = false;
-    void loadBuyAvailabilityAction(event.slug, 1).then((result) => {
+    void loadBuyAvailabilityAction(event.slug, 1, night.dateKey).then((result) => {
       if (!cancelled && result) setAvailability(result);
     });
     return () => {
       cancelled = true;
     };
-  }, [event.slug]);
+  }, [event.slug, night.dateKey]);
 
   const showBlurb =
     event.blurb &&
@@ -79,26 +85,13 @@ export function EventIntentView({
         )}
         {showBlurb && <p className="text-[14.5px] leading-relaxed text-muted">{event.blurb}</p>}
 
-        <div className="grid grid-cols-2 gap-2.5">
-          <Stat
-            label="Listed now"
-            value={availability ? String(availability.availableUnits) : "–"}
-            highlight={Boolean(availability?.canCheckoutNow)}
-          />
-          <Stat
-            label="People waiting"
-            value={availability ? String(availability.demandAhead) : "–"}
-          />
-        </div>
-        <p className="-mt-2 text-[13px] leading-relaxed text-muted">
-          {!availability
-            ? "Checking what's available…"
-            : availability.canCheckoutNow
-              ? "A ticket looks available right now — the first buyer to finish gets an exclusive hold."
-              : availability.availableUnits > 0
-                ? "Tickets are listed, but others are in line first. Join and we'll hold one for you when it's your turn."
-                : "Nothing listed yet. Join the line and we'll message you the moment a ticket is held for you."}
-        </p>
+        <ListedTonight
+          units={availability?.availableUnits ?? null}
+          waiting={availability?.demandAhead ?? null}
+          ready={Boolean(availability?.canCheckoutNow)}
+          tonight={night.isTonight}
+          whenLabel={formatBetaEventWhenShort(day)}
+        />
 
         {/*
           Fee disclosure, carried over from the retired member event detail —
@@ -114,17 +107,57 @@ export function EventIntentView({
   );
 }
 
-function Stat({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+function ListedTonight({
+  units,
+  waiting,
+  ready,
+  tonight,
+  whenLabel,
+}: {
+  units: number | null;
+  waiting: number | null;
+  ready: boolean;
+  tonight: boolean;
+  whenLabel: string;
+}) {
+  const n = units ?? 0;
+  const hasTickets = n > 0;
+  const noun = n === 1 ? "ticket listed" : "tickets listed";
   return (
     <div
-      className={`rounded-2xl px-4 py-3.5 ${
-        highlight ? "bg-brand/[0.08] ring-1 ring-brand/30" : "bg-white/[0.04]"
+      className={`rounded-[22px] px-5 py-5 ${
+        hasTickets ? "bg-brand/[0.12] ring-1 ring-brand/45" : "bg-white/[0.04] ring-1 ring-white/10"
       }`}
     >
-      <p className={`font-ui text-[26px] font-bold tabular-nums tracking-tight ${highlight ? "text-brand" : "text-ink"}`}>
-        {value}
+      <p className="font-ui text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+        {tonight ? "Listed tonight" : `Listed · ${whenLabel}`}
       </p>
-      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
+      <div className="mt-1 flex items-end gap-3">
+        <p
+          className={`font-ui text-[68px] font-bold leading-none tabular-nums tracking-tight ${
+            hasTickets ? "text-brand" : "text-ink/35"
+          }`}
+        >
+          {units == null ? "–" : n}
+        </p>
+        <p className={`mb-2.5 max-w-[12ch] text-[15px] font-medium leading-tight ${hasTickets ? "text-ink" : "text-muted"}`}>
+          {units == null ? "Checking this night" : noun}
+        </p>
+      </div>
+      {waiting != null && waiting > 0 && (
+        <p className="mt-1 text-[13.5px] font-medium text-ink/80">
+          {waiting} {waiting === 1 ? "person" : "people"} already in line for this night
+        </p>
+      )}
+      <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+        {units == null
+          ? "Checking what's listed for this night…"
+          : ready
+            ? "A ticket is up for this night. The first buyer to finish gets it held just for them."
+            : hasTickets
+              ? "These tickets are for this night only. Others are ahead, so join and we'll hold one when it's your turn."
+              : "Nothing listed for this night yet. Join the line and we'll message you the moment a ticket is held for you."}
+      </p>
     </div>
   );
 }
@@ -134,10 +167,12 @@ export function EventPoster({
   event,
   day,
   onSelect,
+  listedCount = 0,
 }: {
   event: BetaEvent;
   day: BetaWeekday;
   onSelect: () => void;
+  listedCount?: number;
 }) {
   return (
     <button
@@ -153,6 +188,11 @@ export function EventPoster({
           aria-hidden
           className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent"
         />
+        {listedCount > 0 && (
+          <span className="font-ui absolute right-1.5 top-1.5 rounded-full bg-brand px-2 py-1 text-[11px] font-bold leading-none tabular-nums text-black shadow-[0_4px_14px_rgba(0,0,0,0.35)]">
+            {listedCount} listed
+          </span>
+        )}
         <div className="absolute inset-x-0 bottom-0 p-2 text-left">
           <p className="headline text-[12.5px] leading-tight text-ink">{event.name}</p>
           <p className="mt-0.5 text-[10px] text-muted">{formatBetaEventWhenShort(day)}</p>
