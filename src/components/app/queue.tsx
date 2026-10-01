@@ -189,6 +189,7 @@ function FixedPriceQueueView({
   entry: QuickWaitlistEntry;
   onBack?: () => void;
 }) {
+  const router = useRouter();
   useLiveRefresh(!entry.ticketForwardedAt);
 
   if (entry.ticketForwardedAt) {
@@ -197,7 +198,7 @@ function FixedPriceQueueView({
 
   const atFront = entry.position <= 1;
   const goHome = onBack ?? (() => {
-    window.location.assign("/");
+    router.push("/");
   });
 
   return (
@@ -398,7 +399,7 @@ function TransferredBody({
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const email = entry.transferEmail;
   const goHome = onBack ?? (() => {
-    window.location.assign("/");
+    router.push("/");
   });
   const received = Boolean(entry.buyerConfirmedReceivedAt);
 
@@ -573,7 +574,7 @@ export function HoldAheadLine({
   compact?: boolean;
 }) {
   const deadline = Date.parse(expiresAt);
-  const remaining = useCountdown(Number.isFinite(deadline) ? deadline : Date.now());
+  const remaining = useCountdown(Number.isFinite(deadline) ? deadline : 0);
   const clock = formatCountdown(remaining);
   const people =
     peopleAhead <= 0
