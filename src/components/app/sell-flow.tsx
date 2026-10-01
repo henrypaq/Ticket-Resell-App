@@ -126,8 +126,9 @@ export function QuickSellFlow({
       router.replace("/done?intent=sell");
       return;
     }
-    // Straight into the listing's journey. Hard navigation so the seller
-    // cookie set by the action rides the next request (ownership check).
+    // Hard navigation so the seller cookie set by the action rides the next
+    // request (ownership check). Soft navigation was racing that cookie.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign(`/listing/${state.sellLeadId}?new=1`);
   }, [state.ok, state.sellLeadId, router, eventSlug]);
 

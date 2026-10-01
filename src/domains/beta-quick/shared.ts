@@ -4,12 +4,19 @@ export type QuickWaitlistEntry = {
   eventName: string;
   quantity: number;
   position: number;
+  /** False when this seat is for a previous night and no longer in tonight's line. */
+  onTonight?: boolean;
   status: string;
   createdAt: string;
   contactPhone: string | null;
   contactInstagram: string | null;
   /** Live exclusive offer for this seat, if any. */
   activeOfferId: string | null;
+  /**
+   * Soonest live accept-hold on someone ahead in tonight's line.
+   * Null when nobody ahead is currently deciding.
+   */
+  holdAheadExpiresAt?: string | null;
   /** Fixed-price: buyer declared Interac sent. */
   buyerDeclaredSentAt?: string | null;
   /** Fixed-price: ops confirmed Interac received. */

@@ -186,6 +186,13 @@ describe("seatEligibleForOffer", () => {
     });
   });
 
+  it("REJECTS a second ticket for a buyer who asked for one", () => {
+    expect(seatEligibleForOffer({ ...base, quantity: 1, liveOfferCount: 1 })).toEqual({
+      ok: false,
+      reason: "seat_cap",
+    });
+  });
+
   it("REJECTS prices above the buyer's ceiling", () => {
     expect(seatEligibleForOffer({ ...base, maxPriceEach: 35, unitPriceEach: 40 })).toEqual({
       ok: false,

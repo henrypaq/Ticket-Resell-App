@@ -12,10 +12,11 @@ import { notifyBuyLead, notifySellLead } from "@/domains/beta-matching/notify";
 import {
   getFakeFrontMap,
   listUnifiedQueueSeats,
+  listUnifiedQueueSeatsUnscoped,
   positionInSeats,
 } from "@/domains/beta-queue/unified";
 import { ACQUISITION_CHANNELS } from "@/lib/beta-acquisition";
-import { betaEventBySlug } from "@/lib/beta-events";
+import { belongsToLiveNight, betaEventBySlug, sameQueueCohort } from "@/lib/beta-events";
 import { getBetaEventBySlug, loadBetaCatalog } from "@/domains/beta-events/catalog";
 import { SERVICE_FEE_CAD } from "@/lib/compliance/fees";
 import { defer } from "@/lib/defer";
@@ -862,7 +863,7 @@ export async function getQuickWaitlistEntries(
 
   if (error || !mine?.length) return [];
 
-  const seatsByEvent = new Map<string, Awaited<ReturnType<typeof listUnifiedQueueSeats>>>();
+  const seatsByEvent = new Map<string, Awaited<ReturnType<typeof listUnifiedQueueSeatsUnscoped>>>();
   const entries: QuickWaitlistEntry[] = [];
   const { data: allOffers } = await admin
     .from("beta_offers")
@@ -871,6 +872,21 @@ export async function getQuickWaitlistEntries(
     )
     .in("buy_lead_id", ids)
     .order("offered_at", { ascending: false });
+
+  const eventSlugs = [...new Set(mine.map((r) => r.event_slug as string))];
+  const { data: liveHolds } = await admin
+    .from("beta_offers")
+    .select("event_slug, seat_key, expires_at")
+    .in("event_slug", eventSlugs)
+    .eq("status", "offered")
+    .gt("expires_at", new Date().toISOString());
+  const holdsBySlug = new Map<string, { seatKey: string; expiresAt: string }[]>();
+  for (const hold of liveHolds ?? []) {
+    const slug = hold.event_slug as string;
+    const list = holdsBySlug.get(slug) ?? [];
+    list.push({ seatKey: hold.seat_key as string, expiresAt: hold.expires_at as string });
+    holdsBySlug.set(slug, list);
+  }
 
   const offersByLead = new Map<string, BuyerOfferSummary[]>();
   for (const o of allOffers ?? []) {
@@ -896,28 +912,50 @@ export async function getQuickWaitlistEntries(
     if (row.status === "cancelled") continue;
     // Fulfilled predetermined seats leave the live waitlist (still returned so
     // home can show the transferred row). They no longer take a queue slot —
-    // listUnifiedQueueSeats already excludes status=done.
+    // the seat query already excludes status=done.
     let seats = seatsByEvent.get(row.event_slug);
     if (!seats) {
-      seats = await listUnifiedQueueSeats(row.event_slug);
+      seats = await listUnifiedQueueSeatsUnscoped(row.event_slug);
       seatsByEvent.set(row.event_slug, seats);
     }
+    const eventForNight = bySlug.get(row.event_slug) ?? betaEventBySlug(row.event_slug);
+    const liveSeats = seats.filter((seat) => belongsToLiveNight(seat.createdAt, eventForNight));
+    const cohort = seats.filter((seat) => sameQueueCohort(row.created_at, seat.createdAt, eventForNight));
+    const onTonight = liveSeats.some((seat) => seat.source === "go" && seat.id === row.id);
     const fakeFront = fakeFronts.get(row.event_slug) ?? 0;
-    const pos = positionInSeats(seats, (s) => s.source === "go" && s.id === row.id, fakeFront);
+    const pos = positionInSeats(
+      onTonight ? liveSeats : cohort,
+      (s) => s.source === "go" && s.id === row.id,
+      fakeFront,
+    );
     const event = bySlug.get(row.event_slug) ?? betaEventBySlug(row.event_slug);
     const offers = offersByLead.get(row.id) ?? [];
+    let holdAheadExpiresAt: string | null = null;
+    if (onTonight) {
+      const myIndex = liveSeats.findIndex((seat) => seat.source === "go" && seat.id === row.id);
+      if (myIndex > 0) {
+        const aheadKeys = new Set(liveSeats.slice(0, myIndex).map((seat) => seat.key));
+        const soonest = (holdsBySlug.get(row.event_slug) ?? [])
+          .filter((hold) => aheadKeys.has(hold.seatKey))
+          .map((hold) => hold.expiresAt)
+          .sort()[0];
+        holdAheadExpiresAt = soonest ?? null;
+      }
+    }
     entries.push({
       leadId: row.id,
       eventSlug: row.event_slug,
       eventName: event?.name ?? row.event_slug,
       quantity: Math.min(QUICK_MAX_TICKETS, Math.max(1, Number(row.quantity) || 1)),
       position: pos?.displayed ?? 1 + fakeFront,
+      onTonight,
       status: row.status,
       createdAt: row.created_at,
       contactPhone: (row.contact_phone as string | null) ?? null,
       contactInstagram: (row.contact_instagram as string | null) ?? null,
       activeOfferId:
         offers.find((o) => o.status === "offered" || o.status === "accepted")?.id ?? null,
+      holdAheadExpiresAt,
       buyerDeclaredSentAt: (row.buyer_declared_sent_at as string | null) ?? null,
       paymentRecordedAt: (row.payment_recorded_at as string | null) ?? null,
       ticketForwardedAt:

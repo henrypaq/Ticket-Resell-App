@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  belongsToLiveNight,
+  belongsToNightlifeDate,
   betaEventBySlug,
   boardSelectableEvents,
   eventDayDateKey,
+  formatNightStamp,
   goSelectableEvents,
   groupEventsByUpcomingDays,
   isPastNightlife,
   nightlifeDateKey,
+  sameQueueCohort,
   supportedBetaEvents,
   tonightEventOptions,
   type BetaEvent,
@@ -146,5 +150,30 @@ describe("beta-events and nightlife date calculations", () => {
         ([day, events]) => day !== "Monday" && events.some((e) => e.slug === "test-one-off"),
       ),
     ).toBe(false);
+  });
+
+  it("keeps recurring inventory and waitlist on the night they were created", () => {
+    const cafe = betaEventBySlug("cafe-campus");
+    const wednesday = new Date("2026-09-30T22:00:00Z"); // Wednesday evening EDT
+    const joinedThe24th = "2026-09-24T22:00:00Z";
+    const joinedTonight = "2026-09-30T18:00:00Z";
+
+    expect(formatNightStamp(joinedThe24th)).toBe("24/09/2026");
+    expect(formatNightStamp(wednesday)).toBe("30/09/2026");
+    expect(belongsToLiveNight(joinedThe24th, cafe, wednesday)).toBe(false);
+    expect(belongsToLiveNight(joinedTonight, cafe, wednesday)).toBe(true);
+    expect(belongsToNightlifeDate(joinedThe24th, cafe, "2026-09-24")).toBe(true);
+    expect(belongsToNightlifeDate(joinedThe24th, cafe, "2026-09-30")).toBe(false);
+    expect(sameQueueCohort(joinedThe24th, joinedTonight, cafe)).toBe(false);
+    expect(sameQueueCohort(joinedTonight, "2026-09-30T23:00:00Z", cafe)).toBe(true);
+  });
+
+  it("keeps other events' earlier nights out of tonight", () => {
+    const piknik = betaEventBySlug("piknik-electronik");
+    const wednesday = new Date("2026-09-30T22:00:00Z");
+    expect(belongsToLiveNight("2026-09-10T18:00:00Z", piknik, wednesday)).toBe(false);
+    expect(belongsToLiveNight("2026-09-14T22:00:00Z", undefined, wednesday)).toBe(false);
+    expect(belongsToLiveNight("2026-09-30T18:00:00Z", piknik, wednesday)).toBe(true);
+    expect(sameQueueCohort("2026-09-10T18:00:00Z", "2026-09-30T18:00:00Z", piknik)).toBe(false);
   });
 });

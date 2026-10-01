@@ -470,15 +470,18 @@ export async function submitQuickSellAction(
 export async function loadBuyAvailabilityAction(
   eventSlug: string,
   quantity: number,
+  nightDateKey?: string,
 ): Promise<{
   availableUnits: number;
   demandAhead: number;
   canCheckoutNow: boolean;
+  averagePriceEach: number | null;
 } | null> {
   const slug = (eventSlug || "").trim();
   if (!slug || slug.length > 80) return null;
+  const night = nightDateKey && /^\d{4}-\d{2}-\d{2}$/.test(nightDateKey) ? nightDateKey : undefined;
   const { previewBuyAvailability } = await import("@/domains/beta-matching/service");
-  return previewBuyAvailability(slug, quantity);
+  return previewBuyAvailability(slug, quantity, new Date(), night);
 }
 
 async function sellerOwnsLead(sellLeadId: string): Promise<boolean> {

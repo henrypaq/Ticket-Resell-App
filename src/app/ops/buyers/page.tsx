@@ -6,6 +6,8 @@ import { getBetaOpsSession } from "@/domains/beta-ops/auth";
 import { listOpsWaitlistEntries } from "@/domains/beta-ops/service";
 import { partitionWaitlistEntries } from "@/domains/beta-ops/shared";
 import { listRecentOffers } from "@/domains/beta-matching/service";
+import { loadBetaCatalog } from "@/domains/beta-events/catalog";
+import { formatNightStamp } from "@/lib/beta-events";
 
 export const metadata: Metadata = {
   title: "Buyers · Ops · mcgill.tickets",
@@ -17,12 +19,13 @@ export const dynamic = "force-dynamic";
 export default async function OpsBuyersPage() {
   if (!(await getBetaOpsSession())) redirect("/ops/login");
 
-  const [entries, offers] = await Promise.all([
+  const [entries, offers, catalog] = await Promise.all([
     listOpsWaitlistEntries(),
     listRecentOffers(200),
+    loadBetaCatalog(),
   ]);
 
-  const { active: tonight, past: previous } = partitionWaitlistEntries(entries);
+  const { active: tonight, past: previous } = partitionWaitlistEntries(entries, new Date(), catalog);
   tonight.sort((a, b) => a.displayedPosition - b.displayedPosition);
   previous.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -31,6 +34,7 @@ export default async function OpsBuyersPage() {
       <BuyersBoard
         tonight={tonight}
         previous={previous}
+        tonightLabel={formatNightStamp()}
         offers={offers as BuyerOfferRow[]}
       />
     </OpsChrome>

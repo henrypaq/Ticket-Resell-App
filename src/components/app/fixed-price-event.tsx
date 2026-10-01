@@ -125,6 +125,7 @@ export function FixedPriceEventScreen({
       lead: state.leadId,
       event: event.slug,
     });
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign(`/queue?${params.toString()}`);
   }, [state.ok, state.leadId, event.slug]);
 

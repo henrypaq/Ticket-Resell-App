@@ -10,6 +10,7 @@ import { BUTTON_CLASS } from "@/components/forms/field-styles";
 import { ArrowLeft } from "@/components/icons";
 import { AccountSetupEntry } from "./account-setup-entry";
 import { WaitlistSpotCard } from "./waitlist-edit";
+import { formatNightStamp } from "@/lib/beta-events";
 import { FlyerHero, JourneyScreen, LiveDots, useLiveRefresh } from "./journey";
 
 const QUEUE_WINDOW_MS = 20 * 60 * 1000;
@@ -109,15 +110,23 @@ function MarketplaceLineView({
                 <LiveDots active={refreshing} label="Live position" />
               </div>
             </div>
-            <p className="mt-4 text-[16px] leading-relaxed text-ink/90">
-              {ahead === 0
-                ? "You're at the front of the line."
-                : ahead === 1
-                  ? "There's 1 person ahead of you."
-                  : `There are ${ahead} people ahead of you.`}{" "}
-              When a ticket comes up at your price, we hold it just for you — nobody else can take
-              it while you decide.
-            </p>
+            {entry.onTonight === false ? (
+              <p className="mt-4 text-[16px] leading-relaxed text-ink/90">
+                This was your place on {formatNightStamp(entry.createdAt)}. That night has passed.
+              </p>
+            ) : entry.holdAheadExpiresAt ? (
+              <div className="mt-4">
+                <HoldAheadLine expiresAt={entry.holdAheadExpiresAt} peopleAhead={ahead} />
+              </div>
+            ) : (
+              <p className="mt-4 text-[16px] leading-relaxed text-ink/90">
+                {ahead === 0
+                  ? "You're first for tonight."
+                  : ahead === 1
+                    ? "1 person ahead of you tonight."
+                    : `${ahead} people ahead of you tonight.`}
+              </p>
+            )}
             <p className="mt-3 text-[14.5px] leading-relaxed text-muted">
               {reach ? `We'll message you ${reach} the moment it's yours. ` : ""}
               You can close this page — your spot is saved on home.
@@ -180,6 +189,7 @@ function FixedPriceQueueView({
   entry: QuickWaitlistEntry;
   onBack?: () => void;
 }) {
+  const router = useRouter();
   useLiveRefresh(!entry.ticketForwardedAt);
 
   if (entry.ticketForwardedAt) {
@@ -188,7 +198,7 @@ function FixedPriceQueueView({
 
   const atFront = entry.position <= 1;
   const goHome = onBack ?? (() => {
-    window.location.assign("/");
+    router.push("/");
   });
 
   return (
@@ -389,7 +399,7 @@ function TransferredBody({
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const email = entry.transferEmail;
   const goHome = onBack ?? (() => {
-    window.location.assign("/");
+    router.push("/");
   });
   const received = Boolean(entry.buyerConfirmedReceivedAt);
 
@@ -551,4 +561,52 @@ function formatCountdown(ms: number): string {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/** Live line under a waitlist seat: time left on the hold ahead, and who it moves to. */
+export function HoldAheadLine({
+  expiresAt,
+  peopleAhead,
+  compact = false,
+}: {
+  expiresAt: string;
+  peopleAhead: number;
+  compact?: boolean;
+}) {
+  const deadline = Date.parse(expiresAt);
+  const remaining = useCountdown(Number.isFinite(deadline) ? deadline : 0);
+  const clock = formatCountdown(remaining);
+  const people =
+    peopleAhead <= 0
+      ? null
+      : peopleAhead === 1
+        ? "1 person ahead"
+        : `${peopleAhead} people ahead`;
+  const outcome =
+    remaining <= 0
+      ? "Moving to the next person."
+      : peopleAhead <= 1
+        ? "If they don't accept, it's yours."
+        : "If they don't accept, it goes to the next person.";
+
+  return (
+    <p
+      className={
+        compact
+          ? "mt-0.5 truncate text-[12.5px] leading-snug text-muted"
+          : "text-[16px] leading-relaxed text-ink/90"
+      }
+    >
+      <span className="font-ui font-semibold tabular-nums text-ink">{clock}</span>
+      {" left"}
+      {people ? (
+        <>
+          {" · "}
+          <span className="font-ui font-semibold tabular-nums text-ink">{people}</span>
+        </>
+      ) : null}
+      {". "}
+      {outcome}
+    </p>
+  );
 }

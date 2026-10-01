@@ -203,6 +203,62 @@ export function isPastNightlife(isoTimestamp: string, now: Date = new Date()): b
   }
 }
 
+/** Nightlife date a lead or listing was created on, or null if the timestamp is junk. */
+export function nightlifeDateKeyFromIso(isoTimestamp: string): string | null {
+  try {
+    const created = new Date(isoTimestamp);
+    if (Number.isNaN(created.getTime())) return null;
+    return nightlifeDateKey(created);
+  } catch {
+    return null;
+  }
+}
+
+/** "30/09/2026" for a nightlife instant — the date ops and buyers should see. */
+export function formatNightStamp(isoOrDate: string | Date = new Date()): string {
+  const key =
+    typeof isoOrDate === "string" ? nightlifeDateKeyFromIso(isoOrDate) : nightlifeDateKey(isoOrDate);
+  if (!key) return "";
+  const [y, m, d] = key.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+type NightScopedEvent = Pick<BetaEvent, "days" | "extraDateKeys">;
+
+/**
+ * A lead or listing belongs to exactly one nightlife date: the night it was
+ * created. Café, a one-off, and an undated interest all follow that rule, so
+ * a 10/09 Piknik signup is not in the 30/09 line.
+ */
+export function belongsToNightlifeDate(
+  createdAtIso: string,
+  _event: NightScopedEvent | undefined,
+  nightDateKey: string,
+): boolean {
+  const created = nightlifeDateKeyFromIso(createdAtIso);
+  return created != null && created === nightDateKey;
+}
+
+/** Live for matching, public counts, and ops "tonight". */
+export function belongsToLiveNight(
+  createdAtIso: string,
+  event: NightScopedEvent | undefined,
+  now: Date = new Date(),
+): boolean {
+  return belongsToNightlifeDate(createdAtIso, event, nightlifeDateKey(now));
+}
+
+/** Two seats share a queue number only when they joined the same night. */
+export function sameQueueCohort(
+  aCreatedAt: string,
+  bCreatedAt: string,
+  _event: NightScopedEvent | undefined,
+): boolean {
+  const a = nightlifeDateKeyFromIso(aCreatedAt);
+  const b = nightlifeDateKeyFromIso(bCreatedAt);
+  return a != null && a === b;
+}
+
 export type EventDaySchedule = {
   day: BetaWeekday;
   dateKey: string;
